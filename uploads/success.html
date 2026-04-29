@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>colophon — you're in.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --ink: #0d1014; --ink-soft: #2a2f36; --paper: #f4ede2; --paper-warm: #ebe1d1; --rule: rgba(13, 16, 20, 0.18); --accent: #b1542a; --serif: 'Fraunces', serif; --sans: 'Inter', sans-serif; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; text-transform: lowercase; min-height: 100vh; }
+  body::after { content: ''; position: fixed; inset: 0; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.05 0 0 0 0 0.06 0 0 0 0 0.07 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.12'/%3E%3C/svg%3E"); opacity: 0.4; mix-blend-mode: multiply; z-index: 1; }
+  main { position: relative; z-index: 2; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 40px 24px; }
+  
+  .card { max-width: 640px; width: 100%; text-align: center; }
+  .check { width: 56px; height: 56px; border: 1.5px solid var(--accent); border-radius: 50%; margin: 0 auto 28px; display: flex; align-items: center; justify-content: center; color: var(--accent); font-family: var(--serif); font-style: italic; font-size: 32px; }
+  
+  h1 { font-family: var(--serif); font-weight: 300; font-size: clamp(40px, 6vw, 64px); line-height: 1; letter-spacing: -0.025em; margin-bottom: 20px; }
+  h1 em { font-style: italic; color: var(--accent); }
+  
+  .lede { font-family: var(--serif); font-size: 17px; color: var(--ink-soft); margin-bottom: 36px; line-height: 1.5; max-width: 50ch; margin-left: auto; margin-right: auto; }
+
+  .link-box { background: rgba(255,255,255,0.6); border: 1px solid var(--rule); border-radius: 10px; padding: 22px 24px; display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .link-box input { flex: 1; background: transparent; border: none; font-family: var(--serif); font-size: 14px; color: var(--ink); outline: none; text-transform: lowercase; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .copy-btn { background: var(--ink); color: var(--paper); border: 1px solid var(--ink); border-radius: 999px; padding: 9px 18px; font-size: 12px; cursor: pointer; transition: all 0.2s; flex-shrink: 0; font-family: var(--sans); text-transform: lowercase; letter-spacing: 0.04em; }
+  .copy-btn:hover { background: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { background: var(--accent); border-color: var(--accent); }
+
+  .open-btn { display: inline-flex; align-items: center; gap: 10px; background: var(--ink); color: var(--paper); padding: 16px 32px; border-radius: 999px; font-size: 13px; letter-spacing: 0.06em; transition: all 0.2s; border: 1px solid var(--ink); margin-top: 10px; text-decoration: none; }
+  .open-btn:hover { background: var(--accent); border-color: var(--accent); }
+  .open-btn::after { content: '→'; transition: transform 0.2s; }
+  .open-btn:hover::after { transform: translateX(3px); }
+
+  .small-print { font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--ink-soft); margin-top: 28px; line-height: 1.6; max-width: 44ch; margin-left: auto; margin-right: auto; }
+  .small-print em { font-style: normal; color: var(--ink); }
+
+  .divider { width: 40px; height: 1px; background: var(--rule); margin: 40px auto; }
+
+  .next { font-family: var(--serif); font-size: 14px; color: var(--ink-soft); }
+  .next a { color: var(--accent); text-decoration: none; }
+  .next a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<main>
+  <div class="card">
+    <div class="check">✓</div>
+    <h1>you're <em>in.</em></h1>
+    <p class="lede success-message">payment received. the bench is open. we sent your link to the email you used at checkout — and it's right here too.</p>
+
+    <div class="link-box access-section">
+      <input id="accessLink" readonly value="" />
+      <button class="copy-btn" id="copyBtn" onclick="copyLink()">copy</button>
+    </div>
+
+    <a class="open-btn access-section" id="openBtn" href="#">open the bench</a>
+
+    <p class="small-print">
+      <em>bookmark it.</em> this link is your access. no password, no account. it expires when your pass does — at which point a new one is one click away.
+    </p>
+
+    <div class="divider"></div>
+
+    <p class="next">
+      questions? <a href="mailto:hello@colophon.xyz">say hello</a>.
+    </p>
+  </div>
+</main>
+
+<script>
+  // Handle both bench access and concierge payments
+  function getQueryParam(name) {
+    return new URLSearchParams(window.location.search).get(name);
+  }
+  
+  function generateToken() {
+    return Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 8);
+  }
+  
+  const sessionId = getQueryParam('session_id');
+  
+  // Check if this is a concierge payment
+  const storedConciergeData = localStorage.getItem('conciergeFormData');
+  
+  if (storedConciergeData && sessionId) {
+    // Handle concierge payment
+    handleConciergePayment(JSON.parse(storedConciergeData), sessionId);
+  } else {
+    // Handle regular bench access payment
+    handleBenchPayment();
+  }
+  
+  function handleConciergePayment(data, sessionId) {
+    // Update page content for concierge
+    document.querySelector('h1').textContent = 'Concierge Request Submitted!';
+    document.querySelector('.success-message').innerHTML = `
+      <p><strong>Your concierge matching request has been confirmed.</strong></p>
+      <p>We'll deliver 3-5 hand-picked matches to <strong>${data.email}</strong> within 48 hours.</p>
+      <p style="margin-top: 20px; font-size: 14px; color: #666;">
+        A confirmation email with your project details is being sent to merdenberger@gmail.com
+      </p>
+    `;
+    
+    // Hide bench access section
+    document.querySelector('.access-section').style.display = 'none';
+    
+    // Send confirmation email
+    sendConciergeEmail(data, sessionId);
+    localStorage.removeItem('conciergeFormData');
+  }
+  
+  function handleBenchPayment() {
+    // Original bench access logic
+    const token = sessionId ? sessionId.slice(-16) : generateToken();
+    const baseUrl = window.location.origin + window.location.pathname.replace('success.html', 'bench.html');
+    const fullLink = `${baseUrl}?key=${token}`;
+    
+    document.getElementById('accessLink').value = fullLink;
+    document.getElementById('openBtn').href = fullLink;
+  }
+  
+  function sendConciergeEmail(data, sessionId) {
+    const subject = `Concierge Matching Request - ${data.name} (${data.company || 'Company TBD'}) - PAID`;
+    const body = `
+CONCIERGE MATCHING REQUEST - PAYMENT CONFIRMED
+
+Stripe Session ID: ${sessionId}
+
+Contact Information:
+Name: ${data.name}
+Email: ${data.email}
+Company: ${data.company || 'Not specified'}
+
+Project Details:
+Timeline: ${data.timeline}
+Discipline: ${data.discipline}
+Experience Level: ${data.experience}
+Budget Range: ${data.budget || 'Not specified'}
+Duration: ${data.duration || 'Not specified'}
+
+Project Description:
+${data.project}
+
+Specific Requirements:
+${data.requirements || 'None specified'}
+
+---
+Service: Concierge Matching ($499) - PAYMENT CONFIRMED
+Stripe Session: ${sessionId}
+Expected delivery: 48 hours from payment confirmation
+
+Customer will expect delivery within 48 hours.
+    `.trim();
+    
+    const mailtoLink = `mailto:merdenberger@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    
+    // Auto-open email after delay
+    setTimeout(() => {
+      window.location.href = mailtoLink;
+    }, 2000);
+  }
+  
+  function copyLink() {
+    const input = document.getElementById('accessLink');
+    input.select();
+    input.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(input.value).then(() => {
+      const btn = document.getElementById('copyBtn');
+      btn.textContent = 'copied';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 2000);
+    });
+  }
+</script>
+
+</body>
+</html>

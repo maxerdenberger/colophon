@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>colophon — apply to the bench.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --ink: #0d1014; --ink-soft: #2a2f36; --paper: #f4ede2; --paper-warm: #ebe1d1; --rule: rgba(13, 16, 20, 0.18); --accent: #b1542a; --serif: 'Fraunces', serif; --sans: 'Inter', sans-serif; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; text-transform: lowercase; }
+  .keep-case, input[type="email"], input[type="url"] { text-transform: none; }
+  body::after { content: ''; position: fixed; inset: 0; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.05 0 0 0 0 0.06 0 0 0 0 0.07 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.12'/%3E%3C/svg%3E"); opacity: 0.4; mix-blend-mode: multiply; z-index: 1; }
+  main, header, footer { position: relative; z-index: 2; }
+  a { color: inherit; text-decoration: none; }
+
+  header { display: flex; justify-content: space-between; align-items: center; padding: 22px 40px; border-bottom: 1px solid var(--rule); }
+  .logo { font-family: var(--serif); font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .mark { width: 20px; height: 20px; border: 1.5px solid var(--ink); border-radius: 50%; position: relative; }
+  .logo .mark::after { content: ''; position: absolute; inset: 4px; background: var(--ink); border-radius: 50%; }
+  .logo em { font-style: italic; font-weight: 300; }
+  header a.back { font-size: 13px; color: var(--ink-soft); }
+  header a.back:hover { color: var(--accent); }
+
+  .intro { max-width: 720px; margin: 0 auto; padding: 60px 24px 32px; text-align: center; }
+  .intro h1 { font-family: var(--serif); font-weight: 300; font-size: clamp(40px, 6vw, 72px); line-height: 1; letter-spacing: -0.025em; margin-bottom: 20px; }
+  .intro h1 em { font-style: italic; color: var(--accent); }
+  .intro p { font-family: var(--serif); font-size: 16px; color: var(--ink-soft); max-width: 56ch; margin: 0 auto 18px; line-height: 1.55; }
+  .intro .note { font-family: var(--serif); font-style: italic; font-size: 14px; color: var(--ink-soft); margin-top: 14px; }
+
+  .form-wrap { max-width: 680px; margin: 20px auto 80px; padding: 0 24px; }
+  .form-card { background: rgba(255,255,255,0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--rule); border-radius: 8px; padding: 36px; box-shadow: 0 12px 40px -16px rgba(13,16,20,0.12); }
+
+  .section { margin-bottom: 32px; padding-bottom: 28px; border-bottom: 1px solid var(--rule); }
+  .section:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+
+  .section h2 { font-family: var(--serif); font-size: 20px; font-weight: 400; letter-spacing: -0.01em; margin-bottom: 16px; }
+  .section h2 em { font-style: italic; color: var(--accent); }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 11px; letter-spacing: 0.08em; color: var(--ink-soft); margin-bottom: 8px; }
+  .field input, .field select, .field textarea { width: 100%; background: rgba(255,255,255,0.6); border: 1px solid var(--rule); border-radius: 4px; padding: 12px 14px; font-family: var(--serif); font-size: 16px; color: var(--ink); outline: none; transition: all 0.2s; text-transform: lowercase; }
+  .field input[type="email"], .field input[type="url"] { text-transform: none; }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--ink); background: rgba(255,255,255,0.9); }
+  .field textarea { min-height: 100px; resize: vertical; font-family: var(--serif); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 540px) { .field-row { grid-template-columns: 1fr; } }
+
+  .submit-btn { width: 100%; padding: 16px; background: var(--ink); color: var(--paper); border: 1px solid var(--ink); border-radius: 999px; font-size: 13px; letter-spacing: 0.08em; cursor: pointer; transition: all 0.2s; font-family: var(--sans); display: inline-flex; align-items: center; justify-content: center; gap: 10px; margin-top: 20px; text-transform: lowercase; }
+  .submit-btn:hover { background: var(--accent); border-color: var(--accent); }
+  .submit-btn::after { content: '→'; transition: transform 0.2s; }
+  .submit-btn:hover::after { transform: translateX(3px); }
+
+  .form-foot { font-family: var(--serif); font-style: italic; font-size: 12px; color: var(--ink-soft); margin-top: 16px; text-align: center; opacity: 0.8; }
+
+  /* Success state */
+  .success-state { display: none; text-align: center; padding: 60px 24px; max-width: 580px; margin: 0 auto; }
+  .success-state.show { display: block; }
+  .success-state .check { width: 56px; height: 56px; border: 1.5px solid var(--accent); border-radius: 50%; margin: 0 auto 24px; display: flex; align-items: center; justify-content: center; color: var(--accent); font-family: var(--serif); font-style: italic; font-size: 32px; }
+  .success-state h2 { font-family: var(--serif); font-size: clamp(32px, 5vw, 48px); font-weight: 300; line-height: 1.05; letter-spacing: -0.025em; margin-bottom: 18px; }
+  .success-state h2 em { font-style: italic; color: var(--accent); }
+  .success-state p { font-family: var(--serif); font-size: 16px; color: var(--ink-soft); line-height: 1.55; margin-bottom: 14px; }
+
+  footer { border-top: 1px solid var(--rule); padding: 32px 40px; display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-soft); flex-wrap: wrap; gap: 16px; }
+  footer .colo { font-family: var(--serif); font-style: italic; font-size: 14px; }
+  footer a:hover { color: var(--accent); }
+
+  @media (max-width: 720px) {
+    header { padding: 18px 20px; }
+    .intro { padding: 40px 20px 24px; }
+    .form-wrap { padding: 0 16px; margin-bottom: 60px; }
+    .form-card { padding: 28px 22px; }
+    footer { padding: 24px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="logo">
+    <span class="mark"></span>
+    <span>colo<em>phon</em></span>
+  </a>
+  <a href="index.html" class="back">← back</a>
+</header>
+
+<main>
+
+  <div id="formView">
+
+    <section class="intro">
+      <h1>apply to the <em>bench.</em></h1>
+      <p>
+        we say no to most people. not because they're bad, but because the bench only works if every name on it is someone we'd hire ourselves.
+      </p>
+      <p>
+        if that sounds like the kind of room you want to be in, fill out the form below.
+      </p>
+      <p class="note">takes about 3 minutes. someone reads every application.</p>
+    </section>
+
+    <section class="form-wrap">
+      <div class="form-card">
+        <form id="applyForm" onsubmit="handleSubmit(event)">
+
+          <!-- Basic info -->
+          <div class="section">
+            <h2><em>basic</em> info.</h2>
+            
+            <div class="field-row">
+              <div class="field">
+                <label>full name</label>
+                <input type="text" id="name" required />
+              </div>
+              <div class="field">
+                <label>email</label>
+                <input type="email" id="email" required />
+              </div>
+            </div>
+
+            <div class="field">
+              <label>portfolio link</label>
+              <input type="url" id="portfolio" placeholder="https://yourwork.com" required />
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label>primary discipline</label>
+                <select id="discipline" required>
+                  <option value="">choose one</option>
+                  <option value="copywriter">copywriter</option>
+                  <option value="art director">art director</option>
+                  <option value="creative director">creative director</option>
+                  <option value="designer">designer</option>
+                  <option value="brand strategist">brand strategist</option>
+                  <option value="director">director</option>
+                  <option value="editorial writer">editorial writer</option>
+                  <option value="ux writer">ux writer</option>
+                  <option value="motion designer">motion designer</option>
+                  <option value="other">other</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>years of experience</label>
+                <select id="experience" required>
+                  <option value="">select range</option>
+                  <option value="4–7 yrs">4–7 years</option>
+                  <option value="8–12 yrs">8–12 years</option>
+                  <option value="12+ yrs">12+ years</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Work details -->
+          <div class="section">
+            <h2><em>work</em> details.</h2>
+            
+            <div class="field-row">
+              <div class="field">
+                <label>hourly rate (usd)</label>
+                <input type="text" id="hourlyRate" placeholder="200" />
+              </div>
+              <div class="field">
+                <label>minimum project fee</label>
+                <input type="text" id="minFee" placeholder="5000" />
+              </div>
+            </div>
+
+            <div class="field">
+              <label>current availability</label>
+              <select id="availability" required>
+                <option value="available">immediate — ready within a week</option>
+                <option value="soon">2–4 weeks out</option>
+                <option value="booked">booked, but interested</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>three recent clients or projects</label>
+              <input type="text" id="clients" placeholder="client a, project b, agency c" />
+            </div>
+          </div>
+
+          <!-- Referral -->
+          <div class="section">
+            <h2><em>who</em> sent you.</h2>
+            
+            <div class="field">
+              <label>who referred you to colophon?</label>
+              <input type="text" id="referral" placeholder="name of person or how you heard about us" required />
+            </div>
+          </div>
+
+          <!-- Pitch -->
+          <div class="section">
+            <h2><em>tell us</em> about you.</h2>
+            
+            <div class="field">
+              <label>in 2-3 sentences, what makes you good at what you do?</label>
+              <textarea id="pitch" placeholder="what's your thing? what do you bring that others don't? what kind of work gets you excited?" required></textarea>
+            </div>
+          </div>
+
+          <button class="submit-btn" type="submit">send application</button>
+          <div class="form-foot">we read everything and reply to most applications within a week.</div>
+        </form>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Success state -->
+  <section class="success-state" id="successView">
+    <div class="check">✓</div>
+    <h2>application <em>received.</em></h2>
+    <p>thanks for applying. we read every submission and will get back to you within a week — usually sooner.</p>
+    <p>if you're a good fit, we'll add you to the bench and let you know when your card goes live.</p>
+  </section>
+
+</main>
+
+<footer>
+  <div class="colo">colophon</div>
+  <div>the bench is private. the work is public.</div>
+  <div>
+    <a href="index.html">home</a> ·
+    <a href="mailto:hello@colophon.xyz">say hello</a>
+  </div>
+</footer>
+
+<script>
+  function handleSubmit(e) {
+    e.preventDefault();
+    
+    // Collect data
+    const payload = {
+      name: document.getElementById('name').value,
+      email: document.getElementById('email').value,
+      portfolio: document.getElementById('portfolio').value,
+      discipline: document.getElementById('discipline').value,
+      experience: document.getElementById('experience').value,
+      hourlyRate: document.getElementById('hourlyRate').value,
+      minFee: document.getElementById('minFee').value,
+      availability: document.getElementById('availability').value,
+      clients: document.getElementById('clients').value,
+      referral: document.getElementById('referral').value,
+      pitch: document.getElementById('pitch').value,
+      submittedAt: new Date().toISOString(),
+    };
+    
+    // PRODUCTION: POST to your endpoint (Sheets webhook, Make, Zapier, etc.)
+    console.log('[application submission]', payload);
+    // fetch('YOUR_APPLICATION_WEBHOOK_URL', { method: 'POST', body: JSON.stringify(payload) });
+    
+    // Show success
+    document.getElementById('formView').style.display = 'none';
+    document.getElementById('successView').classList.add('show');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+</script>
+
+</body>
+</html>

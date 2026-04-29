@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>colophon — ping email preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #e8e5de; font-family: 'IBM Plex Mono', monospace; padding: 40px 20px; min-height: 100vh; }
+  .preview-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #888; text-transform: lowercase; text-align: center; margin-bottom: 24px; }
+  .email-wrap { max-width: 560px; margin: 0 auto; background: #f4f1ec; border: 1px solid rgba(13,13,11,0.12); }
+</style>
+</head>
+<body>
+
+<p class="preview-label">colophon — availability ping — email preview</p>
+
+<div class="email-wrap">
+
+  <!-- email header -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="padding: 28px 40px 24px; border-bottom: 1px solid rgba(13,13,11,0.1);">
+        <span style="font-family: 'Space Grotesk', Georgia, serif; font-weight: 700; font-size: 16px; letter-spacing: -0.02em; color: #0d0d0b;">
+          colo<span style="color: #ff5100;">phon</span>
+        </span>
+      </td>
+    </tr>
+  </table>
+
+  <!-- body -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="padding: 44px 40px 0;">
+
+        <!-- eyebrow -->
+        <p style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 10px; letter-spacing: 0.14em; color: #888580; text-transform: lowercase; margin-bottom: 24px;">
+          availability check — 20 days
+        </p>
+
+        <!-- headline -->
+        <h1 style="font-family: 'Space Grotesk', Georgia, serif; font-weight: 700; font-size: 36px; line-height: 0.95; letter-spacing: -0.035em; color: #0d0d0b; margin-bottom: 24px; text-transform: lowercase;">
+          still on the bench,<br/><span style="color: #ff5100;">roland barthes?</span>
+        </h1>
+
+        <!-- body copy -->
+        <p style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 12px; line-height: 1.75; color: #888580; margin-bottom: 8px; text-transform: lowercase;">
+          it's been 20 days. one tap is all we need.
+        </p>
+        <p style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 12px; line-height: 1.75; color: #888580; margin-bottom: 36px; text-transform: lowercase;">
+          your status on the bench right now: <span style="color: #2a8a3a;">● available</span>
+        </p>
+
+        <!-- three status buttons -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 40px;">
+          <tr>
+            <td style="padding-bottom: 10px;">
+              <!-- available -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background: #0d0d0b; padding: 0;">
+                    <a href="https://colophon.co/api/update?id=CREATIVE_ID&status=available&token=TOKEN"
+                       style="display: block; padding: 16px 24px; font-family: 'IBM Plex Mono', Courier, monospace; font-size: 11px; letter-spacing: 0.08em; color: #f4f1ec; text-decoration: none; text-transform: lowercase;">
+                      <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #2a8a3a; margin-right: 10px; vertical-align: middle;"></span>
+                      still available — keep me on the bench
+                      <span style="float: right; opacity: 0.4;">→</span>
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-bottom: 10px;">
+              <!-- soon -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background: #f4f1ec; border: 1px solid rgba(13,13,11,0.12); padding: 0;">
+                    <a href="https://colophon.co/api/update?id=CREATIVE_ID&status=soon&token=TOKEN"
+                       style="display: block; padding: 16px 24px; font-family: 'IBM Plex Mono', Courier, monospace; font-size: 11px; letter-spacing: 0.08em; color: #0d0d0b; text-decoration: none; text-transform: lowercase;">
+                      <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #c87c18; margin-right: 10px; vertical-align: middle;"></span>
+                      available in 2–4 weeks
+                      <span style="float: right; opacity: 0.3;">→</span>
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <!-- booked -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background: #f4f1ec; border: 1px solid rgba(13,13,11,0.12); padding: 0;">
+                    <a href="https://colophon.co/api/update?id=CREATIVE_ID&status=booked&token=TOKEN"
+                       style="display: block; padding: 16px 24px; font-family: 'IBM Plex Mono', Courier, monospace; font-size: 11px; letter-spacing: 0.08em; color: #0d0d0b; text-decoration: none; text-transform: lowercase;">
+                      <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #b04040; margin-right: 10px; vertical-align: middle;"></span>
+                      fully booked right now — remove me for now
+                      <span style="float: right; opacity: 0.3;">→</span>
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <!-- divider -->
+        <hr style="border: none; border-top: 1px solid rgba(13,13,11,0.1); margin-bottom: 28px;"/>
+
+        <!-- fine print -->
+        <p style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 10px; line-height: 1.75; color: #888580; margin-bottom: 8px; text-transform: lowercase;">
+          one tap. that's it. no login, no form.<br/>
+          we send this every 20 days to keep the bench current.
+        </p>
+        <p style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 10px; line-height: 1.75; color: #888580; margin-bottom: 32px; text-transform: lowercase;">
+          if you'd like to update your rates or portfolio link, reply to this email.
+        </p>
+
+      </td>
+    </tr>
+  </table>
+
+  <!-- footer -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="padding: 24px 40px 28px; border-top: 1px solid rgba(13,13,11,0.1);">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td>
+              <span style="font-family: 'Space Grotesk', Georgia, serif; font-weight: 700; font-size: 13px; letter-spacing: -0.02em; color: #0d0d0b;">
+                colo<span style="color: #ff5100;">phon</span>
+              </span>
+              <span style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 10px; color: #888580; margin-left: 12px;">
+                the bench is private. the work is public.
+              </span>
+            </td>
+            <td style="text-align: right;">
+              <a href="https://colophon.co/api/unsubscribe?id=CREATIVE_ID&token=TOKEN"
+                 style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 10px; color: #888580; text-decoration: none; text-transform: lowercase; letter-spacing: 0.06em;">
+                leave the bench →
+              </a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</div>
+
+<!-- preview controls -->
+<div style="max-width: 560px; margin: 32px auto 0; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #888; display: flex; gap: 20px; justify-content: center; letter-spacing: 0.1em; text-transform: lowercase;">
+  <span>this is what every creative receives every 20 days.</span>
+</div>
+
+<!-- Vercel API route notes -->
+<div style="max-width: 560px; margin: 32px auto 0; padding: 20px 24px; background: #f4f1ec; border: 1px solid rgba(13,13,11,0.1);">
+  <p style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.12em; color: #888; margin-bottom: 12px; text-transform: uppercase;">production wiring</p>
+  <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #555; line-height: 1.85;">
+    <div><strong style="color: #0d0d0b;">api/ping.js</strong> — cron runs every 20 days, sends this email via Resend to every creative</div>
+    <div style="margin-top: 6px;"><strong style="color: #0d0d0b;">api/update.js</strong> — one-click handler: validates token, updates availability in Google Sheet</div>
+    <div style="margin-top: 6px;"><strong style="color: #0d0d0b;">vercel.json</strong> — <code style="background: #e8e5de; padding: 1px 5px;">"schedule": "0 9 */20 * *"</code> (9am every 20 days)</div>
+    <div style="margin-top: 6px;"><strong style="color: #0d0d0b;">env vars needed</strong> — RESEND_API_KEY · SHEETS_API_KEY · UPDATE_SECRET</div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>colophon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 14px; }
+  body { background: #1a1a18; -webkit-font-smoothing: antialiased; text-transform: lowercase; }
+  #root { min-height: 100vh; }
+  input, textarea, select, button { font-size: inherit; }
+  ::-webkit-scrollbar { width: 6px; } 
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); }
+  ::placeholder { opacity: 0.35; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const { useState, useEffect, useRef } = React;
+
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+
+const GS  = "'Space Grotesk', sans-serif";
+const GM  = "'IBM Plex Mono', monospace";
+
+const DISC_META = {
+  'creative direction': { bg:'#1b3d27', fg:'#72b586', tag:'cd' },
+  'copywriting':        { bg:'#181816', fg:'#c8c0b0', tag:'cw' },
+  'brand strategy':     { bg:'#192438', fg:'#6e9ab8', tag:'bs' },
+  'art direction':      { bg:'#3a1e0c', fg:'#d07840', tag:'ad' },
+  'ux writing':         { bg:'#271b3a', fg:'#9a72c4', tag:'ux' },
+};
+
+const AVAIL = {
+  available: { dot:'#4a9a5a', label:'now'  },
+  soon:      { dot:'#c8982a', label:'1–2w' },
+  booked:    { dot:'#a04040', label:'—'    },
+};
+
+const BENCH = [
+  { id:1,  name:'simone weil',       discipline:'creative direction', availability:'available', location:'new york',     yoe:14, agencies:['wieden+kennedy','mother london'], note:'conceptual work with genuine philosophical weight. no lazy ideas.' },
+  { id:2,  name:'roland barthes',    discipline:'copywriting',        availability:'soon',      location:'london',       yoe:9,  agencies:['bbh','droga5'],          note:'semiotically precise. every word earns its place on the page.' },
+  { id:3,  name:'susan sontag',      discipline:'brand strategy',     availability:'booked',    location:'berlin',       yoe:11, agencies:['ideo','wolff olins'],     note:'cultural analysis as competitive advantage. sharp, never obvious.' },
+  { id:4,  name:'dieter rams',       discipline:'art direction',      availability:'available', location:'amsterdam',   yoe:17, agencies:['anomaly','collins'],      note:'systematic beauty. nothing added without reason. nothing removed by habit.' },
+  { id:5,  name:'donna haraway',     discipline:'ux writing',         availability:'soon',      location:'san francisco',yoe:7,  agencies:['ueno','huge'],            note:'human-centered language at machine scale. empathy baked in.' },
+  { id:6,  name:'walter benjamin',   discipline:'creative direction', availability:'booked',    location:'paris',        yoe:12, agencies:['betc','publicis'],        note:'aura-preserving work in an age of mechanical reproduction.' },
+  { id:7,  name:'adrienne rich',     discipline:'copywriting',        availability:'available', location:'chicago',      yoe:8,  agencies:['leo burnett','ddb'],      note:'transformative language. authentic voice, every time.' },
+  { id:8,  name:'marshall mcluhan',  discipline:'brand strategy',     availability:'available', location:'toronto',      yoe:15, agencies:['sid lee','lg2'],          note:'the medium IS the message. understands both deeply.' },
+  { id:9,  name:'john berger',       discipline:'art direction',      availability:'booked',    location:'milan',        yoe:20, agencies:['armando testa','y&r'],    note:'ways of seeing, applied. makes you stop. makes you look again.' },
+  { id:10, name:'hélène cixous',     discipline:'ux writing',         availability:'soon',      location:'remote',       yoe:5,  agencies:['ibm','thoughtworks'],     note:'experimental language structures. radical user empathy.' },
+  { id:11, name:'theodor adorno',    discipline:'creative direction', availability:'available', location:'new york',     yoe:16, agencies:["chiat/day",'r/ga'],      note:'critical theory applied to briefs. refuses the easy answer.' },
+  { id:12, name:'virginia woolf',    discipline:'copywriting',        availability:'booked',    location:'london',       yoe:10, agencies:['ogilvy','vccp'],          note:'stream of consciousness as brand voice. interior monologue as strategy.' },
+];
+
+// ─── VARIANTS ─────────────────────────────────────────────────────────────────
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "variant": "wild",
+  "accent": "#ff5100"
+}/*EDITMODE-END*/;
+
+const VARIANT_DEFS = {
+  safe: { heroBg:'#1a1a18', heroInk:'#f0ece2', warmBg:'#f2ece0', warmInk:'#0d1014' },
+  bold: { heroBg:'#0a0a08', heroInk:'#ffffff',  warmBg:'#f2ece0', warmInk:'#0d1014' },
+  wild: { heroBg:'#1a1a18', heroInk:'#f0ece2', warmBg:'#1a1a18', warmInk:'#f0ece2' },
+};
+
+// ─── SHARED HELPERS ───────────────────────────────────────────────────────────
+
+function Dot({ status, size=7 }) {
+  return <span style={{ display:'inline-block', width:size, height:size, borderRadius:'50%', background: AVAIL[status].dot, flexShrink:0 }} />;
+}
+
+function Tag({ label, color }) {
+  return (
+    <span style={{ fontFamily:GM, fontSize:9, letterSpacing:'0.12em', color, border:`1px solid ${color}`, padding:'2px 6px', opacity:0.7 }}>
+      {label}
+    </span>
+  );
+}
+
+// ─── BENCH TABLE ──────────────────────────────────────────────────────────────
+
+function BenchTable({ clientMode, accent }) {
+  const [expanded, setExpanded] = useState(null);
+  const rule = 'rgba(255,255,255,0.07)';
+  const rows = clientMode ? BENCH.filter(p => p.availability !== 'booked') : BENCH;
+  const COLS = '2fr 1.4fr 52px 100px 110px 28px';
+
+  return (
+    <div style={{ fontFamily:GM, fontSize:12 }}>
+      {/* column headers */}
+      <div style={{ display:'grid', gridTemplateColumns:COLS, padding:'8px 32px', borderBottom:`1px solid ${rule}`, color:'rgba(240,236,226,0.28)', fontSize:10, letterSpacing:'0.1em' }}>
+        <span>name</span><span>discipline</span><span>avl</span><span>city</span><span>rate/day</span><span></span>
+      </div>
+
+      {rows.map(p => {
+        const dm = DISC_META[p.discipline];
+        const isOpen = expanded === p.id;
+        return (
+          <div key={p.id}>
+            <div
+              onClick={() => setExpanded(isOpen ? null : p.id)}
+              style={{ display:'grid', gridTemplateColumns:COLS, padding:'11px 32px', borderBottom:`1px solid ${rule}`, background: dm.bg, cursor:'pointer', alignItems:'center', transition:'filter 0.1s' }}
+            >
+              <span style={{ color: dm.fg, fontWeight: isOpen ? 500 : 400, letterSpacing:'0.01em' }}>{p.name}</span>
+              <span style={{ color:'rgba(240,236,226,0.42)', fontSize:11 }}>{p.discipline}</span>
+              <span style={{ display:'flex', alignItems:'center', gap:5 }}>
+                <Dot status={p.availability} />
+              </span>
+              <span style={{ color:'rgba(240,236,226,0.32)', fontSize:10 }}>{p.location}</span>
+              <span style={{ color:'rgba(240,236,226,0.15)', fontSize:10, userSelect:'none', letterSpacing:'0.04em',
+                filter: clientMode ? 'none' : 'blur(2.5px)' }}>
+                {clientMode ? '—' : '██████ /day'}
+              </span>
+              <span style={{ color:'rgba(240,236,226,0.25)', fontSize:11, textAlign:'right' }}>{isOpen ? '↑' : '↓'}</span>
+            </div>
+
+            {isOpen && (
+              <div style={{ padding:'22px 32px 26px', background:'rgba(0,0,0,0.25)', borderBottom:`1px solid ${rule}` }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 140px', gap:32, maxWidth:720 }}>
+                  <div>
+                    <p style={{ fontFamily:GS, fontSize:14, fontStyle:'italic', color:'rgba(240,236,226,0.72)', lineHeight:1.55, marginBottom:14, textTransform:'none' }}>
+                      "{p.note}"
+                    </p>
+                    <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                      {p.agencies.map(a => (
+                        <span key={a} style={{ border:'1px solid rgba(255,255,255,0.12)', padding:'3px 10px', fontSize:10, color:'rgba(240,236,226,0.38)', letterSpacing:'0.05em' }}>{a}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                    <span style={{ fontSize:10, color:'rgba(240,236,226,0.3)', letterSpacing:'0.1em' }}>yrs exp</span>
+                    <span style={{ fontFamily:GS, fontSize:42, fontWeight:600, color: dm.fg, lineHeight:1 }}>{p.yoe}</span>
+                    <Tag label={dm.tag} color={dm.fg} />
+                    {clientMode && p.availability !== 'booked' && (
+                      <button style={{ marginTop:10, fontFamily:GM, fontSize:10, letterSpacing:'0.08em', border:`1px solid ${accent}`, background:'transparent', color: accent, padding:'8px 14px', cursor:'pointer' }}>
+                        request intro →
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── PAGES ───────────────────────────────────────────────────────────────────
+
+function HomePage({ setPage, variant, accent }) {
+  const vd = VARIANT_DEFS[variant];
+  if (variant === 'wild') return <WildPage setPage={setPage} accent={accent} />;
+
+  const softWarm = '#888';
+  const isBold = variant === 'bold';
+
+  return (
+    <div>
+      {/* hero */}
+      <section style={{ background: vd.heroBg, color: vd.heroInk, padding: isBold ? '100px 40px 80px' : '80px 40px 64px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ maxWidth:1100, margin:'0 auto' }}>
+          {isBold ? (
+            <div>
+              <p style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.2em', color: accent, marginBottom:28 }}>curated creative bench ——————</p>
+              <h1 style={{ fontFamily:GS, fontWeight:700, fontSize:'clamp(72px,11vw,156px)', lineHeight:0.88, letterSpacing:'-0.045em', marginBottom:48 }}>
+                the right<br/>
+                <span style={{ color: accent }}>person,</span><br/>
+                right now.
+              </h1>
+              <p style={{ fontFamily:GM, fontSize:12, color:'rgba(255,255,255,0.4)', maxWidth:'50ch', lineHeight:1.7, marginBottom:48 }}>
+                a working bench of writers, designers, and directors.<br/>pre-vetted. available. no agency markup.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:80, alignItems:'center' }}>
+              <div>
+                <p style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.15em', color:'rgba(240,236,226,0.35)', marginBottom:22 }}>colophon — a working bench</p>
+                <h1 style={{ fontFamily:GS, fontWeight:700, fontSize:'clamp(48px,7vw,96px)', lineHeight:0.92, letterSpacing:'-0.035em', marginBottom:28 }}>
+                  the right<br/>
+                  <span style={{ color: accent }}>person.</span><br/>
+                  right now.
+                </h1>
+              </div>
+              <div style={{ fontFamily:GM, fontSize:12, color:'rgba(240,236,226,0.45)', lineHeight:1.75 }}>
+                <p style={{ marginBottom:16 }}>a curated bench of senior creative freelancers. pre-vetted, available, no agency overhead.</p>
+                <p>each person on this list is someone we'd hire ourselves.</p>
+              </div>
+            </div>
+          )}
+          <div style={{ display:'flex', gap:14 }}>
+            <button onClick={() => setPage('pricing')} style={{ fontFamily:GM, fontSize:11, letterSpacing:'0.08em', background: accent, color:'#fff', border:`1px solid ${accent}`, padding:'13px 26px', cursor:'pointer' }}>
+              get access →
+            </button>
+            <button onClick={() => setPage('apply')} style={{ fontFamily:GM, fontSize:11, letterSpacing:'0.08em', background:'transparent', color: vd.heroInk, border:'1px solid rgba(240,236,226,0.25)', padding:'13px 26px', cursor:'pointer' }}>
+              apply to bench
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* bench table */}
+      <section style={{ background:'#1a1a18' }}>
+        <div style={{ maxWidth:1100, margin:'0 auto', paddingTop:48, paddingBottom:64 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'0 32px 18px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
+            <span style={{ fontFamily:GM, fontSize:10, color:'rgba(240,236,226,0.3)', letterSpacing:'0.12em' }}>the bench — {BENCH.length} creatives</span>
+            <span style={{ fontFamily:GM, fontSize:10, color:'rgba(240,236,226,0.2)' }}>rates + contact require access</span>
+          </div>
+          <BenchTable clientMode={false} accent={accent} />
+        </div>
+      </section>
+
+      {/* how it works */}
+      <section style={{ background: vd.warmBg, color: vd.warmInk, padding:'80px 40px' }}>
+        <div style={{ maxWidth:1100, margin:'0 auto', display:'grid', gridTemplateColumns:'1fr 1fr', gap:80 }}>
+          <div>
+            <h2 style={{ fontFamily:GS, fontWeight:700, fontSize:'clamp(36px,5vw,60px)', lineHeight:1, letterSpacing:'-0.03em', marginBottom:20 }}>how it<br/>works.</h2>
+            <p style={{ fontFamily:GM, fontSize:12, color: softWarm, lineHeight:1.75, maxWidth:'44ch' }}>
+              we say no to most applicants. not because they're bad — but because the bench only works if every name on it is someone we'd hire ourselves.
+            </p>
+          </div>
+          <div>
+            {[['01','get access','pay for a pass. 24h, 7 days, or monthly.'],['02','browse the bench','filter by discipline, availability, location.'],['03','request an intro','we make the connection. no cold outreach.']].map(([n,t,d]) => (
+              <div key={n} style={{ display:'grid', gridTemplateColumns:'44px 1fr', gap:16, padding:'20px 0', borderBottom:`1px solid rgba(0,0,0,0.1)` }}>
+                <span style={{ fontFamily:GM, fontSize:10, color: accent, paddingTop:3 }}>{n}</span>
+                <div>
+                  <div style={{ fontFamily:GS, fontWeight:600, fontSize:15, marginBottom:4 }}>{t}</div>
+                  <div style={{ fontFamily:GM, fontSize:11, color: softWarm, lineHeight:1.6 }}>{d}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function WildPage({ setPage, accent }) {
+  const [expanded, setExpanded] = useState(null);
+  const rule = 'rgba(255,255,255,0.07)';
+  const COLS = '2fr 1.4fr 52px 100px 110px 28px';
+
+  return (
+    <div style={{ fontFamily:GM, fontSize:12, background:'#1a1a18', color:'#f0ece2' }}>
+      {/* hero-as-table-row */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:0, padding:'64px 32px 56px', borderBottom:`1px solid ${rule}`, background:'#111110' }}>
+        <div>
+          <h1 style={{ fontFamily:GS, fontWeight:700, fontSize:'clamp(44px,8vw,112px)', lineHeight:0.9, letterSpacing:'-0.04em', marginBottom:28 }}>
+            the right<br/><span style={{ color: accent }}>person.</span><br/>right now.
+          </h1>
+          <p style={{ fontSize:11, color:'rgba(240,236,226,0.38)', lineHeight:1.7, maxWidth:'48ch', marginBottom:28 }}>
+            a curated bench of senior creative freelancers. pre-vetted. available. no agency overhead.
+          </p>
+          <div style={{ display:'flex', gap:12 }}>
+            <button onClick={() => setPage('pricing')} style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.08em', background: accent, color:'#fff', border:`1px solid ${accent}`, padding:'11px 22px', cursor:'pointer' }}>get access →</button>
+            <button onClick={() => setPage('apply')} style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.08em', background:'transparent', color:'rgba(240,236,226,0.55)', border:'1px solid rgba(255,255,255,0.18)', padding:'11px 22px', cursor:'pointer' }}>apply to bench</button>
+          </div>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', justifyContent:'flex-end', padding:'0 0 4px 48px', gap:10 }}>
+          {Object.entries(DISC_META).map(([disc, dm]) => (
+            <div key={disc} style={{ display:'flex', alignItems:'center', gap:10, fontSize:11, color:'rgba(240,236,226,0.4)' }}>
+              <span style={{ width:8, height:8, borderRadius:'50%', background: dm.fg, flexShrink:0 }}></span>
+              <span>{disc}</span>
+              <span style={{ marginLeft:'auto', color:'rgba(240,236,226,0.2)', fontSize:10 }}>
+                {BENCH.filter(p => p.discipline === disc).length}
+              </span>
+            </div>
+          ))}
+          <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${rule}`, fontSize:10, color:'rgba(240,236,226,0.2)' }}>
+            {BENCH.filter(p=>p.availability==='available').length} available · {BENCH.filter(p=>p.availability==='soon').length} soon · {BENCH.filter(p=>p.availability==='booked').length} booked
+          </div>
+        </div>
+      </div>
+
+      {/* table header */}
+      <div style={{ display:'grid', gridTemplateColumns:COLS, padding:'8px 32px', borderBottom:`1px solid ${rule}`, color:'rgba(240,236,226,0.25)', fontSize:10, letterSpacing:'0.1em', background:'rgba(255,255,255,0.015)' }}>
+        <span>name</span><span>discipline</span><span>avl</span><span>city</span><span>rate/day</span><span></span>
+      </div>
+
+      {BENCH.map(p => {
+        const dm = DISC_META[p.discipline];
+        const isOpen = expanded === p.id;
+        return (
+          <div key={p.id}>
+            <div onClick={() => setExpanded(isOpen ? null : p.id)} style={{ display:'grid', gridTemplateColumns:COLS, padding:'11px 32px', borderBottom:`1px solid ${rule}`, background: dm.bg, cursor:'pointer', alignItems:'center' }}>
+              <span style={{ color: dm.fg, fontWeight: isOpen ? 500 : 400 }}>{p.name}</span>
+              <span style={{ color:'rgba(240,236,226,0.4)', fontSize:11 }}>{p.discipline}</span>
+              <span><Dot status={p.availability} /></span>
+              <span style={{ color:'rgba(240,236,226,0.3)', fontSize:10 }}>{p.location}</span>
+              <span style={{ color:'rgba(240,236,226,0.13)', fontSize:10, filter:'blur(2.5px)', userSelect:'none' }}>██████ /day</span>
+              <span style={{ color:'rgba(240,236,226,0.22)', textAlign:'right', fontSize:11 }}>{isOpen ? '↑' : '↓'}</span>
+            </div>
+            {isOpen && (
+              <div style={{ padding:'20px 32px 24px', background:'rgba(0,0,0,0.28)', borderBottom:`1px solid ${rule}` }}>
+                <p style={{ fontFamily:GS, fontSize:14, fontStyle:'italic', color:'rgba(240,236,226,0.68)', lineHeight:1.5, marginBottom:12, textTransform:'none' }}>"{p.note}"</p>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  {p.agencies.map(a => <span key={a} style={{ border:'1px solid rgba(255,255,255,0.11)', padding:'2px 9px', fontSize:10, color:'rgba(240,236,226,0.35)' }}>{a}</span>)}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* footer row */}
+      <div style={{ display:'grid', gridTemplateColumns:COLS, padding:'16px 32px', borderTop:`1px solid rgba(255,255,255,0.04)`, color:'rgba(240,236,226,0.22)', fontSize:10, marginTop:32 }}>
+        <span>colophon — 2026</span>
+        <span style={{ color: accent, cursor:'pointer' }} onClick={() => setPage('pricing')}>get access</span>
+        <span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+  );
+}
+
+function ApplyPage({ variant, accent }) {
+  const vd = VARIANT_DEFS[variant];
+  const isWild = variant === 'wild';
+  const bg = isWild ? '#1a1a18' : vd.warmBg;
+  const ink = isWild ? '#f0ece2' : vd.warmInk;
+  const softInk = isWild ? 'rgba(240,236,226,0.42)' : '#888';
+  const ruleColor = isWild ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)';
+  const [done, setDone] = useState(false);
+  const [form, setForm] = useState({ name:'', email:'', discipline:'', url:'', note:'' });
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const inputS = {
+    width:'100%', background: isWild ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.65)',
+    border:`1px solid ${ruleColor}`, padding:'12px 14px',
+    fontFamily:GM, fontSize:13, color: ink, outline:'none', borderRadius:0,
+    textTransform:'none', transition:'border-color 0.15s',
+  };
+  const labelS = { display:'block', fontFamily:GM, fontSize:10, letterSpacing:'0.1em', color: softInk, marginBottom:8 };
+
+  if (done) return (
+    <div style={{ background: bg, color: ink, minHeight:'80vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:18, padding:40, textAlign:'center' }}>
+      <div style={{ width:50, height:50, border:`1.5px solid ${accent}`, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', color: accent, fontSize:18 }}>✓</div>
+      <h2 style={{ fontFamily:GS, fontWeight:700, fontSize:'clamp(36px,5vw,60px)', letterSpacing:'-0.03em', lineHeight:0.95 }}>you're in the queue.</h2>
+      <p style={{ fontFamily:GM, fontSize:12, color: softInk, maxWidth:'40ch', lineHeight:1.7 }}>we review applications manually. if you're a fit, you'll hear from us within a week.</p>
+    </div>
+  );
+
+  return (
+    <div style={{ background: bg, color: ink, minHeight:'100vh' }}>
+      <div style={{ maxWidth:660, margin:'0 auto', padding:'72px 32px 80px' }}>
+        <h1 style={{ fontFamily:GS, fontWeight:700, fontSize:'clamp(44px,7vw,80px)', letterSpacing:'-0.035em', lineHeight:0.92, marginBottom:18 }}>
+          apply to the<br/><span style={{ color: accent }}>bench.</span>
+        </h1>
+        <p style={{ fontFamily:GM, fontSize:12, color: softInk, lineHeight:1.75, marginBottom:48, maxWidth:'50ch' }}>
+          we say no to most people. not because they're bad, but because the bench only works if every name on it is someone we'd hire ourselves.
+        </p>
+        <form onSubmit={e => { e.preventDefault(); setDone(true); }} style={{ display:'flex', flexDirection:'column', gap:18 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            <div><label style={labelS}>your name</label><input style={inputS} value={form.name} onChange={set('name')} required /></div>
+            <div><label style={labelS}>email</label><input type="email" style={inputS} value={form.email} onChange={set('email')} required /></div>
+          </div>
+          <div>
+            <label style={labelS}>discipline</label>
+            <select style={{...inputS, textTransform:'lowercase'}} value={form.discipline} onChange={set('discipline')} required>
+              <option value="">—</option>
+              {Object.keys(DISC_META).map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+          <div><label style={labelS}>portfolio url</label><input type="url" style={inputS} value={form.url} onChange={set('url')} placeholder="https://" /></div>
+          <div>
+            <label style={labelS}>what do you make?</label>
+            <textarea style={{...inputS, minHeight:96, resize:'vertical'}} value={form.note} onChange={set('note')} />
+          </div>
+          <div>
+            <label style={labelS}>three brands you'd want on your cv</label>
+            <input style={inputS} />
+          </div>
+          <button type="submit" style={{ fontFamily:GM, fontSize:11, letterSpacing:'0.09em', background: ink, color: bg, border:`1px solid ${ink}`, padding:'15px 24px', cursor:'pointer', marginTop:8, transition:'background 0.15s' }}>
+            submit application →
+          </button>
+          <p style={{ fontFamily:GM, fontSize:10, color: softInk, textAlign:'center', lineHeight:1.6 }}>
+            if accepted, you'll be assigned a philosopher name. no real names are ever shown to clients.
+          </p>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PricingPage({ setPage, variant, accent }) {
+  const vd = VARIANT_DEFS[variant];
+  const isWild = variant === 'wild';
+  const bg = isWild ? '#1a1a18' : vd.warmBg;
+  const ink = isWild ? '#f0ece2' : vd.warmInk;
+  const softInk = isWild ? 'rgba(240,236,226,0.42)' : '#888';
+  const ruleColor = isWild ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)';
+
+  const tiers = [
+    { name:'day pass',   price:29,  per:'/24h',   features:['24-hour bench access','full names, rates, contact','filter by discipline + city','no auto-renewal, ever'] },
+    { name:'week pass',  price:49,  per:'/7 days', primary:true, badge:'most popular', features:['7-day bench access','full names, rates, contact','filter, sort, search','weekly bench refresh email','no auto-renewal'] },
+    { name:'monthly',    price:149, per:'/mo',     features:['30-day bench access','full names, rates, contact','filter, sort, search','monthly bench refresh email','cancel anytime'] },
+  ];
+
+  return (
+    <div style={{ background: bg, color: ink, minHeight:'100vh' }}>
+      <div style={{ maxWidth:1060, margin:'0 auto', padding:'72px 32px 80px' }}>
+        <h1 style={{ fontFamily:GS, fontWeight:700, fontSize:'clamp(48px,8vw,100px)', letterSpacing:'-0.04em', lineHeight:0.9, marginBottom:18, textAlign:'center' }}>
+          get a<br/><span style={{ color: accent }}>pass.</span>
+        </h1>
+        <p style={{ fontFamily:GM, fontSize:12, color: softInk, textAlign:'center', maxWidth:'52ch', margin:'0 auto 60px', lineHeight:1.7 }}>
+          pay once. browse as long as your pass lasts. no subscriptions unless you want them.
+        </p>
+
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, alignItems:'start' }}>
+          {tiers.map(tier => (
+            <div key={tier.name} style={{
+              position:'relative',
+              border:`1px solid ${tier.primary ? ink : ruleColor}`,
+              background: tier.primary ? ink : 'transparent',
+              color: tier.primary ? bg : ink,
+              padding:'32px 28px',
+              display:'flex', flexDirection:'column',
+              transform: tier.primary ? 'scale(1.03)' : 'none',
+            }}>
+              {tier.badge && (
+                <span style={{ position:'absolute', top:-10, left:'50%', transform:'translateX(-50%)', background: accent, color:'#fff', fontFamily:GM, fontSize:9, letterSpacing:'0.1em', padding:'3px 12px', borderRadius:999 }}>
+                  {tier.badge}
+                </span>
+              )}
+              <div style={{ fontFamily:GM, fontSize:11, letterSpacing:'0.07em', marginBottom:6, opacity:0.65 }}>{tier.name}</div>
+              <div style={{ fontFamily:GS, fontWeight:300, fontSize:56, letterSpacing:'-0.02em', lineHeight:1, marginBottom:2 }}>${tier.price}</div>
+              <div style={{ fontFamily:GM, fontSize:10, marginBottom:28, opacity:0.45 }}>{tier.per}</div>
+              <div style={{ flex:1, marginBottom:28 }}>
+                {tier.features.map(f => (
+                  <div key={f} style={{ fontFamily:GM, fontSize:11, lineHeight:2.1, opacity:0.6 }}>— {f}</div>
+                ))}
+              </div>
+              <button onClick={() => setPage('access')} style={{
+                fontFamily:GM, fontSize:10, letterSpacing:'0.08em',
+                background: tier.primary ? accent : 'transparent',
+                color: tier.primary ? '#fff' : ink,
+                border:`1px solid ${tier.primary ? accent : ruleColor}`,
+                padding:'13px 16px', cursor:'pointer',
+              }}>
+                {tier.name === 'day pass' ? 'unlock for a day' : tier.name === 'week pass' ? 'get the week pass' : 'go monthly'} →
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ maxWidth:640, margin:'60px auto 0', padding:'32px', border:`1px solid ${ruleColor}`, fontFamily:GM, fontSize:12, color: softInk, lineHeight:1.75 }}>
+          <div style={{ fontFamily:GS, fontWeight:600, fontSize:18, color: ink, marginBottom:12 }}>what you actually get.</div>
+          <p>a link. that's it. the link opens the bench. the bench shows you who's available and when. rates are listed. contact details are included. you reach out yourself, or ask us to make an intro.</p>
+          <p style={{ marginTop:12 }}>we don't take a cut. we don't negotiate on your behalf. we just know these people, vouched for them, and put them in one place.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AccessPage({ variant, accent }) {
+  const [unlocked, setUnlocked] = useState(false);
+  const [code, setCode] = useState('');
+  const [err, setErr] = useState(false);
+  const tryUnlock = () => code.trim().length > 0 ? setUnlocked(true) : setErr(true);
+
+  if (!unlocked) return (
+    <div style={{ background:'#1a1a18', minHeight:'calc(100vh - 58px)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:22, padding:40, textAlign:'center' }}>
+      <p style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.16em', color:'rgba(240,236,226,0.3)', marginBottom:4 }}>client access</p>
+      <h2 style={{ fontFamily:GS, fontWeight:700, fontSize:'clamp(36px,6vw,72px)', letterSpacing:'-0.035em', lineHeight:0.93, color:'#f0ece2' }}>
+        enter your<br/><span style={{ color: accent }}>pass code.</span>
+      </h2>
+      <p style={{ fontFamily:GM, fontSize:11, color:'rgba(240,236,226,0.38)', maxWidth:'42ch', lineHeight:1.7 }}>
+        you should have received a link after purchase. paste your code below — or type anything to preview the client view.
+      </p>
+      <div style={{ display:'flex', width:'100%', maxWidth:400 }}>
+        <input
+          value={code} onChange={e => setCode(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && tryUnlock()}
+          placeholder="colophon-xxxx"
+          style={{ flex:1, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.15)', borderRight:'none', padding:'14px 16px', fontFamily:GM, fontSize:13, color:'#f0ece2', outline:'none', textTransform:'none' }}
+        />
+        <button onClick={tryUnlock} style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.08em', background: accent, color:'#fff', border:`1px solid ${accent}`, padding:'14px 22px', cursor:'pointer', flexShrink:0 }}>
+          unlock →
+        </button>
+      </div>
+      {err && <p style={{ fontFamily:GM, fontSize:10, color:'#a04040' }}>enter any code to preview the client view.</p>}
+    </div>
+  );
+
+  const available = BENCH.filter(p => p.availability !== 'booked');
+  return (
+    <div style={{ background:'#1a1a18', color:'#f0ece2', minHeight:'calc(100vh - 58px)' }}>
+      <div style={{ padding:'20px 32px', borderBottom:'1px solid rgba(255,255,255,0.07)', display:'flex', justifyContent:'space-between', alignItems:'center', fontFamily:GM, fontSize:11 }}>
+        <span style={{ color:'rgba(240,236,226,0.38)', letterSpacing:'0.08em' }}>
+          your shortlist — {available.length} creatives available or soon
+        </span>
+        <span style={{ color: accent, fontSize:10 }}>● access active</span>
+      </div>
+      <div style={{ maxWidth:1100, margin:'0 auto', paddingTop:24, paddingBottom:64 }}>
+        <BenchTable clientMode={true} accent={accent} />
+      </div>
+    </div>
+  );
+}
+
+// ─── HEADER ───────────────────────────────────────────────────────────────────
+
+function Header({ page, setPage, accent }) {
+  const rule = 'rgba(255,255,255,0.07)';
+  return (
+    <header style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'0 32px', height:54, borderBottom:`1px solid ${rule}`, background:'#111110', fontFamily:GM, fontSize:12, position:'sticky', top:0, zIndex:100, flexShrink:0 }}>
+      <button onClick={() => setPage('home')} style={{ background:'none', border:'none', cursor:'pointer', fontFamily:GM, fontSize:13, color:'#f0ece2', letterSpacing:'0.04em' }}>
+        colo<span style={{ color: accent }}>phon</span>
+      </button>
+      <nav style={{ display:'flex', gap:28 }}>
+        {['bench','pricing','apply','access'].map(p => (
+          <button key={p} onClick={() => setPage(p)} style={{ background:'none', border:'none', cursor:'pointer', fontFamily:GM, fontSize:11, letterSpacing:'0.05em', color: page === p ? accent : 'rgba(240,236,226,0.5)', transition:'color 0.12s' }}>
+            {p}
+          </button>
+        ))}
+      </nav>
+      <button onClick={() => setPage('apply')} style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.09em', border:'1px solid rgba(240,236,226,0.25)', background:'transparent', color:'rgba(240,236,226,0.7)', padding:'7px 14px', cursor:'pointer', transition:'all 0.15s' }}>
+        apply →
+      </button>
+    </header>
+  );
+}
+
+// ─── BENCH PAGE (standalone) ──────────────────────────────────────────────────
+
+function BenchPage({ accent }) {
+  return (
+    <div style={{ background:'#1a1a18', minHeight:'calc(100vh - 54px)' }}>
+      <div style={{ maxWidth:1100, margin:'0 auto', paddingTop:48, paddingBottom:64 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', padding:'0 32px 18px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
+          <span style={{ fontFamily:GM, fontSize:10, color:'rgba(240,236,226,0.3)', letterSpacing:'0.12em' }}>the bench — {BENCH.length} creatives</span>
+          <div style={{ display:'flex', gap:20 }}>
+            {Object.entries(AVAIL).map(([k,v]) => (
+              <span key={k} style={{ display:'flex', alignItems:'center', gap:6, fontFamily:GM, fontSize:10, color:'rgba(240,236,226,0.3)' }}>
+                <Dot status={k} />{k}
+              </span>
+            ))}
+          </div>
+        </div>
+        <BenchTable clientMode={false} accent={accent} />
+      </div>
+    </div>
+  );
+}
+
+// ─── APP ─────────────────────────────────────────────────────────────────────
+
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [page, setPage] = useState('home');
+  const { variant, accent } = tweaks;
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh' }}>
+      <Header page={page} setPage={setPage} accent={accent} />
+
+      {page === 'home'    && <HomePage    setPage={setPage} variant={variant} accent={accent} />}
+      {page === 'bench'   && <BenchPage   accent={accent} />}
+      {page === 'apply'   && <ApplyPage   variant={variant} accent={accent} />}
+      {page === 'pricing' && <PricingPage setPage={setPage} variant={variant} accent={accent} />}
+      {page === 'access'  && <AccessPage  variant={variant} accent={accent} />}
+
+      <TweaksPanel title="Tweaks">
+        <TweakRadio
+          label="variant"
+          value={variant}
+          options={['safe','bold','wild']}
+          onChange={v => setTweak('variant', v)}
+        />
+        <TweakColor
+          label="accent color"
+          value={accent}
+          onChange={v => setTweak('accent', v)}
+        />
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

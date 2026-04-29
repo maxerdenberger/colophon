@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>colophon — get a pass.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0d1014; --ink-soft: #2a2f36;
+    --paper: #f4ede2; --paper-warm: #ebe1d1;
+    --rule: rgba(13, 16, 20, 0.18); --accent: #b1542a;
+    --serif: 'Fraunces', 'Times New Roman', serif;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; text-transform: lowercase; }
+  .keep-case { text-transform: none; }
+  body::after { content: ''; position: fixed; inset: 0; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.05 0 0 0 0 0.06 0 0 0 0 0.07 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.12'/%3E%3C/svg%3E"); opacity: 0.4; mix-blend-mode: multiply; z-index: 1; }
+  main, header, footer { position: relative; z-index: 2; }
+  a { color: inherit; text-decoration: none; }
+
+  header { display: flex; justify-content: space-between; align-items: center; padding: 22px 40px; border-bottom: 1px solid var(--rule); }
+  .logo { font-family: var(--serif); font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .mark { width: 20px; height: 20px; border: 1.5px solid var(--ink); border-radius: 50%; position: relative; }
+  .logo .mark::after { content: ''; position: absolute; inset: 4px; background: var(--ink); border-radius: 50%; }
+  .logo em { font-style: italic; font-weight: 300; }
+  header a.back { font-size: 13px; color: var(--ink-soft); }
+  header a.back:hover { color: var(--accent); }
+
+  .hero { padding: 70px 24px 30px; text-align: center; max-width: 820px; margin: 0 auto; }
+  .hero h1 { font-family: var(--serif); font-weight: 300; font-size: clamp(44px, 7vw, 88px); line-height: 0.98; letter-spacing: -0.03em; margin-bottom: 18px; }
+  .hero h1 em { font-style: italic; color: var(--accent); }
+  .hero .lede { font-family: var(--serif); font-size: 18px; line-height: 1.5; color: var(--ink-soft); max-width: 56ch; margin: 0 auto; }
+
+  /* Tiers */
+  .tiers { max-width: 1100px; margin: 0 auto; padding: 50px 24px 30px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; align-items: stretch; }
+  @media (max-width: 880px) { .tiers { grid-template-columns: 1fr; max-width: 480px; } }
+
+  .tier { background: rgba(255,255,255,0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--rule); border-radius: 8px; padding: 32px 28px; display: flex; flex-direction: column; transition: all 0.25s; position: relative; }
+  .tier:hover { background: rgba(255,255,255,0.85); transform: translateY(-2px); box-shadow: 0 16px 50px -20px rgba(13,16,20,0.18); }
+  .tier.primary { border-color: var(--ink); background: var(--ink); color: var(--paper); transform: scale(1.02); }
+  .tier.primary:hover { box-shadow: 0 20px 60px -20px rgba(13,16,20,0.4); }
+  .tier.primary .tier-blurb, .tier.primary ul { color: rgba(244,237,226,0.75); }
+  .tier.primary ul li::before { color: var(--paper); }
+  .tier.primary .tier-cta { background: var(--paper); color: var(--ink); border-color: var(--paper); }
+  .tier.primary .tier-cta:hover { background: transparent; color: var(--paper); }
+
+  .tier-badge { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--accent); color: var(--paper); font-family: var(--serif); font-style: italic; font-size: 11px; padding: 4px 14px; border-radius: 999px; letter-spacing: 0.04em; }
+
+  .tier-name { font-family: var(--serif); font-size: 22px; font-weight: 400; letter-spacing: -0.01em; margin-bottom: 6px; }
+  .tier-name em { font-style: italic; }
+  .tier-blurb { font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--ink-soft); margin-bottom: 22px; }
+
+  .tier-price { font-family: var(--serif); font-size: 56px; font-weight: 300; letter-spacing: -0.025em; line-height: 1; margin-bottom: 4px; }
+  .tier-price .per { font-family: var(--sans); font-size: 14px; font-weight: 400; color: var(--ink-soft); margin-left: 4px; letter-spacing: 0; }
+  .tier.primary .tier-price .per { color: rgba(244,237,226,0.7); }
+  .tier-savings { font-family: var(--serif); font-style: italic; font-size: 12px; color: var(--accent); margin-bottom: 22px; min-height: 18px; }
+
+  ul.features { list-style: none; font-size: 13.5px; color: var(--ink-soft); line-height: 1.85; margin-bottom: 28px; flex: 1; }
+  ul.features li::before { content: '— '; color: var(--accent); margin-right: 4px; }
+
+  .tier-cta { display: inline-flex; align-items: center; justify-content: center; gap: 10px; background: var(--ink); color: var(--paper); padding: 14px 24px; border-radius: 999px; font-size: 13px; letter-spacing: 0.06em; transition: all 0.2s; border: 1px solid var(--ink); cursor: pointer; }
+  .tier-cta:hover { background: transparent; color: var(--ink); }
+  .tier-cta::after { content: '→'; transition: transform 0.2s; }
+  .tier-cta:hover::after { transform: translateX(3px); }
+
+  /* Honest section */
+  .honest { max-width: 720px; margin: 30px auto 0; padding: 36px 32px; background: rgba(255,255,255,0.4); border: 1px solid var(--rule); border-radius: 4px; }
+  .honest h3 { font-family: var(--serif); font-size: 22px; font-weight: 400; margin-bottom: 16px; letter-spacing: -0.01em; }
+  .honest h3 em { font-style: italic; color: var(--accent); }
+  .honest p { font-family: var(--serif); font-size: 15px; color: var(--ink-soft); line-height: 1.6; margin-bottom: 12px; }
+  .honest .strike { text-decoration: line-through; opacity: 0.55; }
+
+  /* FAQ */
+  .faq { max-width: 720px; margin: 60px auto 0; padding: 0 24px 80px; }
+  .faq-title { font-family: var(--serif); font-size: 32px; font-weight: 300; letter-spacing: -0.02em; margin-bottom: 28px; }
+  .faq-title em { font-style: italic; color: var(--accent); }
+  .faq-item { border-bottom: 1px solid var(--rule); padding: 20px 0; }
+  .faq-item summary { font-family: var(--serif); font-size: 17px; cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after { content: '+'; font-family: var(--serif); font-size: 22px; color: var(--accent); transition: transform 0.25s; }
+  .faq-item[open] summary::after { transform: rotate(45deg); }
+  .faq-item p { font-family: var(--serif); font-size: 14.5px; color: var(--ink-soft); line-height: 1.6; margin-top: 10px; }
+
+  footer { border-top: 1px solid var(--rule); padding: 32px 40px; display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-soft); flex-wrap: wrap; gap: 16px; }
+  footer .colo { font-family: var(--serif); font-style: italic; font-size: 14px; }
+  footer a:hover { color: var(--accent); }
+
+  @media (max-width: 720px) {
+    header { padding: 18px 20px; }
+    .hero { padding: 50px 20px 24px; }
+    .tiers { padding: 36px 20px 24px; }
+    .honest { margin: 20px 20px 0; padding: 28px 24px; }
+    footer { padding: 24px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="logo">
+    <span class="mark"></span>
+    <span>colo<em>phon</em></span>
+  </a>
+  <a href="index.html" class="back">← back</a>
+</header>
+
+<main>
+
+  <section class="hero">
+    <h1>get <em>access.</em></h1>
+    <p class="lede">
+      pay for a pass, get a link to the bench. bookmark it and browse when you need someone.
+    </p>
+  </section>
+
+  <section class="tiers">
+
+    <div class="tier">
+      <div class="tier-name">day pass</div>
+      <div class="tier-blurb">one-time access.</div>
+      <div class="tier-price">$29<span class="per">/24h</span></div>
+      <div class="tier-savings">&nbsp;</div>
+      <ul class="features">
+        <li>24-hour bench access</li>
+        <li>full names, rates, contact</li>
+        <li>filter, sort, search</li>
+        <li>no auto-renewal, ever</li>
+      </ul>
+      <!-- TODO: replace with your Stripe Payment Link -->
+      <a class="tier-cta" href="https://buy.stripe.com/5kQ5klb64beagze9n8a3u00">unlock for a day</a>
+    </div>
+
+    <div class="tier primary">
+      <div class="tier-badge">most popular</div>
+      <div class="tier-name">week pass</div>
+      <div class="tier-blurb">most common choice.</div>
+      <div class="tier-price">$49<span class="per">/7 days</span></div>
+      <div class="tier-savings">about $7/day. no commitment.</div>
+      <ul class="features">
+        <li>7-day bench access</li>
+        <li>full names, rates, contact</li>
+        <li>filter, sort, search</li>
+        <li>weekly bench refresh email</li>
+        <li>no auto-renewal</li>
+      </ul>
+      <!-- TODO: replace with your Stripe Payment Link -->
+      <a class="tier-cta" href="https://buy.stripe.com/8x2fYZ1vuaa6fvaeHsa3u01">get the week pass</a>
+    </div>
+
+    <div class="tier">
+      <div class="tier-name">monthly</div>
+      <div class="tier-blurb">if you keep coming back.</div>
+      <div class="tier-price">$149<span class="per">/mo</span></div>
+      <div class="tier-savings">~$37/week, cancel anytime</div>
+      <ul class="features">
+        <li>30-day bench access</li>
+        <li>everything in the week pass</li>
+        <li>priority on new arrivals</li>
+        <li>cancel in stripe, instantly</li>
+        <li>no contract, no notice period</li>
+      </ul>
+      <!-- TODO: replace with your Stripe Payment Link -->
+      <a class="tier-cta" href="https://buy.stripe.com/14A145fmk3LIbeU56Sa3u02">go monthly</a>
+    </div>
+
+  </section>
+
+  <section class="honest">
+    <h3>how the money <em>works.</em></h3>
+    <p>
+      you pay a flat rate for access to the bench. find someone you like, email them directly. work out terms between yourselves. we're not involved in the hire.
+    </p>
+  </section>
+
+  <section class="faq">
+    <h2 class="faq-title">questions, <em>asked.</em></h2>
+
+    <details class="faq-item">
+      <summary>do i need an account?</summary>
+      <p>no. you pay through stripe, we email you a link, you bookmark it. that's the whole login. no passwords to forget.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>what happens after my pass expires?</summary>
+      <p>the link stops working. the bench goes back behind the wall. grab another pass when you need one — most agencies cycle the week pass when a pitch lands.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>can i share my access link?</summary>
+      <p>technically yes. you'll have one link. honor system applies. if you're a 30-person shop sharing one $49 pass, the monthly is probably better for you anyway.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>do you take a cut when i hire someone?</summary>
+      <p>never. you contract directly. we don't see the deal, don't take a fee, don't get involved.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>what's the refund policy?</summary>
+      <p>email us within 24 hours of buying if it's not what you expected. we'll refund without a meeting.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>how do you keep the bench fresh?</summary>
+      <p>every creative confirms availability monthly and refers three peers. anyone who doesn't, drops off. so what you see is who's actually working — not who applied two years ago.</p>
+    </details>
+  </section>
+
+</main>
+
+<footer>
+  <div class="colo">colophon</div>
+  <div>the bench is private. the work is public.</div>
+  <div>
+    <a href="index.html">home</a> ·
+    <a href="mailto:hello@colophon.xyz">say hello</a>
+  </div>
+</footer>
+
+</body>
+</html>

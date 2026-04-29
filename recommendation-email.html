@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>colophon — recommendation email</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #e8e5de; font-family: 'IBM Plex Mono', monospace; padding: 40px 20px; min-height: 100vh; }
+  .preview-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #888; text-transform: lowercase; text-align: center; margin-bottom: 24px; }
+  .email-wrap { max-width: 560px; margin: 0 auto 28px; background: #f4f1ec; border: 1px solid rgba(13,13,11,0.12); }
+  .switcher { max-width: 560px; margin: 0 auto 24px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .switcher button { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.08em; padding: 8px 14px; cursor: pointer; border: 1px solid rgba(13,13,11,0.18); background: transparent; color: #888580; text-transform: lowercase; }
+  .switcher button.active { background: #0d0d0b; color: #f4f1ec; border-color: #0d0d0b; }
+</style>
+</head>
+<body>
+
+<p class="preview-label">colophon — referral / intro emails — preview switcher</p>
+
+<div class="switcher">
+  <button class="active" data-target="recipient-creative">to: creative (you've been recommended)</button>
+  <button data-target="recipient-buyer">to: resource manager (early access)</button>
+</div>
+
+<!-- ── EMAIL 1 — to a recommended creative ────────────────────────────────── -->
+<div class="email-wrap" id="recipient-creative">
+
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="padding: 28px 40px 24px; border-bottom: 1px solid rgba(13,13,11,0.1);">
+        <span style="font-family: 'Space Grotesk', Georgia, serif; font-weight: 700; font-size: 16px; letter-spacing: -0.02em; color: #0d0d0b;">
+          colo<span style="color: #ff5100;">phon</span>
+        </span>
+      </td>
+    </tr>
+  </table>
+
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="padding: 44px 40px 0;">
+
+        <p style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 10px; letter-spacing: 0.14em; color: #888580; text-transform: lowercase; margin-bottom: 24px;">
+          private invitation — referral
+        </p>
+
+        <h1 style="font-family: 'Space Grotesk', Georgia, serif; font-weight: 700; font-size: 36px; line-height: 0.95; letter-spacing: -0.035em; color: #0d0d0b; margin-bottom: 24px; text-transform: lowercase;">
+          <span style="color: #ff5100;">max erdenberger</span><br/>recommended you<br/>to the bench.
+        </h1>
+
+        <p style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 12px; line-height: 1.78; color: #555; margin-bottom: 18px; text-transform: lowercase;">
+          colophon is a private bench. 630 vetted creatives. clients pay a small pass to see who's free this week and reach out direct — no agency, no markup, no middlemen.
+        </p>
+
+        <p style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 12px; line-height: 1.78; color: #555; margin-bottom: 18px; text-transform: lowercase;">
+          you don't pay anything. you just say yes, fill out a 90-second form, and we put you on. every 20 days we'll ping you to keep your status fresh.
+        </p>
+
+        <p style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 12px; line-height: 1.78; color: #555; margin-bottom: 36px; text-transform: lowercase;">
+          your name stays hidden until you accept a project. only your first name and discipline are visible to clients.
+        </p>
+
+        <!-- accept button -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 12px;">
+          <tr>
+            <td style="background: #0d0d0b; padding: 0;">
+              <a href="https://colophon.co/apply?ref=max-erdenberger&token=TOKEN"
+                 style="display: block; padding: 18px 24px; font-family: 'IBM Plex Mono', Courier, monospace; font-size: 11px; letter-spacing: 0.08em; color: #f4f1ec; text-decoration: none; text-transform: lowercase;">
+                yes — put me on the bench
+                <span style="float: right; opacity: 0.4;">→</span>
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 40px;">
+          <tr>
+            <td style="background: #f4f1ec; border: 1px solid rgba(13,13,11,0.12); padding: 0;">
+              <a href="https://colophon.co/decline?token=TOKEN"
+                 style="display: block; padding: 16px 24px; font-family: 'IBM Plex Mono', Courier, monospace; font-size: 11px; letter-spacing: 0.08em; color: #888580; text-decoration: none; text-transform: lowercase;">
+                not right now — thanks max
+                <span style="float: right; opacity: 0.4;">→</span>
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <hr style="border: none; border-top: 1px solid rgba(13,13,11,0.1); margin-bottom: 24px;"/>
+
+        <p style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 10px; line-height: 1.75; color: #888580; margin-bottom: 32px; text-transform: lowercase;">
+          questions? reply to this email. it goes straight to the founder.
+        </p>
+
+      </td>
+    </tr>
+  </table>
+
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="padding: 24px 40px 28px; border-top: 1px solid rgba(13,13,11,0.1);">
+        <span style="font-family: 'Space Grotesk', Georgia, serif; font-weight: 700; font-size: 13px; letter-spacing: -0.02em; color: #0d0d0b;">
+          colo<span style="color: #ff5100;">phon</span>
+        </span>
+        <span style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 10px; color: #888580; margin-left: 12px;">
+          the bench is private. the work is public.
+        </span>
+      </td>
+    </tr>
+  </table>
+
+</div>
+
+<!-- ── EMAIL 2 — to a resource manager / buyer ─────────────────────────── -->
+<div class="email-wrap" id="recipient-buyer" style="display:none;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="padding: 28px 40px 24px; border-bottom: 1px solid rgba(13,13,11,0.1);">
+        <span style="font-family: 'Space Grotesk', Georgia, serif; font-weight: 700; font-size: 16px; letter-spacing: -0.02em; color: #0d0d0b;">
+          colo<span style="color: #ff5100;">phon</span>
+        </span>
+      </td>
+    </tr>
+  </table>
+
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="padding: 44px 40px 0;">
+
+        <p style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 10px; letter-spacing: 0.14em; color: #888580; text-transform: lowercase; margin-bottom: 24px;">
+          founding access — invitation
+        </p>
+
+        <h1 style="font-family: 'Space Grotesk', Georgia, serif; font-weight: 700; font-size: 36px; line-height: 0.95; letter-spacing: -0.035em; color: #0d0d0b; margin-bottom: 24px; text-transform: lowercase;">
+          first look at<br/>the <span style="color: #ff5100;">right</span> bench.
+        </h1>
+
+        <p style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 12px; line-height: 1.78; color: #555; margin-bottom: 18px; text-transform: lowercase;">
+          you spend hours every week chasing creatives — fielding inbound, vetting portfolios, asking who's free. we built colophon to put that on a single page.
+        </p>
+
+        <p style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 12px; line-height: 1.78; color: #555; margin-bottom: 18px; text-transform: lowercase;">
+          630 vetted creatives. their real availability — refreshed every 20 days. their rate band, timezone, top brands. one tap and you email them direct.
+        </p>
+
+        <p style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 12px; line-height: 1.78; color: #555; margin-bottom: 36px; text-transform: lowercase;">
+          we're letting 25 founding resource managers in early. <span style="color:#0d0d0b;">a free day pass.</span> if you don't see something useful in 24 hours, you walk.
+        </p>
+
+        <!-- live counter -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 32px; background: #ede9e1; border: 1px solid rgba(13,13,11,0.1);">
+          <tr>
+            <td style="padding: 18px 24px;">
+              <span style="font-family: 'Space Grotesk', Georgia, serif; font-weight: 300; font-size: 32px; letter-spacing: -0.03em; color: #0d0d0b;">486</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #888580; margin-left: 12px;">available right now</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #2a8a3a; float: right; margin-top: 14px;">● live</span>
+            </td>
+          </tr>
+        </table>
+
+        <!-- claim button -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 12px;">
+          <tr>
+            <td style="background: #0d0d0b; padding: 0;">
+              <a href="https://colophon.co/founding?token=TOKEN"
+                 style="display: block; padding: 18px 24px; font-family: 'IBM Plex Mono', Courier, monospace; font-size: 11px; letter-spacing: 0.08em; color: #f4f1ec; text-decoration: none; text-transform: lowercase;">
+                claim my free day — see the bench
+                <span style="float: right; opacity: 0.4;">→</span>
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 40px;">
+          <tr>
+            <td style="background: #f4f1ec; border: 1px solid rgba(13,13,11,0.12); padding: 0;">
+              <a href="https://colophon.co/?demo=1"
+                 style="display: block; padding: 16px 24px; font-family: 'IBM Plex Mono', Courier, monospace; font-size: 11px; letter-spacing: 0.08em; color: #888580; text-decoration: none; text-transform: lowercase;">
+                show me a preview first
+                <span style="float: right; opacity: 0.4;">→</span>
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <hr style="border: none; border-top: 1px solid rgba(13,13,11,0.1); margin-bottom: 24px;"/>
+
+        <p style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 10px; line-height: 1.75; color: #888580; margin-bottom: 32px; text-transform: lowercase;">
+          25 founding day passes. 19 left. when they're gone, every pass is paid.
+        </p>
+
+      </td>
+    </tr>
+  </table>
+
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="padding: 24px 40px 28px; border-top: 1px solid rgba(13,13,11,0.1);">
+        <span style="font-family: 'Space Grotesk', Georgia, serif; font-weight: 700; font-size: 13px; letter-spacing: -0.02em; color: #0d0d0b;">
+          colo<span style="color: #ff5100;">phon</span>
+        </span>
+        <span style="font-family: 'IBM Plex Mono', Courier, monospace; font-size: 10px; color: #888580; margin-left: 12px;">
+          the bench is private. the work is public.
+        </span>
+      </td>
+    </tr>
+  </table>
+
+</div>
+
+<script>
+  document.querySelectorAll('.switcher button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.switcher button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.email-wrap').forEach(e => e.style.display = 'none');
+      document.getElementById(btn.dataset.target).style.display = 'block';
+    });
+  });
+</script>
+
+</body>
+</html>

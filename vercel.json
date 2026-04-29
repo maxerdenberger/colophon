@@ -1,0 +1,13 @@
+{
+  "crons": [
+    { "path": "/api/ping", "schedule": "0 9 */20 * *" }
+  ],
+  "rewrites": [
+    { "source": "/", "destination": "/colophon-v2.html" },
+    { "source": "/access", "destination": "/colophon-v2.html" },
+    { "source": "/apply", "destination": "/colophon-v2.html" },
+    { "source": "/pricing", "destination": "/colophon-v2.html" }
+  ],
+  "cleanUrls": true,
+  "trailingSlash": false
+}

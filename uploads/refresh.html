@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>colophon — keep your spot.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --ink: #0d1014; --ink-soft: #2a2f36; --paper: #f4ede2; --paper-warm: #ebe1d1; --rule: rgba(13, 16, 20, 0.18); --accent: #b1542a; --serif: 'Fraunces', serif; --sans: 'Inter', sans-serif; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; text-transform: lowercase; }
+  .keep-case, input[type="email"], input[type="url"] { text-transform: none; }
+  body::after { content: ''; position: fixed; inset: 0; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.05 0 0 0 0 0.06 0 0 0 0 0.07 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.12'/%3E%3C/svg%3E"); opacity: 0.4; mix-blend-mode: multiply; z-index: 1; }
+  main, header, footer { position: relative; z-index: 2; }
+  a { color: inherit; text-decoration: none; }
+
+  header { display: flex; justify-content: space-between; align-items: center; padding: 22px 40px; border-bottom: 1px solid var(--rule); }
+  .logo { font-family: var(--serif); font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .mark { width: 20px; height: 20px; border: 1.5px solid var(--ink); border-radius: 50%; position: relative; }
+  .logo .mark::after { content: ''; position: absolute; inset: 4px; background: var(--ink); border-radius: 50%; }
+  .logo em { font-style: italic; font-weight: 300; }
+
+  .intro { max-width: 720px; margin: 0 auto; padding: 60px 24px 24px; text-align: center; }
+  .intro .greet { font-family: var(--serif); font-style: italic; font-size: 14px; color: var(--accent); letter-spacing: 0.05em; margin-bottom: 14px; }
+  .intro h1 { font-family: var(--serif); font-weight: 300; font-size: clamp(36px, 5.5vw, 60px); line-height: 1; letter-spacing: -0.025em; margin-bottom: 20px; }
+  .intro h1 em { font-style: italic; color: var(--accent); }
+  .intro p { font-family: var(--serif); font-size: 16px; color: var(--ink-soft); max-width: 56ch; margin: 0 auto; line-height: 1.55; }
+
+  .form-wrap { max-width: 720px; margin: 30px auto 80px; padding: 0 24px; }
+  .form-card { background: rgba(255,255,255,0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--rule); border-radius: 8px; padding: 40px; box-shadow: 0 12px 40px -16px rgba(13,16,20,0.12); }
+
+  .step { padding-bottom: 32px; margin-bottom: 32px; border-bottom: 1px solid var(--rule); }
+  .step:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+
+  .step-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
+  .step-num { font-family: var(--serif); font-style: italic; font-size: 24px; color: var(--accent); font-weight: 300; line-height: 1; flex-shrink: 0; }
+  .step-title { font-family: var(--serif); font-size: 22px; font-weight: 400; letter-spacing: -0.01em; line-height: 1.2; }
+  .step-title em { font-style: italic; }
+  .step-blurb { font-family: var(--serif); font-style: italic; font-size: 14px; color: var(--ink-soft); margin-bottom: 22px; padding-left: 38px; }
+
+  .field { margin-bottom: 18px; }
+  .field label { display: block; font-size: 11px; letter-spacing: 0.08em; color: var(--ink-soft); margin-bottom: 8px; }
+  .field input, .field select, .field textarea { width: 100%; background: rgba(255,255,255,0.6); border: 1px solid var(--rule); border-radius: 4px; padding: 12px 14px; font-family: var(--serif); font-size: 16px; color: var(--ink); outline: none; transition: all 0.2s; text-transform: lowercase; }
+  .field input[type="email"], .field input[type="url"] { text-transform: none; }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--ink); background: rgba(255,255,255,0.9); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 540px) { .field-row { grid-template-columns: 1fr; } }
+
+  /* Referral mini-cards */
+  .ref-card { background: rgba(255,255,255,0.4); border: 1px solid var(--rule); border-radius: 6px; padding: 18px; margin-bottom: 14px; }
+  .ref-card-head { font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--accent); margin-bottom: 12px; }
+
+  /* Buyer perk callout */
+  .perk-card { background: rgba(177, 84, 42, 0.08); border: 1px solid rgba(177, 84, 42, 0.3); border-radius: 6px; padding: 22px; margin-bottom: 24px; }
+  .perk-card .perk-label { font-family: var(--serif); font-style: italic; font-size: 12px; color: var(--accent); margin-bottom: 8px; letter-spacing: 0.04em; }
+  .perk-card .perk-text { font-family: var(--serif); font-size: 15px; color: var(--ink); line-height: 1.5; }
+  .perk-card .perk-text em { font-style: italic; }
+
+  .submit-btn { width: 100%; padding: 16px; background: var(--ink); color: var(--paper); border: 1px solid var(--ink); border-radius: 999px; font-size: 13px; letter-spacing: 0.08em; cursor: pointer; transition: all 0.2s; font-family: var(--sans); display: inline-flex; align-items: center; justify-content: center; gap: 10px; margin-top: 24px; text-transform: lowercase; }
+  .submit-btn:hover { background: var(--accent); border-color: var(--accent); }
+  .submit-btn::after { content: '→'; transition: transform 0.2s; }
+  .submit-btn:hover::after { transform: translateX(3px); }
+
+  .form-foot { font-family: var(--serif); font-style: italic; font-size: 12px; color: var(--ink-soft); margin-top: 18px; text-align: center; opacity: 0.8; }
+
+  /* Success state */
+  .success-state { display: none; text-align: center; padding: 60px 24px; max-width: 580px; margin: 0 auto; }
+  .success-state.show { display: block; }
+  .success-state .check { width: 56px; height: 56px; border: 1.5px solid var(--accent); border-radius: 50%; margin: 0 auto 24px; display: flex; align-items: center; justify-content: center; color: var(--accent); font-family: var(--serif); font-style: italic; font-size: 32px; }
+  .success-state h2 { font-family: var(--serif); font-size: clamp(32px, 5vw, 48px); font-weight: 300; line-height: 1.05; letter-spacing: -0.025em; margin-bottom: 18px; }
+  .success-state h2 em { font-style: italic; color: var(--accent); }
+  .success-state p { font-family: var(--serif); font-size: 16px; color: var(--ink-soft); line-height: 1.55; margin-bottom: 14px; }
+  .success-state .badge-earned { display: inline-block; margin-top: 16px; background: var(--ink); color: var(--paper); padding: 8px 18px; border-radius: 999px; font-family: var(--sans); font-size: 12px; letter-spacing: 0.06em; }
+  .success-state .badge-earned em { font-family: var(--serif); font-style: italic; color: var(--paper); }
+
+  footer { border-top: 1px solid var(--rule); padding: 32px 40px; display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-soft); flex-wrap: wrap; gap: 16px; }
+  footer .colo { font-family: var(--serif); font-style: italic; font-size: 14px; }
+  footer a:hover { color: var(--accent); }
+
+  @media (max-width: 720px) {
+    header { padding: 18px 20px; }
+    .intro { padding: 40px 20px 18px; }
+    .form-wrap { padding: 0 16px; margin-bottom: 60px; }
+    .form-card { padding: 26px 22px; }
+    .step-blurb { padding-left: 0; }
+    footer { padding: 24px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="logo">
+    <span class="mark"></span>
+    <span>colo<em>phon</em></span>
+  </a>
+</header>
+
+<main>
+
+  <div id="formView">
+
+    <section class="intro">
+      <div class="greet">hi <span id="greetName">there</span> —</div>
+      <h1>quick <em>refresh.</em></h1>
+      <p>
+        confirm your availability and send us three people you'd vouch for. takes a minute.
+      </p>
+    </section>
+
+    <section class="form-wrap">
+      <div class="form-card">
+        <form id="refreshForm" onsubmit="handleSubmit(event)">
+
+          <!-- STEP 1: Confirm details -->
+          <div class="step">
+            <div class="step-head">
+              <span class="step-num">i.</span>
+              <h2 class="step-title">what's <em>still true.</em></h2>
+            </div>
+            <p class="step-blurb">we already have the rest. just confirm or fix.</p>
+
+            <div class="field-row">
+              <div class="field">
+                <label>your name</label>
+                <input type="text" id="name" required />
+              </div>
+              <div class="field">
+                <label>email</label>
+                <input type="email" id="email" required />
+              </div>
+            </div>
+
+            <div class="field">
+              <label>availability this month</label>
+              <select id="availability" required>
+                <option value="available">immediate — ready within a week</option>
+                <option value="soon">2–4 weeks out</option>
+                <option value="booked">booked, waitlist only</option>
+                <option value="leave">remove me from the bench</option>
+              </select>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label>hourly rate (usd)</label>
+                <input type="text" id="hourlyRate" placeholder="200" />
+              </div>
+              <div class="field">
+                <label>minimum project fee (usd)</label>
+                <input type="text" id="minFee" placeholder="5000" />
+              </div>
+            </div>
+
+            <div class="field">
+              <label>portfolio link</label>
+              <input type="url" id="portfolio" placeholder="https://yoursite.com" />
+            </div>
+          </div>
+
+          <!-- STEP 2: Three referrals -->
+          <div class="step">
+            <div class="step-head">
+              <span class="step-num">ii.</span>
+              <h2 class="step-title">three <em>referrals.</em></h2>
+            </div>
+            <p class="step-blurb">tell us about three creatives you'd hire. we'll reach out and mention you sent us.</p>
+
+            <div class="ref-card">
+              <div class="ref-card-head">referral one</div>
+              <div class="field-row">
+                <div class="field">
+                  <label>name</label>
+                  <input type="text" id="ref1_name" required />
+                </div>
+                <div class="field">
+                  <label>email</label>
+                  <input type="email" id="ref1_email" required />
+                </div>
+              </div>
+              <div class="field" style="margin-bottom: 0;">
+                <label>discipline (one tag is fine)</label>
+                <input type="text" id="ref1_discipline" placeholder="copywriter / designer / strategist…" />
+              </div>
+            </div>
+
+            <div class="ref-card">
+              <div class="ref-card-head">referral two</div>
+              <div class="field-row">
+                <div class="field">
+                  <label>name</label>
+                  <input type="text" id="ref2_name" required />
+                </div>
+                <div class="field">
+                  <label>email</label>
+                  <input type="email" id="ref2_email" required />
+                </div>
+              </div>
+              <div class="field" style="margin-bottom: 0;">
+                <label>discipline</label>
+                <input type="text" id="ref2_discipline" />
+              </div>
+            </div>
+
+            <div class="ref-card">
+              <div class="ref-card-head">referral three</div>
+              <div class="field-row">
+                <div class="field">
+                  <label>name</label>
+                  <input type="text" id="ref3_name" required />
+                </div>
+                <div class="field">
+                  <label>email</label>
+                  <input type="email" id="ref3_email" required />
+                </div>
+              </div>
+              <div class="field" style="margin-bottom: 0;">
+                <label>discipline</label>
+                <input type="text" id="ref3_discipline" />
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 3: Buyer (optional, with perk) -->
+          <div class="step">
+            <div class="step-head">
+              <span class="step-num">iii.</span>
+              <h2 class="step-title">one <em>buyer</em>, if you've got one.</h2>
+            </div>
+            <p class="step-blurb">a creative director, head of brand, producer — anyone who hires creatives. we'll reach out warmly: "<span class="keep-case">[your name]</span> on the colophon bench thought you should know." that's it.</p>
+
+            <div class="perk-card">
+              <div class="perk-label">— the perk</div>
+              <div class="perk-text">share one buyer and we'll <em>feature your card on the bench for 30 days.</em> top of the list, badge and all. the agencies looking for someone like you will see you first.</div>
+            </div>
+
+            <div class="ref-card">
+              <div class="ref-card-head">buyer (optional)</div>
+              <div class="field-row">
+                <div class="field" style="margin-bottom: 0;">
+                  <label>name</label>
+                  <input type="text" id="buyer_name" />
+                </div>
+                <div class="field" style="margin-bottom: 0;">
+                  <label>email</label>
+                  <input type="email" id="buyer_email" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button class="submit-btn" type="submit">keep my spot</button>
+          <div class="form-foot">we read everything. takes ~24 hours to process. you'll get a quick "got it" email.</div>
+        </form>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Success state -->
+  <section class="success-state" id="successView">
+    <div class="check">✓</div>
+    <h2>thanks. <em>you're set.</em></h2>
+    <p>your spot's confirmed for another month. we'll reach out to your three referrals this week.</p>
+    <p id="perkLine" style="display:none;"><strong>and</strong> — your card is now <em>featured on the bench</em> for the next 30 days. nice work.</p>
+    <div class="badge-earned" id="badgeEarned" style="display:none;">⚝ <em>featured creative</em> · 30 days</div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="colo">colophon</div>
+  <div>the bench is private. the work is public.</div>
+  <div>
+    <a href="index.html">home</a> ·
+    <a href="mailto:hello@colophon.xyz">say hello</a>
+  </div>
+</footer>
+
+<script>
+  // Pre-fill from URL params (sent in mail merge)
+  function getQueryParam(name) {
+    return new URLSearchParams(window.location.search).get(name) || '';
+  }
+  
+  const params = {
+    name: getQueryParam('name'),
+    email: getQueryParam('email'),
+    rate: getQueryParam('rate'),
+    fee: getQueryParam('fee'),
+    portfolio: getQueryParam('portfolio'),
+  };
+  
+  if (params.name) document.getElementById('greetName').textContent = params.name.split(' ')[0].toLowerCase();
+  if (params.name) document.getElementById('name').value = params.name;
+  if (params.email) document.getElementById('email').value = params.email;
+  if (params.rate) document.getElementById('hourlyRate').value = params.rate;
+  if (params.fee) document.getElementById('minFee').value = params.fee;
+  if (params.portfolio) document.getElementById('portfolio').value = params.portfolio;
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    
+    // Collect data
+    const payload = {
+      name: document.getElementById('name').value,
+      email: document.getElementById('email').value,
+      availability: document.getElementById('availability').value,
+      hourlyRate: document.getElementById('hourlyRate').value,
+      minFee: document.getElementById('minFee').value,
+      portfolio: document.getElementById('portfolio').value,
+      referrals: [
+        { name: document.getElementById('ref1_name').value, email: document.getElementById('ref1_email').value, discipline: document.getElementById('ref1_discipline').value },
+        { name: document.getElementById('ref2_name').value, email: document.getElementById('ref2_email').value, discipline: document.getElementById('ref2_discipline').value },
+        { name: document.getElementById('ref3_name').value, email: document.getElementById('ref3_email').value, discipline: document.getElementById('ref3_discipline').value },
+      ],
+      buyer: {
+        name: document.getElementById('buyer_name').value,
+        email: document.getElementById('buyer_email').value,
+      },
+      submittedAt: new Date().toISOString(),
+    };
+    
+    const earnedPerk = !!(payload.buyer.name && payload.buyer.email);
+    
+    // PRODUCTION: POST to your endpoint (Sheets webhook, Make, Zapier, etc.)
+    console.log('[refresh submission]', payload);
+    // fetch('YOUR_WEBHOOK_URL', { method: 'POST', body: JSON.stringify(payload) });
+    
+    // Show success
+    document.getElementById('formView').style.display = 'none';
+    document.getElementById('successView').classList.add('show');
+    if (earnedPerk) {
+      document.getElementById('perkLine').style.display = 'block';
+      document.getElementById('badgeEarned').style.display = 'inline-block';
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>colophon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #f4f1ec; -webkit-font-smoothing: antialiased; text-transform: lowercase; }
+  #root { min-height: 100vh; }
+  ::placeholder { opacity: 0.3; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); }
+  input[type=checkbox] { accent-color: #0d0d0b; }
+
+  /* bench hover panel */
+  .bench-hover-panel {
+    position: fixed;
+    top: 54px;
+    right: 0;
+    width: 320px;
+    bottom: 0;
+    background: #0d0d0b;
+    border-left: 1px solid rgba(255,255,255,0.07);
+    z-index: 50;
+    transform: translateX(100%);
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .bench-hover-panel.open {
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+
+  /* anti-scrape: no text selection on sensitive data */
+  .protected {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+  }
+
+  /* clock tick animation */
+  @keyframes tick { from { opacity:0.6 } to { opacity:1 } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+
+const { useState, useEffect, useRef } = React;
+
+const C = { cream: '#f4f1ec', paper: '#edeae3', ink: '#0d0d0b', soft: '#888580', rule: 'rgba(13,13,11,0.1)' };
+const GS = "'Space Grotesk', sans-serif";
+const GM = "'IBM Plex Mono', monospace";
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "variant": "bold",
+  "accent": "#ff5100"
+}/*EDITMODE-END*/;
+
+// ── BENCH ─────────────────────────────────────────────────────────────────────
+const BENCH = [
+{ id: 1, name: 'simone weil', discipline: 'creative direction', availability: 'available', tz: 'UTC−7', rate: '$$$', yoe: 14, clients: ['branding', 'typography', 'systems'], note: 'detail-focused strategy-guided designer. branding systems with a focus on typography.' },
+{ id: 2, name: 'walter benjamin', discipline: 'design leadership', availability: 'available', tz: 'UTC−5', rate: '$$$', yoe: 10, clients: ['apple', 'google', 'nike'], note: 'multidisciplinary. brand identity, campaigns, experiences across digital, physical, and experiential.' },
+{ id: 3, name: 'hannah arendt', discipline: 'creative direction', availability: 'available', tz: 'UTC−5', rate: '$$$$', yoe: 14, clients: ['nordstrom', 'at&t', 'microsoft'], note: 'cd spanning both copy and art direction. conceptual development and content creation.' },
+{ id: 4, name: 'dieter rams', discipline: 'art direction', availability: 'available', tz: 'UTC−8', rate: '$$$', yoe: 14, clients: ['sapporo', 'intel', 'pearl izumi'], note: 'relentless. thinks wide, explores deeply, executes all the way through. any medium.' },
+{ id: 5, name: 'susan sontag', discipline: 'brand strategy', availability: 'soon', tz: 'UTC−5', rate: '$$$$', yoe: 14, clients: ['bose', 'zenith', 'saatchi'], note: 'ai fully integrated. 30% social lift, 50% production cost reduction via generative workflows.' },
+{ id: 6, name: 'john berger', discipline: 'art direction', availability: 'available', tz: 'UTC−8', rate: '$$$', yoe: 10, clients: ['columbia sportswear', 'vibram', 'amazon'], note: 'brand systems through design people see, touch, and move through.' },
+{ id: 7, name: 'el lissitzky', discipline: 'art direction', availability: 'available', tz: 'UTC+1', rate: '$$', yoe: 14, clients: ['j&j / kenvue', 'philips health', 'pfizer'], note: 'cross-channel ecosystems. thinker/doer, facilitator/collaborator. pharma to consumer.' },
+{ id: 8, name: 'theodor adorno', discipline: 'creative direction', availability: 'available', tz: 'UTC+0', rate: '$$$$', yoe: 14, clients: ['google', 'meta', 'oakley'], note: 'director specializing in elevated documentary format. 15 years running own production company.' },
+{ id: 9, name: 'bell hooks', discipline: 'creative direction', availability: 'available', tz: 'UTC−6', rate: '$$$', yoe: 10, clients: ['olive garden', 'chevy', 'toyota'], note: 'storyteller + creative producer. journalism background. cultural content at scale.' },
+{ id: 10, name: 'adrienne rich', discipline: 'copywriting', availability: 'available', tz: 'UTC−5', rate: '$$$', yoe: 10, clients: ['converse', 'estée lauder', 'carhartt'], note: '15 years with global lifestyle brands. brand voice systems, 360 campaigns.' },
+{ id: 11, name: 'roland barthes', discipline: 'creative direction', availability: 'available', tz: 'UTC−3', rate: '$$', yoe: 14, clients: ['ifood', 'havaianas', 'youtube'], note: 'graphic designer. brand design, illustration, social campaigns across food, fashion, tech.' },
+{ id: 12, name: 'italo calvino', discipline: 'copywriting', availability: 'soon', tz: 'UTC+1', rate: '$$$$', yoe: 14, clients: ['mastercard', 'nestlé', 'heineken'], note: 'concept-first. ideas based on strong insights. loves the craft. cd-level thinking.' },
+{ id: 13, name: 'james baldwin', discipline: 'copywriting', availability: 'available', tz: 'UTC−7', rate: '$$$', yoe: 10, clients: ['ikon pass', 'illinois lottery'], note: 'writes in words and images. brand narratives, campaign copy, experiential content.' },
+{ id: 14, name: 'virginia woolf', discipline: 'copywriting', availability: 'available', tz: 'UTC−5', rate: '$$', yoe: 5, clients: ['coca-cola', 'netflix', 'apple'], note: "a writer's writer. brands should sound like a person." },
+{ id: 15, name: 'lászló moholy-nagy', discipline: 'art direction', availability: 'available', tz: 'UTC+1', rate: '$$', yoe: 5, clients: ['persil', 'davidoff', 'gauloises'], note: 'art direction, campaigns, branding, ux/ui, ai design and motion.' },
+{ id: 16, name: 'donna haraway', discipline: 'creative direction', availability: 'available', tz: 'UTC−8', rate: '$$$$', yoe: 14, clients: ['apple', 'google', 'la dept of public health'], note: 'award-winning cd. integrated campaigns. media, entertainment, tech, sports.' },
+{ id: 17, name: 'marshall mcluhan', discipline: 'copywriting', availability: 'available', tz: 'UTC−5', rate: '$$$', yoe: 10, clients: ['ford', 'pepsi', 'milkpep'], note: "doesn't see products, sees people who need them. 30 countries. cultural depth." },
+{ id: 18, name: 'michel foucault', discipline: 'art direction', availability: 'available', tz: 'UTC+1', rate: '$$$', yoe: 10, clients: ['tree hut', 'dairy queen'], note: 'hybrid cd/cw. concept-first. unexpected ideas. multicultural. philosophy background.' },
+{ id: 19, name: 'judith butler', discipline: 'art direction', availability: 'booked', tz: 'UTC−5', rate: '$$', yoe: 2, clients: ['subway canada', 'nicorette', 'edo japan'], note: 'social-first ideas. culturally relevant content for younger audiences. 3+ years agency.' }];
+
+// ── LIVE DATA ────────────────────────────────────────────────────────────
+const SHEETS_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTxk39b5nWFUyQ_1vU0JdVufD2xkyG-RJepoFzv8_P_OIm_3CM21FmZTOXGMuscST6_7kpXruKt1_Rt/pub?gid=437022839&single=true&output=csv';
+
+const PHIL_POOL = [
+'simone weil', 'walter benjamin', 'hannah arendt', 'dieter rams', 'susan sontag', 'john berger',
+'el lissitzky', 'theodor adorno', 'bell hooks', 'adrienne rich', 'roland barthes', 'italo calvino',
+'james baldwin', 'virginia woolf', 'lászló moholy-nagy', 'donna haraway', 'marshall mcluhan',
+'michel foucault', 'judith butler', 'antonio gramsci', 'jean baudrillard', 'pierre bourdieu',
+'sun tzu', 'hélène cixous', 'gaston bachelard'];
+
+
+const RATES = ['$$', '$$$', '$$$', '$$$$'];
+const TZS = ['UTC−8', 'UTC−7', 'UTC−6', 'UTC−5', 'UTC−3', 'UTC+0', 'UTC+1', 'UTC+2'];
+
+function parseSheetCSV(text) {
+  const lines = text.split('\n').filter((l) => l.trim());
+  const parseRow = (row) => {
+    const f = [];let cur = '',inQ = false;
+    for (const c of row) {
+      if (c === '"') {inQ = !inQ;} else
+      if (c === ',' && !inQ) {f.push(cur.trim());cur = '';} else
+      cur += c;
+    }
+    f.push(cur.trim());
+    return f;
+  };
+  // Fixed column indices (confirmed from schema):
+  // 5=Discipline, 7=Availability, 12=Top Clients, 15=Value Prop
+  const DISC_IDX   = 5;
+  const AVAIL_IDX  = 7;
+  const CLIENT_IDX = 12;
+  const NOTE_IDX   = 15;
+  const used = new Set();
+  return lines.slice(1).map((line, i) => {
+    const row = parseRow(line);
+    const rawAvail = (row[AVAIL_IDX] || '').toLowerCase();
+    const availability = rawAvail.includes('immediate') ? 'available'
+                       : rawAvail.includes('waitlist')  ? 'booked'
+                       : 'soon';
+    const note = (row[NOTE_IDX] || '').toLowerCase().slice(0, 130);
+    if (!note) return null;
+    const name = PHIL_POOL.find((n) => !used.has(n)) || `creative ${i+1}`;
+    used.add(name);
+    const clients = (row[CLIENT_IDX] || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean).slice(0, 3);
+    const rawDisc = (row[DISC_IDX] || '').toLowerCase();
+    const disc = rawDisc.includes('copy') ? 'copywriting'
+               : rawDisc.includes('brand strategy') ? 'brand strategy'
+               : rawDisc.includes('art') ? 'art direction'
+               : rawDisc.includes('design') ? 'design leadership'
+               : rawDisc.includes('ux') ? 'ux / content design'
+               : rawDisc.includes('motion') ? 'motion design'
+               : 'creative direction';
+    const firstName = (row[1] || '').split(' ')[0].toLowerCase() || name;
+    const emailEnc = btoa(row[2] || '');
+    const portfolio = (row[3] || '').trim();
+    const linkedin  = (row[4] || '').trim();
+    const updatedAt = Date.parse(row[0]) || 0;
+    return { id: i+1, name, firstName, emailEnc, portfolio, linkedin, updatedAt, discipline: disc, availability, tz: TZS[i % TZS.length], rate: RATES[i % RATES.length], yoe: 5 + i % 16, clients: clients.length ? clients : ['portfolio available'], note };
+  }).filter(Boolean);
+}
+
+
+const AVAIL_DOT = { available: '#2a8a3a', soon: '#c87c18', booked: '#b04040' };
+const AVAIL_LBL = { available: 'now', soon: '1–2w', booked: '—' };
+
+// ── OPPORTUNITIES ─────────────────────────────────────────────────────────────
+const OPPS = [
+{ n: '001', abbr: 'IDA', org: 'International Documentary Assoc.', name: 'IDA Documentary Labs', type: 'Lab / Fellowship', pipeline: 'Development', deadline: 'Annual — Fall', tier: 1, note: 'Pare Lorentz Documentary Fund. Supports full-length docs.' },
+{ n: '002', abbr: 'IDA', org: 'International Documentary Assoc.', name: 'IDA Enterprise Documentary Fund', type: 'Grant', pipeline: 'Development', deadline: 'Paused', tier: 1, note: 'Up to $15k dev or $100k production grants for journalistic docs.' },
+{ n: '003', abbr: 'SI', org: 'Sundance Institute', name: 'Documentary Film Program Lab', type: 'Lab', pipeline: 'Development', deadline: 'Annual — varies', tier: 1, note: 'Flagship Sundance development lab for documentary filmmakers.' },
+{ n: '004', abbr: 'SI', org: 'Sundance Institute', name: 'Documentary Edit & Story Lab', type: 'Lab', pipeline: 'Post / Editorial', deadline: 'Annual — varies', tier: 1, note: 'Editorial lab for story structure and post-production work.' },
+{ n: '005', abbr: 'FM', org: 'Firelight Media', name: 'Documentary Lab Fellowship', type: 'Fellowship', pipeline: 'Development', deadline: 'Annual — Spring', tier: 1, note: '12-month fellowship + $25k grant. Filmmakers of color.' },
+{ n: '006', abbr: 'ITVS', org: 'ITVS', name: 'Open Call Funding', type: 'Grant / Dev Fund', pipeline: 'Development', deadline: 'Annual — varies', tier: 1, note: 'Development fund for independent producers.' },
+{ n: '007', abbr: 'PBS', org: 'PBS', name: 'PBS Production & Editorial Jobs', type: 'Entry-Level Job', pipeline: 'Production', deadline: 'Rolling', tier: 1, note: 'ATS portal — jobs appear and disappear. Visit regularly.' },
+{ n: '008', abbr: 'FL', org: 'Frontline', name: 'Frontline Editorial Fellowship', type: 'Fellowship', pipeline: 'Development', deadline: 'Rolling', tier: 1, note: 'Careers page — confirm specific fellowship title on visit.' },
+{ n: '009', abbr: 'PP', org: 'ProPublica', name: 'Emerging Reporters Fellowship', type: 'Fellowship', pipeline: 'Development', deadline: 'Annual — varies', tier: 1, note: 'Confirm current fellowship name and cycle on visit.' },
+{ n: '010', abbr: 'CFF', org: 'Catapult Film Fund', name: 'Catapult Development Fund', type: 'Grant', pipeline: 'Development', deadline: 'Annual — varies', tier: 1, note: 'Development grants for early-stage docs.' },
+{ n: '011', abbr: 'TRC', org: 'The Redford Center', name: 'Redford Center Grants Program', type: 'Grant', pipeline: 'Development', deadline: 'Annual — Spring', tier: 1, note: '$40k grant + yearlong mentorship. Environmental docs only. May 14 deadline.' },
+{ n: '012', abbr: 'TAL', org: 'This American Life', name: 'TAL Editorial Assistant / Researcher', type: 'Entry-Level Job', pipeline: 'Development', deadline: 'Rolling', tier: 1, note: 'Careers page — visit to check current openings.' },
+{ n: '013', abbr: 'PRX', org: 'PRX', name: 'PRX Podcast Garage Fellowship', type: 'Fellowship', pipeline: 'Development', deadline: 'Annual — varies', tier: 1, note: 'Independent podcast development fellowship.' },
+{ n: '014', abbr: 'WNYC', org: 'WNYC Studios', name: 'WNYC Studios Production Jobs', type: 'Entry-Level Job', pipeline: 'Post / Editorial', deadline: 'Rolling', tier: 1, note: 'Radiolab, On the Media, More Perfect.' },
+{ n: '015', abbr: 'DNYC', org: 'DOC NYC', name: 'DOC NYC Internship / Jobs', type: 'Internship', pipeline: 'Development', deadline: 'Rolling', tier: 1, note: "America's largest doc festival. NYC-based." },
+{ n: '016', abbr: 'KQ', org: 'Kartemquin Films', name: 'Diverse Voices Apprenticeship', type: 'Apprenticeship', pipeline: 'Post / Editorial', deadline: 'Annual — varies', tier: 2, note: 'Editorial + archival apprenticeship tracks.' },
+{ n: '017', abbr: 'SS', org: 'Story Syndicate', name: 'Story Researcher', type: 'Entry-Level Job', pipeline: 'Development', deadline: 'Rolling', tier: 2, note: 'Careers page — check current openings.' },
+{ n: '018', abbr: 'SS', org: 'Story Syndicate', name: 'Assistant Editor', type: 'Entry-Level Job', pipeline: 'Post / Editorial', deadline: 'Rolling', tier: 2, note: 'Strong long-form editorial track record.' },
+{ n: '019', abbr: 'TMP', org: 'The Marshall Project', name: 'Editorial Fellowship', type: 'Fellowship', pipeline: 'Development', deadline: 'Annual — varies', tier: 2, note: 'Criminal justice storytelling focus.' },
+{ n: '020', abbr: 'MJ', org: 'Mother Jones', name: 'Ben Bagdikian Fellowship', type: 'Fellowship', pipeline: 'Post / Editorial', deadline: 'Annual — varies', tier: 2, note: 'Yearlong editorial fellowship, $3,250/month.' },
+{ n: '021', abbr: 'MTF', org: 'Mountainfilm', name: 'Emerging Filmmaker Fellowship', type: 'Fellowship', pipeline: 'Post / Editorial', deadline: 'Annual — varies', tier: 2, note: 'Yearlong mentorship + cash award + Telluride trip. July 1–16 2026.' },
+{ n: '022', abbr: 'A24', org: 'A24', name: 'Documentary Jobs', type: 'Entry-Level Job', pipeline: 'Post / Editorial', deadline: 'Rolling', tier: 2, note: 'Increasingly active in docs; archival, research, editorial.' },
+{ n: '023', abbr: 'SFFILM', org: 'SFFILM', name: 'Documentary Film Fund', type: 'Grant', pipeline: 'Development', deadline: 'Annual — varies', tier: 2, note: 'Post-production grants. Open to filmmakers internationally.' },
+{ n: '024', abbr: 'NatGeo', org: 'National Geographic', name: 'Grants for Storytellers', type: 'Grant', pipeline: 'Development', deadline: 'Annual — varies', tier: 2, note: 'Confirm individual emerging storyteller eligibility.' },
+{ n: '025', abbr: 'IBWS', org: "Ida B. Wells Society", name: 'Investigative Internship', type: 'Internship', pipeline: 'Development', deadline: 'Annual — varies', tier: 2, note: 'Places interns at NYT, Bloomberg, ProPublica. BIPOC-focused.' },
+{ n: '026', abbr: 'LI', org: 'LinkedIn (Aggregator)', name: 'Story Researcher — Documentary', type: 'Entry-Level Job', pipeline: 'Development', deadline: 'Rolling', tier: 2, note: 'Pre-filtered: Entry level (0–2 yrs). Review listings before publishing.' },
+{ n: '027', abbr: 'LI', org: 'LinkedIn (Aggregator)', name: 'Production Assistant — Documentary', type: 'Entry-Level Job', pipeline: 'Production', deadline: 'Rolling', tier: 2, note: 'Pre-filtered: Entry level. Review listings before publishing.' },
+{ n: '028', abbr: 'LoC', org: 'Library of Congress', name: 'Film Preservation Internship', type: 'Internship', pipeline: 'Archival', deadline: 'Annual — varies', tier: 3, note: 'Packard Campus. Film preservation focus. Hard to discover — high value.' },
+{ n: '029', abbr: 'MoMA', org: 'Museum of Modern Art', name: 'Film Media Cataloging Internship', type: 'Internship', pipeline: 'Archival', deadline: 'Annual — varies', tier: 3, note: 'Media cataloging internship.' },
+{ n: '030', abbr: 'NFLX', org: 'Netflix Documentary', name: 'Documentary Production Jobs', type: 'Entry-Level Job', pipeline: 'Production', deadline: 'Rolling', tier: 3, note: 'Large doc slate; production coordinator roles. Highly competitive.' },
+{ n: '031', abbr: 'HBO', org: 'HBO Documentary Films', name: 'Documentary Production Jobs', type: 'Entry-Level Job', pipeline: 'Production', deadline: 'Rolling', tier: 3, note: 'Prestige doc unit under Warner Bros Discovery. Highly competitive.' },
+{ n: '032', abbr: 'AAPL', org: 'Apple Original Films', name: 'Production Jobs', type: 'Entry-Level Job', pipeline: 'Production', deadline: 'Rolling', tier: 3, note: 'Growing doc slate. Highly competitive.' },
+{ n: '033', abbr: 'ESPN', org: 'ESPN Films', name: '30 for 30 Editorial Jobs', type: 'Entry-Level Job', pipeline: 'Post / Editorial', deadline: 'Rolling', tier: 3, note: 'Via Disney Careers portal.' },
+{ n: '034', abbr: 'BAFTA', org: 'BAFTA', name: 'US Scholarship Programme', type: 'Fellowship', pipeline: 'Development', deadline: 'June 26, 2026', tier: 1, note: 'Financial support for intl students studying film in the US. Deadline approaching.' }];
+
+
+// ── FORM OPTIONS ──────────────────────────────────────────────────────────────
+const DISCIPLINES = ['Art Direction', 'Creative Direction', 'Design Leadership', 'Copywriting', 'Brand Strategy', 'Motion Design', 'UX / Content Design', 'Strategy', 'Other (specify below)'];
+const EXP_LEVELS = ['Junior / Mid-level (1–3 years)', 'Senior (4–7 years)', 'Lead / Principal (8–12 years)', 'Executive / Veteran (12+ years)'];
+const AVAIL_OPTS = ['Immediate (ready to start within 1 week)', '2–4 Weeks Out', 'Waitlist Only (currently booked)'];
+const CATEGORIES = ['Brand Identity / Strategy', 'Campaign / Advertising', 'Content Strategy & Copy', 'Motion Graphics / Animation', 'Website / Digital Product (UI/UX)', 'Experiential / Environmental', 'Film / Directing', 'Photography', 'Other'];
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function makeToken(days) {return btoa(JSON.stringify({ exp: Date.now() + days * 86400000 }));}
+function checkToken(t) {try {return Date.now() < JSON.parse(atob(t)).exp ? 'valid' : 'expired';} catch {return 'invalid';}}
+
+function Dot({ status }) {
+  return <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: AVAIL_DOT[status], flexShrink: 0 }} />;
+}
+
+// ── ANALOG CLOCK ──────────────────────────────────────────────────────────────
+function AnalogClock({ tz, city, accent }) {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {const id = setInterval(() => setNow(new Date()), 1000);return () => clearInterval(id);}, []);
+  const local = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+  const h = local.getHours() % 12,m = local.getMinutes(),s = local.getSeconds();
+  const hA = (h * 30 + m * 0.5) * Math.PI / 180;
+  const mA = m * 6 * Math.PI / 180;
+  const sA = s * 6 * Math.PI / 180;
+  const hh = (d) => [24 + d * Math.sin(hA), 24 - d * Math.cos(hA)];
+  const mh = (d) => [24 + d * Math.sin(mA), 24 - d * Math.cos(mA)];
+  const sh = (d) => [24 + d * Math.sin(sA), 24 - d * Math.cos(sA)];
+  const timeStr = local.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+      <svg width="52" height="52" viewBox="0 0 48 48" style={{ overflow: 'visible' }}>
+        <circle cx="24" cy="24" r="22" fill="none" stroke="rgba(244,241,236,0.12)" strokeWidth="1" />
+        {Array.from({ length: 12 }).map((_, i) => {
+          const a = i * 30 * Math.PI / 180;
+          const isMaj = i % 3 === 0;
+          return <line key={i} x1={24 + Math.sin(a) * (isMaj ? 18 : 19.5)} y1={24 - Math.cos(a) * (isMaj ? 18 : 19.5)} x2={24 + Math.sin(a) * 21.5} y2={24 - Math.cos(a) * 21.5} stroke={`rgba(244,241,236,${isMaj ? 0.35 : 0.15})`} strokeWidth={isMaj ? 1 : 0.5} />;
+        })}
+        <line x1="24" y1="24" x2={hh(12)[0]} y2={hh(12)[1]} stroke="rgba(244,241,236,0.9)" strokeWidth="2" strokeLinecap="round" />
+        <line x1="24" y1="24" x2={mh(16)[0]} y2={mh(16)[1]} stroke="rgba(244,241,236,0.7)" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1={sh(-4)[0]} y1={sh(-4)[1]} x2={sh(18)[0]} y2={sh(18)[1]} stroke={accent} strokeWidth="1" strokeLinecap="round" />
+        <circle cx="24" cy="24" r="1.5" fill={accent} />
+      </svg>
+      <span style={{ fontFamily: GM, fontSize: 9, color: 'rgba(244,241,236,0.38)', letterSpacing: '0.1em' }}>{city}</span>
+      <span style={{ fontFamily: GM, fontSize: 11, color: 'rgba(244,241,236,0.7)', letterSpacing: '0.04em' }}>{timeStr}</span>
+    </div>);
+
+}
+
+// ── BENCH TABLE (public teaser) ───────────────────────────────────────────────
+function BenchTeaser({ accent, bench: benchProp }) {
+  const rows = benchProp || BENCH;
+  const [hovered, setHovered] = useState(null);
+  const hp = rows.find((p) => p.id === hovered);
+  const COLS = '36px 2fr 1.4fr 60px 90px 110px';
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {/* Hover panel */}
+      <div className={`bench-hover-panel${hovered ? ' open' : ''}`}>
+        {hp &&
+        <div style={{ padding: '40px 28px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontFamily: GM, fontSize: 10, color: 'rgba(244,241,236,0.3)', letterSpacing: '0.1em', marginBottom: 20 }}>
+              {String(BENCH.findIndex((p) => p.id === hp.id) + 1).padStart(3, '0')} — {hp.discipline}
+            </div>
+            <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em', color: 'rgba(244,241,236,0.95)', marginBottom: 6, lineHeight: 1.1 }}>
+              {hp.name}
+            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 24 }}>
+              <Dot status={hp.availability} />
+              <span style={{ fontFamily: GM, fontSize: 10, color: 'rgba(244,241,236,0.45)' }}>
+                {AVAIL_LBL[hp.availability]} · {hp.tz} · {hp.yoe} yrs exp
+              </span>
+            </div>
+            <p style={{ fontFamily: GS, fontSize: 13, fontStyle: 'italic', color: 'rgba(244,241,236,0.6)', lineHeight: 1.6, marginBottom: 24, textTransform: 'none', flex: 1 }}>
+              "{hp.note}"
+            </p>
+            <div>
+              <div style={{ fontFamily: GM, fontSize: 9, color: 'rgba(244,241,236,0.3)', letterSpacing: '0.1em', marginBottom: 10 }}>selected clients</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {hp.clients.map((c) =>
+              <span key={c} style={{ border: '1px solid rgba(255,255,255,0.1)', padding: '3px 10px', fontFamily: GM, fontSize: 10, color: 'rgba(244,241,236,0.42)' }}>{c}</span>
+              )}
+              </div>
+              <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.07)', fontFamily: GM, fontSize: 10, color: 'rgba(244,241,236,0.22)', lineHeight: 1.7 }}>
+                rates + contact info<br />available with access pass.
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+
+      <div style={{ fontFamily: GM, fontSize: 12, marginRight: hovered ? 0 : 0, transition: 'margin 0.22s ease' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: COLS, padding: '8px 40px', borderBottom: `1px solid ${C.rule}`, background: C.paper }}>
+          {['#', 'name', 'discipline', 'avl', 'tz', 'rate'].map((h) =>
+          <span key={h} style={{ fontSize: 10, color: C.soft, letterSpacing: '0.1em' }}>{h}</span>
+          )}
+        </div>
+        {rows.map((p, i) => {
+          const isH = hovered === p.id;
+          return (
+            <div
+              key={p.id}
+              onMouseEnter={() => setHovered(p.id)}
+              onMouseLeave={() => setHovered(null)}
+              style={{ display: 'grid', gridTemplateColumns: COLS, padding: '11px 40px', borderBottom: `1px solid ${C.rule}`, background: isH ? C.paper : C.cream, cursor: 'default', transition: 'background 0.12s', alignItems: 'center', borderLeft: isH ? `3px solid ${accent}` : '3px solid transparent' }}>
+              
+              <span style={{ fontFamily: GM, fontSize: 10, color: isH ? C.soft : 'rgba(13,13,11,0.28)' }}>{String(i + 1).padStart(3, '0')}</span>
+              <span style={{ fontWeight: isH ? 600 : 400, fontSize: 13, color: C.ink, transition: 'font-weight 0.12s' }}>{p.name}</span>
+              <span style={{ color: C.soft, fontSize: 11 }}>{p.discipline}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Dot status={p.availability} />
+                <span style={{ fontSize: 10, color: C.soft }}>{AVAIL_LBL[p.availability]}</span>
+              </span>
+              <span style={{ color: C.soft, fontSize: 10, letterSpacing: '0.04em' }}>{p.tz}</span>
+              <span style={{ fontSize: 10, color: C.soft, opacity: 0.55, letterSpacing: '0.05em' }}>{p.rate}</span>
+            </div>);
+
+        })}
+      </div>
+    </div>);
+
+}
+
+// ── OPPORTUNITIES TABLE (unlocked, anti-scrape) ────────────────────────────────
+function OppsTable({ accent }) {
+  const [sel, setSel] = useState(null);
+  const [filter, setFilter] = useState('all');
+  const pipes = ['all', ...Array.from(new Set(OPPS.map((o) => o.pipeline)))];
+  const visible = filter === 'all' ? OPPS : OPPS.filter((o) => o.pipeline === filter);
+  const COLS = '48px 52px 1fr 1fr 120px 120px 28px';
+  const tw = (t) => ({ 1: { fontWeight: 600, opacity: 1 }, 2: { fontWeight: 400, opacity: 0.85 }, 3: { fontWeight: 300, opacity: 0.42 } })[t];
+
+  return (
+    <div className="protected" onCopy={(e) => e.preventDefault()} onContextMenu={(e) => e.preventDefault()}>
+      <div style={{ display: 'flex', gap: 8, padding: '0 40px 20px', flexWrap: 'wrap', alignItems: 'center' }}>
+        {pipes.map((p) =>
+        <button key={p} onClick={() => setFilter(p)} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', padding: '5px 12px', cursor: 'pointer', border: `1px solid ${C.rule}`, background: filter === p ? C.ink : 'transparent', color: filter === p ? C.cream : C.soft, transition: 'all 0.1s' }}>{p}</button>
+        )}
+        <span style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginLeft: 'auto' }}>{visible.length} opportunities</span>
+      </div>
+      <div style={{ display: 'flex', gap: 24, padding: '0 40px 14px', fontFamily: GM, fontSize: 10, color: C.soft }}>
+        <strong style={{ fontWeight: 600 }}>tier 1</strong> — flagship
+        <span style={{ opacity: 0.75 }}>tier 2 — solid</span>
+        <span style={{ opacity: 0.42 }}>tier 3 — supplemental</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: COLS, padding: '8px 40px', borderBottom: `1px solid ${C.rule}`, background: C.paper }}>
+        {['#', 'abbr', 'opportunity', 'type', 'pipeline', 'deadline', ''].map((h) =>
+        <span key={h} style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.1em' }}>{h}</span>
+        )}
+      </div>
+      {visible.map((opp, i) => {
+        const isSel = sel === opp.n;
+        const urgent = opp.deadline.match(/\d{4}/) && !opp.deadline.startsWith('Annual');
+        return (
+          <div key={opp.n}>
+            <div onClick={() => setSel(isSel ? null : opp.n)} style={{ display: 'grid', gridTemplateColumns: COLS, padding: '10px 40px', borderBottom: `1px solid ${C.rule}`, background: isSel ? C.ink : C.cream, color: isSel ? C.cream : C.ink, cursor: 'pointer', alignItems: 'center', transition: 'background 0.07s', borderLeft: isSel ? `3px solid ${accent}` : '3px solid transparent', ...(!isSel ? tw(opp.tier) : {}) }}>
+              <span style={{ fontFamily: GM, fontSize: 10, opacity: 0.28 }}>{String(i + 1).padStart(3, '0')}</span>
+              <span style={{ fontFamily: GM, fontSize: 10, opacity: 0.55, letterSpacing: '0.04em' }}>{opp.abbr}</span>
+              <span style={{ fontFamily: GS, fontSize: 12 }}>{opp.name}</span>
+              <span style={{ fontFamily: GM, fontSize: 10, opacity: 0.5 }}>{opp.type}</span>
+              <span style={{ fontFamily: GM, fontSize: 10, opacity: 0.48 }}>{opp.pipeline}</span>
+              <span style={{ fontFamily: GM, fontSize: 10, color: isSel ? 'rgba(244,241,236,0.6)' : urgent ? accent : undefined, opacity: opp.deadline === 'Paused' ? 0.28 : urgent ? 1 : 0.55 }}>{opp.deadline}</span>
+              <span style={{ fontFamily: GM, fontSize: 11, opacity: 0.28, textAlign: 'right' }}>{isSel ? '↑' : '↓'}</span>
+            </div>
+            {isSel &&
+            <div style={{ padding: '16px 40px 20px', background: '#111110', borderBottom: `1px solid rgba(255,255,255,0.05)` }}>
+                <p style={{ fontFamily: GS, fontSize: 13, color: 'rgba(244,241,236,0.68)', lineHeight: 1.55, marginBottom: 10, textTransform: 'none', maxWidth: '72ch' }}>{opp.note}</p>
+                <div style={{ display: 'flex', gap: 16 }}>
+                  <span style={{ fontFamily: GM, fontSize: 10, color: 'rgba(244,241,236,0.3)' }}>{opp.org}</span>
+                  <span style={{ fontFamily: GM, fontSize: 10, color: accent, marginLeft: 'auto', cursor: 'pointer' }}>visit org →</span>
+                </div>
+              </div>
+            }
+          </div>);
+
+      })}
+    </div>);
+
+}
+
+// ── FOOTER ────────────────────────────────────────────────────────────────────
+function Footer({ accent, setPage }) {
+  const [sent, setSent] = useState(false);
+  const [q, setQ] = useState({ what: '', email: '' });
+  const [total, setTotal] = useState(BENCH.length);
+  useEffect(() => {
+    fetch(SHEETS_CSV).then(r => r.text())
+      .then(t => { const p = parseSheetCSV(t); if (p.length > 5) setTotal(p.length); })
+      .catch(() => {});
+  }, []);
+
+  const CLOCKS = [
+  { city: 'los angeles', tz: 'America/Los_Angeles' },
+  { city: 'new york', tz: 'America/New_York' },
+  { city: 'são paulo', tz: 'America/Sao_Paulo' },
+  { city: 'london', tz: 'Europe/London' },
+  { city: 'amsterdam', tz: 'Europe/Amsterdam' },
+  { city: 'tokyo', tz: 'Asia/Tokyo' }];
+
+
+  return (
+    <footer style={{ background: C.ink, color: C.cream, borderTop: `1px solid rgba(255,255,255,0.06)` }}>
+      {/* clocks row */}
+      <div style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '40px 40px 36px' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.14em', color: 'rgba(244,241,236,0.3)', marginBottom: 28 }}>
+            the bench is global. these are the cities most of them are in.
+          </p>
+          <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap' }}>
+            {CLOCKS.map((c) => <AnalogClock key={c.city} tz={c.tz} city={c.city} accent={accent} />)}
+          </div>
+        </div>
+      </div>
+
+      {/* inquiry + nav */}
+      <div style={{ padding: '48px 40px 40px' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80 }}>
+          {/* inquiry form */}
+          <div>
+            <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,44px)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 18 }}>
+              got a project?
+            </h3>
+            <p style={{ fontFamily: GM, fontSize: 11, color: 'rgba(244,241,236,0.42)', lineHeight: 1.75, marginBottom: 24, maxWidth: '44ch' }}>
+              tell us what you're working on. we'll match it to someone on the bench. no commitment, no markup.
+            </p>
+            {sent ?
+            <div style={{ fontFamily: GM, fontSize: 12, color: 'rgba(244,241,236,0.55)', lineHeight: 1.75 }}>
+                ✓ &nbsp; got it. we'll be in touch within 24 hours.
+              </div> :
+
+            <form onSubmit={(e) => {e.preventDefault();setSent(true);}} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <textarea
+                value={q.what} onChange={(e) => setQ((p) => ({ ...p, what: e.target.value }))}
+                placeholder="what are you working on?"
+                required
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', padding: '12px 14px', fontFamily: GM, fontSize: 12, color: C.cream, outline: 'none', resize: 'none', height: 88, textTransform: 'none', lineHeight: 1.65 }} />
+              
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                  type="email"
+                  value={q.email} onChange={(e) => setQ((p) => ({ ...p, email: e.target.value }))}
+                  placeholder="your email"
+                  required
+                  style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', padding: '11px 14px', fontFamily: GM, fontSize: 12, color: C.cream, outline: 'none', textTransform: 'none' }} />
+                
+                  <button type="submit" style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.09em', background: accent, color: '#fff', border: `1px solid ${accent}`, padding: '11px 20px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                    send →
+                  </button>
+                </div>
+              </form>
+            }
+          </div>
+
+          {/* nav + meta */}
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40 }}>
+              <div>
+                <div style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.12em', color: 'rgba(244,241,236,0.28)', marginBottom: 14 }}>pages</div>
+                {[['home', 'home'], ['bench', 'bench'], ['pricing', 'pricing'], ['concierge', 'concierge'], ['apply', 'join the bench'], ['access', 'access']].map(([key, label]) =>
+                <div key={key} style={{ marginBottom: 10 }}>
+                    <button onClick={() => setPage(key === 'concierge' ? 'pricing' : key)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: GM, fontSize: 12, color: 'rgba(244,241,236,0.55)', letterSpacing: '0.03em' }}>
+                      {label}
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div>
+                <div style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.12em', color: 'rgba(244,241,236,0.28)', marginBottom: 14 }}>how it works</div>
+                <div style={{ fontFamily: GM, fontSize: 11, color: 'rgba(244,241,236,0.38)', lineHeight: 1.85 }}>
+                  <div>get a pass.</div>
+                  <div>the names appear.</div>
+                  <div>email them direct.</div>
+                  <div style={{ marginTop: 10, color: 'rgba(244,241,236,0.22)' }}>we're not in the middle — that's the whole point.</div>
+                </div>
+              </div>
+            </div>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 20, marginTop: 32 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span style={{ fontFamily: GS, fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em' }}>
+                  colo<span style={{ color: accent }}>phon</span>
+                </span>
+                <span style={{ fontFamily: GM, fontSize: 10, color: 'rgba(244,241,236,0.25)', letterSpacing: '0.06em' }}>
+                  © 2026
+                </span>
+              </div>
+              <p style={{ fontFamily: GM, fontSize: 10, color: 'rgba(244,241,236,0.2)', marginTop: 6, lineHeight: 1.6 }}>
+                the bench is private. the work is public.<br />
+                <span style={{ opacity: 0.55 }}>v0.12 · {total} humans · 0 algorithms</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>);
+
+}
+
+// ── HOME PAGE ─────────────────────────────────────────────────────────────────
+function HomePage({ setPage, accent, variant }) {
+  const [liveBench, setLiveBench] = useState(BENCH);
+  const [loading, setLoading] = useState(true);
+  const total = liveBench.length;
+  const avail = liveBench.filter((p) => p.availability === 'available').length;
+  const isBold = variant === 'bold';
+
+  useEffect(() => {
+    fetch(SHEETS_CSV).
+    then((r) => r.text()).
+    then((text) => {const p = parseSheetCSV(text);if (p.length > 5) setLiveBench(p);}).
+    catch(() => {}).
+    finally(() => setLoading(false));
+  }, []);
+
+  const CTAs = () =>
+  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '12px 22px', cursor: 'pointer' }}>get a pass →</button>
+      <button onClick={() => setPage('access')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', background: 'transparent', color: C.ink, border: `1px solid ${C.rule}`, padding: '12px 22px', cursor: 'pointer' }}>i want to look first. →</button>
+    </div>;
+
+
+  return (
+    <div style={{ background: C.cream, color: C.ink }}>
+      {/* hero */}
+      <section style={{ padding: isBold ? '80px 40px 72px' : '64px 40px 56px', borderBottom: `1px solid ${C.rule}` }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          {variant === 'wild' ?
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', alignItems: 'end' }}>
+              <div>
+                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: C.soft, marginBottom: 18 }}>cph / 001</p>
+                <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(56px,9vw,128px)', lineHeight: 0.87, letterSpacing: '-0.045em', marginBottom: 32 }}>
+                  the <span style={{ borderBottom: `4px solid ${accent}`, borderTopStyle: "none", borderRightStyle: "none", borderLeftStyle: "none" }}>right</span> person.<br />right now
+                </h1>
+                <CTAs />
+              </div>
+              <div style={{ padding: '0 0 6px 60px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 20 }}>
+                <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(56px,9vw,128px)', letterSpacing: '-0.045em', lineHeight: 0.87, color: C.soft, marginBottom: 8 }}>right now.</div>
+                <div style={{ fontFamily: GS, fontWeight: 300, fontSize: 'clamp(48px,5vw,72px)', letterSpacing: '-0.04em', lineHeight: 1, color: C.soft, opacity: 0.5 }}>
+                  {loading ? '—' : String(avail).padStart(3, '0')}
+                  <span style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.1em', marginLeft: 10, color: AVAIL_DOT.available, opacity: 1 }}>available</span>
+                </div>
+                <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.75, maxWidth: '44ch' }}>
+                  a private bench. {total} vetted creatives. pull out a pass, see who's actually free, hire them direct. no middlemen, no shortlists, no agency markup.
+                </p>
+              </div>
+            </div> :
+          isBold ?
+          <div>
+              <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: C.soft, marginBottom: 24 }}>CPH / 001 — a working bench for the people who hire creatives</p>
+              <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(72px,12vw,156px)', lineHeight: 0.87, letterSpacing: '-0.045em', marginBottom: 16 }}>
+                the <span style={{ color:'#ff5100' }}>right</span> person.
+              </h1>
+              <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(72px,12vw,156px)', lineHeight: 0.87, letterSpacing: '-0.045em', color: C.soft, marginBottom: 36 }}>right now.</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'end', maxWidth: 900 }}>
+                <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.75 }}>a private bench. {total} vetted creatives. pull out a pass, see who's actually free, hire them direct. no middlemen, no shortlists, no agency markup.</p>
+                <CTAs />
+              </div>
+            </div> :
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'end' }}>
+              <div>
+                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: C.soft, marginBottom: 20 }}>CPH / 001 — a working bench for the people who hire creatives</p>
+                <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(44px,7vw,96px)', lineHeight: 0.92, letterSpacing: '-0.035em', marginBottom: 8 }}>
+                  the <span style={{ color:'#ff5100' }}>right</span> person.
+                </h1>
+              </div>
+              <div>
+                <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(44px,7vw,96px)', lineHeight: 0.92, letterSpacing: '-0.035em', color: C.soft, marginBottom: 24 }}>right now.</h2>
+                <CTAs />
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+
+      {/* bench */}
+      <section>
+        <div style={{ maxWidth: 1100, margin: '0 auto', paddingTop: 40, paddingBottom: 64 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 40px 16px', borderBottom: `1px solid ${C.rule}` }}>
+            <div>
+              <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 16, letterSpacing: '-0.01em' }}>the bench, as of right now.</span>
+            </div>
+            <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>you're seeing {liveBench.slice(0, 19).length}. there are {Math.max(0, total - liveBench.slice(0, 19).length)} more. a pass turns the names on.</span>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <BenchTeaser accent={accent} bench={liveBench.slice(0, 19)} />
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 240, background: `linear-gradient(to bottom, transparent, ${C.cream})`, pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingBottom: 32 }}>
+              <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '11px 22px', cursor: 'pointer', position: 'relative', zIndex: 2 }}>
+                get a pass →
+              </button>
+              <span style={{ fontFamily: GM, fontSize: 10, color: C.soft, zIndex: 2 }}>day, month, or year. same bench. different commitment.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* how it works */}
+      {/* spec strip */}
+      <section style={{ borderTop: `1px solid ${C.rule}`, borderBottom: `1px solid ${C.rule}`, padding: '0 40px' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 0 }}>
+          {[
+          [String(total), 'vetted humans'],
+          [String(avail), 'available this week'],
+          ['<24h', 'from pass to first email'],
+          ['3', 'pass options']].
+          map(([n, l], i) =>
+          <div key={l} style={{ padding: '28px 0', borderRight: i < 3 ? `1px solid ${C.rule}` : 'none', paddingRight: 32, paddingLeft: i > 0 ? 32 : 0 }}>
+              <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 36, letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 6 }}>{n}</div>
+              <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.06em' }}>{l}</div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* how it works */}
+      <section style={{ background: C.paper, borderTop: `1px solid ${C.rule}`, padding: '72px 40px' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80 }}>
+          <div>
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.14em', marginBottom: 16 }}>03 / how it works</p>
+            <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,4vw,52px)', lineHeight: 1, letterSpacing: '-0.03em', marginBottom: 20 }}>it's not complicated.</h2>
+            <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.8, maxWidth: '44ch' }}>
+              pay for a pass. the names appear. email them direct.<br />we're not in the middle — that's the whole point.
+            </p>
+          </div>
+          <div>
+            {[
+            ['01', 'buy a pass.', 'day, month, or year. whichever matches the project. the credit card thing takes 30 seconds.'],
+            ['02', 'the names appear.', `all ${total} of them. filter by discipline, timezone, when you need them.`],
+            ['03', 'email them direct.', 'their work, their rate, their email. we\'re not in the middle.']].
+            map(([n, t, d]) =>
+            <div key={n} style={{ display: 'grid', gridTemplateColumns: '36px 1fr', gap: 16, padding: '18px 0', borderBottom: `1px solid ${C.rule}` }}>
+                <span style={{ fontFamily: GM, fontSize: 10, color: accent, paddingTop: 3 }}>{n}</span>
+                <div>
+                  <div style={{ fontFamily: GS, fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{t}</div>
+                  <div style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>{d}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* concierge sidecar */}
+      <section style={{ borderTop: `1px solid ${C.rule}`, padding: '64px 40px' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'center' }}>
+          <div>
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.14em', marginBottom: 16 }}>05 / also available — concierge</p>
+            <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,44px)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 16 }}>concierge: when you'd rather just have three names.</h3>
+            <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.78, marginBottom: 8 }}>a paragraph from you. three names from us. you email them yourself.</p>
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, opacity: 0.6, lineHeight: 1.7 }}>comes with year passes. available à la carte for day & month. pricing on the passes page.</p>
+          </div>
+          <div>
+            <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.06em', background: 'transparent', color: C.ink, border: `1px solid ${C.rule}`, padding: '13px 22px', cursor: 'pointer' }}>
+              sounds like me. →
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>);
+
+}
+
+// ── APPLY PAGE ────────────────────────────────────────────────────────────────
+function ApplyPage({ accent }) {
+  const [done, setDone] = useState(false);
+  const [disciplines, setDisciplines] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [form, setForm] = useState({
+    name: '', email: '', portfolio: '', linkedin: '', disciplineOther: '',
+    availability: '', hourlyRate: '', minFee: '',
+    referralContext: '', topClients: '', expLevel: '', summary: '',
+    rec1Name: '', rec1Email: '', rec2Name: '', rec2Email: '', rec3Name: '', rec3Email: '',
+    buyerName: '', buyerOrg: '', buyerEmail: ''
+  });
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const toggle = (list, fn, v) => fn((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]);
+
+  const iS = { width: '100%', background: 'rgba(255,255,255,0.65)', border: `1px solid ${C.rule}`, padding: '11px 14px', fontFamily: GM, fontSize: 13, color: C.ink, outline: 'none', borderRadius: 0, textTransform: 'none' };
+  const lS = { display: 'block', fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', color: C.soft, marginBottom: 7 };
+  const sH = { fontFamily: GS, fontWeight: 600, fontSize: 18, letterSpacing: '-0.01em', marginBottom: 18, marginTop: 40, paddingTop: 32, borderTop: `1px solid ${C.rule}` };
+
+  if (done) return (
+    <div style={{ background: C.cream, minHeight: '80vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: 40, textAlign: 'center' }}>
+      <div style={{ width: 48, height: 48, border: `1.5px solid ${accent}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontSize: 18 }}>✓</div>
+      <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em', lineHeight: 0.95 }}>you're in the queue.</h2>
+      <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '44ch', lineHeight: 1.75 }}>
+        we review applications manually. if you're a fit, you'll hear from us within a week — along with your philosopher name.
+      </p>
+    </div>);
+
+
+  return (
+    <div style={{ background: C.cream, color: C.ink, minHeight: '100vh' }}>
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: '72px 40px 80px' }}>
+        <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: C.soft, marginBottom: 18 }}>application</p>
+        <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(44px,7vw,80px)', letterSpacing: '-0.035em', lineHeight: 0.92, marginBottom: 16 }}>apply to the bench.</h1>
+        <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.8, marginBottom: 48, maxWidth: '52ch' }}>
+          we say no to most people. not because they're bad — but because the bench only works if every name on it is someone we'd hire ourselves. to apply, you must also refer three peers and name a potential client.
+        </p>
+        <form onSubmit={(e) => {e.preventDefault();setDone(true);}} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <h3 style={{ ...sH, marginTop: 0, paddingTop: 0, borderTop: 'none' }}>about you</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div><label style={lS}>full name</label><input style={iS} value={form.name} onChange={set('name')} required /></div>
+            <div><label style={lS}>email</label><input type="email" style={iS} value={form.email} onChange={set('email')} required /></div>
+          </div>
+          <div><label style={lS}>professional portfolio link</label><input type="url" style={iS} value={form.portfolio} onChange={set('portfolio')} placeholder="https://" /></div>
+          <div><label style={lS}>linkedin profile url</label><input type="url" style={iS} value={form.linkedin} onChange={set('linkedin')} placeholder="https://linkedin.com/in/" /></div>
+
+          <h3 style={sH}>your work</h3>
+          <div>
+            <label style={lS}>primary creative discipline(s)</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {DISCIPLINES.map((d) =>
+              <label key={d} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: GM, fontSize: 11, color: C.ink, cursor: 'pointer', padding: '8px 12px', border: `1px solid ${disciplines.includes(d) ? C.ink : C.rule}`, background: disciplines.includes(d) ? C.paper : 'transparent' }}>
+                  <input type="checkbox" checked={disciplines.includes(d)} onChange={() => toggle(disciplines, setDisciplines, d)} style={{ flexShrink: 0 }} /> {d}
+                </label>
+              )}
+            </div>
+          </div>
+          {disciplines.includes('Other (specify below)') && <div><label style={lS}>specify discipline</label><input style={iS} value={form.disciplineOther} onChange={set('disciplineOther')} /></div>}
+          <div>
+            <label style={lS}>professional level</label>
+            <select style={iS} value={form.expLevel} onChange={set('expLevel')} required>
+              <option value="">—</option>
+              {EXP_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={lS}>project categories — strongest expertise</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {CATEGORIES.map((c) =>
+              <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: GM, fontSize: 11, color: C.ink, cursor: 'pointer', padding: '8px 12px', border: `1px solid ${categories.includes(c) ? C.ink : C.rule}`, background: categories.includes(c) ? C.paper : 'transparent' }}>
+                  <input type="checkbox" checked={categories.includes(c)} onChange={() => toggle(categories, setCategories, c)} style={{ flexShrink: 0 }} /> {c}
+                </label>
+              )}
+            </div>
+          </div>
+          <div><label style={lS}>your unique value proposition</label><textarea style={{ ...iS, minHeight: 110, resize: 'vertical' }} value={form.summary} onChange={set('summary')} placeholder="what sets you apart? be specific." required /></div>
+
+          <h3 style={sH}>rates + availability</h3>
+          <div>
+            <label style={lS}>current availability</label>
+            <select style={iS} value={form.availability} onChange={set('availability')} required>
+              <option value="">—</option>
+              {AVAIL_OPTS.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div><label style={lS}>preferred hourly rate (usd)</label><input style={iS} value={form.hourlyRate} onChange={set('hourlyRate')} placeholder="e.g. $150/hr" /></div>
+            <div><label style={lS}>minimum project fee (usd)</label><input style={iS} value={form.minFee} onChange={set('minFee')} placeholder="e.g. $5,000" /></div>
+          </div>
+
+          <h3 style={sH}>background</h3>
+          <div><label style={lS}>top 3 most relevant past clients / brands</label><input style={iS} value={form.topClients} onChange={set('topClients')} placeholder="apple, google, nike" required /></div>
+          <div><label style={lS}>referral context — who referred you or where have we crossed paths?</label><input style={iS} value={form.referralContext} onChange={set('referralContext')} required /></div>
+
+          <h3 style={sH}>refer three people</h3>
+          <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.7, marginTop: -8, marginBottom: 8 }}>
+            the bench grows through referrals. name three creatives you'd personally vouch for — executive level or above.
+          </p>
+          {[1, 2, 3].map((n) =>
+          <div key={n} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div><label style={lS}>referral {n} — full name</label><input style={iS} value={form[`rec${n}Name`]} onChange={set(`rec${n}Name`)} required /></div>
+              <div><label style={lS}>referral {n} — email or linkedin</label><input style={iS} value={form[`rec${n}Email`]} onChange={set(`rec${n}Email`)} required /></div>
+            </div>
+          )}
+
+          <h3 style={sH}>refer a potential buyer</h3>
+          <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.7, marginTop: -8, marginBottom: 8 }}>
+            name one client, brand, or studio that should have access to the bench. we'll reach out.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+            <div><label style={lS}>their name</label><input style={iS} value={form.buyerName} onChange={set('buyerName')} required /></div>
+            <div><label style={lS}>organisation</label><input style={iS} value={form.buyerOrg} onChange={set('buyerOrg')} required /></div>
+            <div><label style={lS}>email (optional)</label><input type="email" style={iS} value={form.buyerEmail} onChange={set('buyerEmail')} /></div>
+          </div>
+
+          <button type="submit" style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '15px 24px', cursor: 'pointer', marginTop: 24 }}>
+            submit application →
+          </button>
+          <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, textAlign: 'center', lineHeight: 1.6 }}>
+            if accepted, you'll be assigned a philosopher name.<br />no real names are ever shown to clients without your consent.
+          </p>
+        </form>
+      </div>
+    </div>);
+
+}
+
+// ── PRICING PAGE ──────────────────────────────────────────────────────────────
+// ── BENCH BUILDER (replaces fixed pricing) ─────────────────────────────────
+function PricingPage({ setPage, accent }) {
+  const STRIPE = {
+    day: 'https://buy.stripe.com/5kQ5klb64beagze9n8a3u00',
+    week: 'https://buy.stripe.com/8x2fYZ1vuaa6fvaeHsa3u01',
+    month: 'https://buy.stripe.com/14A145fmk3LIbeU56Sa3u02'
+  };
+
+  const [bench, setBench] = useState(BENCH);
+  useEffect(() => {
+    fetch(SHEETS_CSV).then(r => r.text())
+      .then(t => { const p = parseSheetCSV(t); if (p.length > 5) setBench(p); })
+      .catch(() => {});
+  }, []);
+
+  const [step, setStep] = useState(0);
+  const [filters, setFilters] = useState({
+    disciplines: [],   // [] = all
+    avail: [],         // [] = all  ('available'|'soon'|'booked')
+    experience: [],    // [] = all
+    timezone: [],      // [] = all  ('americas'|'europe'|'asia')
+    rate: [],          // [] = all
+  });
+  const [duration, setDuration] = useState(null); // 'day' | 'week' | 'month'
+
+  const STEPS = [
+    { key: 'disciplines', label: 'discipline',  question: 'what do you actually need?',
+      sub: 'pick all that apply. or skip to see the whole bench.',
+      options: ['art direction','copywriting','design leadership','creative direction','brand strategy','motion design','ux / content design'] },
+    { key: 'avail', label: 'availability', question: 'when do you need them?',
+      sub: 'we keep this fresh — every name pings every 20 days.',
+      options: [['available','available now'],['soon','available in 1\u20132 weeks'],['booked','anytime in the next quarter']] },
+    { key: 'experience', label: 'experience', question: 'what level of experience?',
+      sub: 'years are self-reported and verified by referrals.',
+      options: [['junior','junior — 0\u20133 yrs'],['mid','mid — 4\u20137 yrs'],['senior','senior — 8\u201314 yrs'],['lead','lead — 15+ yrs']] },
+    { key: 'rate', label: 'rate', question: 'what does your budget look like?',
+      sub: 'we show real rate bands. you talk money directly with them.',
+      options: [['$','$ — under $100/hr'],['$$','$$ — $100\u2013200/hr'],['$$$','$$$ — $200\u2013350/hr'],['$$$$','$$$$ — $350+/hr']] },
+  ];
+
+  // Map a person to filter buckets
+  const personMatches = (p) => {
+    if (filters.disciplines.length && !filters.disciplines.includes(p.discipline)) return false;
+    if (filters.avail.length && !filters.avail.includes(p.availability)) return false;
+    if (filters.experience.length) {
+      const lvl = p.yoe < 4 ? 'junior' : p.yoe < 8 ? 'mid' : p.yoe < 15 ? 'senior' : 'lead';
+      if (!filters.experience.includes(lvl)) return false;
+    }
+    if (filters.timezone.length) {
+      const region = p.tz?.startsWith('utc-') ? 'americas' : p.tz === 'utc+0' || p.tz === 'utc+1' || p.tz === 'utc+2' ? 'europe' : 'asia';
+      if (!filters.timezone.includes(region)) return false;
+    }
+    if (filters.rate.length && !filters.rate.includes(p.rate)) return false;
+    return true;
+  };
+
+  const matched = bench.filter(personMatches);
+  const matchedAvail = matched.filter(p => p.availability !== 'booked').length;
+
+  // Pricing: base × discount per filter applied. Floor $29.
+  const BASE = { day: 29, week: 79, month: 249 };
+  const filtersApplied = Object.values(filters).filter(arr => arr.length > 0).length;
+  const discount = Math.min(0.4, filtersApplied * 0.10);
+  const priceFor = (d) => Math.max(29, Math.round(BASE[d] * (1 - discount)));
+
+  const toggle = (key, val) => setFilters(f => ({
+    ...f,
+    [key]: f[key].includes(val) ? f[key].filter(v => v !== val) : [...f[key], val]
+  }));
+
+  const TZS_OPT = [['americas','americas (utc-3 to utc-8)'],['europe','europe / africa (utc+0 to utc+2)'],['asia','asia / pacific (utc+5 to utc+12)']];
+
+  // ──────────────────────────────────────────────────
+  // INTRO + STEPS + REVEAL — single column, big type
+  // ──────────────────────────────────────────────────
+  const totalSteps = STEPS.length + 1; // + tz baked into step 2 visually... actually keep tz as part of step 2
+  const isReveal = step >= STEPS.length;
+
+  const stepHeader = (
+    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 56, fontFamily: GM, fontSize: 10, letterSpacing:'0.14em', color: C.soft }}>
+      <span>build your bench</span>
+      <span>{isReveal ? 'your bench' : `0${step+1} / 0${STEPS.length+1}`}</span>
+    </div>
+  );
+
+  if (isReveal) {
+    // RESULT + DURATION + CONCIERGE UPSELL
+    const showConcierge = matched.length < 15;
+    return (
+      <div style={{ background: C.cream, color: C.ink, minHeight: '100vh' }}>
+        <div style={{ maxWidth: 880, margin: '0 auto', padding: '60px 40px 80px' }}>
+          {stepHeader}
+
+          {/* Result headline */}
+          <p style={{ fontFamily: GM, fontSize: 11, letterSpacing:'0.14em', color: C.soft, marginBottom: 16 }}>your custom bench</p>
+          <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(56px,9vw,108px)', letterSpacing:'-0.04em', lineHeight: 0.92, marginBottom: 28 }}>
+            <span style={{ color: accent }}>{matched.length}</span> {filters.disciplines.length === 1 ? filters.disciplines[0].split(' ')[0] + 's' : 'creatives'}.<br/>
+            <span style={{ fontWeight:300, opacity: 0.6 }}>{matchedAvail}</span> <span style={{ fontWeight:300, opacity: 0.45 }}>available now.</span>
+          </h1>
+
+          {/* Filter recap */}
+          <div style={{ display:'flex', flexWrap:'wrap', gap: 8, marginBottom: 40 }}>
+            {Object.entries(filters).flatMap(([k, arr]) =>
+              arr.map(v => (
+                <span key={`${k}-${v}`} style={{ fontFamily: GM, fontSize: 10, letterSpacing:'0.06em', padding:'5px 11px', border:`1px solid ${C.rule}`, background: C.paper, color: C.ink }}>{v}</span>
+              ))
+            )}
+            {filtersApplied > 0 && (
+              <button onClick={() => { setFilters({ disciplines: [], avail: [], experience: [], timezone: [], rate: [] }); setStep(0); }}
+                style={{ fontFamily: GM, fontSize: 10, letterSpacing:'0.06em', padding:'5px 11px', background: 'transparent', border:'none', color: C.soft, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:3 }}>reset</button>
+            )}
+            {filtersApplied === 0 && (
+              <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>no filters applied — full bench, full price.</span>
+            )}
+          </div>
+
+          {/* Discount line */}
+          {discount > 0 && (
+            <div style={{ marginBottom: 40, padding:'14px 18px', background: C.ink, color: C.cream, display:'inline-block' }}>
+              <span style={{ fontFamily: GM, fontSize: 11, letterSpacing:'0.06em' }}>
+                {filtersApplied} filter{filtersApplied > 1 ? 's' : ''} applied — <span style={{ color: accent }}>{Math.round(discount*100)}% off</span> all passes.
+              </span>
+            </div>
+          )}
+
+          {/* Duration tiers */}
+          <h2 style={{ fontFamily: GS, fontWeight: 600, fontSize: 22, letterSpacing:'-0.015em', marginBottom: 20 }}>how long do you need access?</h2>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap: 1, background: C.rule, marginBottom: 48 }}>
+            {[['day','24 hours','for one urgent brief'],['week','7 days','most common'],['month','30 days','for ongoing search']].map(([k, lbl, sub]) => (
+              <div key={k} style={{ background: duration === k ? C.ink : C.cream, color: duration === k ? C.cream : C.ink, padding: '32px 28px', display:'flex', flexDirection:'column', cursor:'pointer' }}
+                onClick={() => setDuration(k)}>
+                <div style={{ fontFamily: GM, fontSize: 10, letterSpacing:'0.08em', opacity: 0.55, marginBottom: 8 }}>{lbl}</div>
+                <div style={{ display:'flex', alignItems:'baseline', gap: 10, marginBottom: 8 }}>
+                  <span style={{ fontFamily: GS, fontWeight: 300, fontSize: 56, letterSpacing:'-0.03em', lineHeight: 1 }}>${priceFor(k)}</span>
+                  {discount > 0 && <span style={{ fontFamily: GM, fontSize: 12, opacity: 0.4, textDecoration:'line-through' }}>${BASE[k]}</span>}
+                </div>
+                <div style={{ fontFamily: GM, fontSize: 11, opacity: 0.5, marginBottom: 24 }}>{sub}</div>
+                {k === 'week' && <span style={{ fontFamily: GM, fontSize: 9, letterSpacing:'0.1em', color: accent, marginTop:'auto' }}>most popular</span>}
+              </div>
+            ))}
+          </div>
+
+          {/* Checkout CTA */}
+          <button onClick={async () => {
+              if (!duration) return;
+              try {
+                const r = await fetch('/api/checkout', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    amount: priceFor(duration),
+                    duration,
+                    filters,
+                    matched: matched.length,
+                  }),
+                });
+                const j = await r.json();
+                if (j.url) { window.location.href = j.url; }
+                else { alert('checkout error: ' + (j.error || 'unknown')); }
+              } catch (err) {
+                // fallback to static link if api isn't deployed yet
+                window.location.href = STRIPE[duration];
+              }
+            }}
+            disabled={!duration}
+            style={{ display:'block', width:'100%', padding:'20px 28px', background: duration ? C.ink : C.rule, color: duration ? C.cream : C.soft, fontFamily: GM, fontSize: 12, letterSpacing:'0.08em', textAlign:'center', textDecoration:'none', cursor: duration ? 'pointer' : 'not-allowed', marginBottom: 40, border:'none' }}>
+            {duration ? `unlock ${matched.length} creatives — $${priceFor(duration)} →` : 'pick a duration above to continue'}
+          </button>
+
+          {/* Concierge upsell — only if bench is small */}
+          {showConcierge && (
+            <div style={{ padding: '32px 36px', background: C.paper, border: `1px solid ${C.rule}`, position:'relative' }}>
+              <span style={{ position:'absolute', top:-10, left:24, background: C.cream, padding:'0 12px', fontFamily: GM, fontSize: 9, letterSpacing:'0.14em', color: C.soft }}>or</span>
+              <h3 style={{ fontFamily: GS, fontWeight: 600, fontSize: 22, letterSpacing:'-0.015em', marginBottom: 8 }}>only {matched.length}? don't want to hire?</h3>
+              <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.7, marginBottom: 18, maxWidth:'56ch' }}>
+                that's a small bench. skip the search — we'll match you with the right person, run the intro, and get you to a kickoff call within 72 hours.
+              </p>
+              <div style={{ display:'flex', alignItems:'baseline', gap: 10, marginBottom: 18 }}>
+                <span style={{ fontFamily: GS, fontWeight: 300, fontSize: 40, letterSpacing:'-0.025em' }}>$750</span>
+                <span style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>flat fee. credited toward your first invoice.</span>
+              </div>
+              <a href="mailto:concierge@colophon.co?subject=concierge%20match%20request"
+                style={{ display:'inline-block', padding:'12px 20px', border:`1px solid ${C.ink}`, color: C.ink, fontFamily: GM, fontSize: 11, letterSpacing:'0.07em', textDecoration:'none' }}>
+                start a concierge match →
+              </a>
+            </div>
+          )}
+
+          <button onClick={() => setStep(STEPS.length - 1)} style={{ marginTop: 32, fontFamily: GM, fontSize: 11, color: C.soft, background:'transparent', border:'none', cursor:'pointer', textDecoration:'underline', textUnderlineOffset: 3 }}>
+            ← edit filters
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ──────────────────────────────────────────────────
+  // STEP VIEW — one question at a time
+  // ──────────────────────────────────────────────────
+  const cur = STEPS[step];
+  const curSelected = filters[cur.key];
+
+  // For the timezone "step", we fold it into step 1 (avail) — actually let's just expose tz inline on the avail step, since it's quick.
+  // For simplicity in this build, keep tz hidden; user can refine later. (Or expand into 5 steps later.)
+
+  return (
+    <div style={{ background: C.cream, color: C.ink, minHeight: '100vh' }}>
+      <div style={{ maxWidth: 720, margin: '0 auto', padding: '60px 40px 80px' }}>
+        {stepHeader}
+
+        {/* Progress bar */}
+        <div style={{ display:'flex', gap: 6, marginBottom: 64 }}>
+          {STEPS.map((_, i) => (
+            <div key={i} style={{ flex: 1, height: 2, background: i <= step ? C.ink : C.rule, transition:'background 0.2s' }} />
+          ))}
+        </div>
+
+        <p style={{ fontFamily: GM, fontSize: 10, letterSpacing:'0.14em', color: C.soft, marginBottom: 14 }}>{cur.label}</p>
+        <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(40px,6vw,68px)', letterSpacing:'-0.035em', lineHeight: 1, marginBottom: 14 }}>{cur.question}</h1>
+        <p style={{ fontFamily: GS, fontStyle:'italic', fontSize: 17, color: C.soft, lineHeight: 1.5, marginBottom: 40, maxWidth:'48ch' }}>{cur.sub}</p>
+
+        {/* Options */}
+        <div style={{ display:'flex', flexDirection:'column', gap: 0, marginBottom: 48 }}>
+          {cur.options.map((opt) => {
+            const [val, label] = Array.isArray(opt) ? opt : [opt, opt];
+            const on = curSelected.includes(val);
+            return (
+              <button key={val} onClick={() => toggle(cur.key, val)}
+                style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'22px 4px', borderBottom:`1px solid ${C.rule}`, background:'transparent', cursor:'pointer', fontFamily: GS, fontSize: 22, fontWeight: on ? 600 : 400, color: on ? C.ink : C.soft, textAlign:'left', letterSpacing:'-0.01em' }}>
+                <span>{label}</span>
+                <span style={{ width: 16, height: 16, border: `1.5px solid ${on ? C.ink : C.rule}`, background: on ? C.ink : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', color: C.cream, fontSize: 11, flexShrink: 0 }}>{on ? '✓' : ''}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Footer: live count + continue */}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap: 24, flexWrap:'wrap' }}>
+          <div style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>
+            <span style={{ fontFamily: GS, fontSize: 32, color: C.ink, fontWeight: 300, letterSpacing:'-0.02em' }}>{matched.length}</span>
+            <span style={{ marginLeft: 10 }}>match so far · {matchedAvail} available now</span>
+          </div>
+          <div style={{ display:'flex', gap: 12 }}>
+            {step > 0 && (
+              <button onClick={() => setStep(step - 1)} style={{ fontFamily: GM, fontSize: 11, letterSpacing:'0.06em', padding:'14px 20px', background:'transparent', border:`1px solid ${C.rule}`, color: C.soft, cursor:'pointer' }}>← back</button>
+            )}
+            <button onClick={() => setStep(step + 1)}
+              style={{ fontFamily: GM, fontSize: 11, letterSpacing:'0.07em', padding:'14px 24px', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, cursor:'pointer' }}>
+              {curSelected.length === 0 ? 'skip →' : `continue · ${curSelected.length} picked →`}
+            </button>
+          </div>
+        </div>
+
+        <button onClick={() => setStep(STEPS.length)} style={{ marginTop: 40, fontFamily: GM, fontSize: 10, color: C.soft, background:'transparent', border:'none', cursor:'pointer', textDecoration:'underline', textUnderlineOffset: 3 }}>
+          skip the questions, show me the full bench →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+// ── UNLOCKED BENCH TABLE ──────────────────────────────────────────────────────
+function UnlockedBenchTable({ accent }) {
+  const [liveBench, setLiveBench] = useState(BENCH);
+  const [sel, setSel] = useState(null);
+  const [filter, setFilter] = useState('all');
+  const [hovered, setHovered] = useState(null);
+  const [cursor, setCursor] = useState({ x: 0, y: 0, quip: '' });
+
+  const QUIPS = [
+    'a beast in the slack',
+    'writer / model / menace',
+    'first ones to draft',
+    'never misses a deadline',
+    'the one you call at 11pm',
+    'reads the brief twice',
+    'bends scope without breaking it',
+    'has actually shipped this',
+    'won an effie before lunch',
+    'speaks fluent ceo + intern',
+    'turns notes into actual ideas',
+    'studio quiet, mic loud',
+    'has the mood board already',
+    'will fight for the headline',
+    'sends the rough cut on a saturday',
+    'will not let the type get bad',
+    'half philosopher, half art director',
+    'doesn\u2019t need a creative brief',
+    'the agency would charge 4x for this',
+    'sends one revision, gets it right',
+  ];
+  const quipFor = (id) => QUIPS[(id * 7) % QUIPS.length];
+
+  useEffect(() => {
+    fetch(SHEETS_CSV)
+      .then(r => r.text())
+      .then(text => { const p = parseSheetCSV(text); if (p.length > 5) setLiveBench(p); })
+      .catch(() => {});
+  }, []);
+
+  const discs = ['all', ...Array.from(new Set(liveBench.map(p => p.discipline)))];
+  const filtered = filter === 'all' ? liveBench : liveBench.filter(p => p.discipline === filter);
+  // freshness reward: most-recently-updated first within each availability tier
+  const AVAIL_RANK = { available: 0, soon: 1, booked: 2 };
+  const visible = [...filtered].sort((a, b) => {
+    const r = AVAIL_RANK[a.availability] - AVAIL_RANK[b.availability];
+    if (r !== 0) return r;
+    return (b.updatedAt || 0) - (a.updatedAt || 0);
+  });
+  const avail = visible.filter(p => p.availability !== 'booked');
+  const COLS = '36px 1.5fr 1.3fr 56px 70px 80px 80px 80px 28px';
+
+  return (
+    <div className="protected" onCopy={e => e.preventDefault()}
+         onMouseMove={(e) => setCursor((c) => ({ ...c, x: e.clientX, y: e.clientY }))}>
+      {hovered != null && cursor.quip && (
+        <div style={{
+          position:'fixed', left: cursor.x + 18, top: cursor.y + 18,
+          fontFamily:GM, fontSize:10, letterSpacing:'0.06em',
+          background:'#0d0d0b', color:'#f4f1ec',
+          padding:'6px 10px', pointerEvents:'none', zIndex:1000,
+          whiteSpace:'nowrap', maxWidth:260, transform:'rotate(-1.5deg)',
+          boxShadow:'0 8px 24px rgba(0,0,0,0.18)',
+        }}>{cursor.quip}</div>
+      )}
+      <div style={{ display:'flex', gap:8, padding:'0 40px 20px', flexWrap:'wrap', alignItems:'center' }}>
+        {discs.map(d => (
+          <button key={d} onClick={() => setFilter(d)} style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.07em', padding:'5px 12px', cursor:'pointer', border:`1px solid ${C.rule}`, background: filter===d ? C.ink : 'transparent', color: filter===d ? C.cream : C.soft, transition:'all 0.1s' }}>{d}</button>
+        ))}
+        <span style={{ fontFamily:GM, fontSize:10, color:C.soft, marginLeft:'auto' }}>sorted by freshest · {avail.length} available or soon</span>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:COLS, padding:'8px 40px', borderBottom:`1px solid ${C.rule}`, background:C.paper }}>
+        {['#','name','discipline','avl','tz','rate','clients','links','contact'].map(h => (  <span key={h} style={{ fontFamily:GM, fontSize:10, color:C.soft, letterSpacing:'0.12em', opacity:0.7 }}>{h}</span>
+        ))}
+      </div>
+      {visible.map((p, i) => {
+        const isSel = sel === p.id;
+        return (
+          <div key={p.id}>
+            <div
+              onClick={() => setSel(isSel ? null : p.id)}
+              onMouseEnter={() => { setHovered(p.id); setCursor((c) => ({ ...c, quip: quipFor(p.id) })); }}
+              onMouseLeave={() => { setHovered((h) => h === p.id ? null : h); setCursor((c) => ({ ...c, quip: '' })); }}
+              style={{
+                display:'grid', gridTemplateColumns:COLS, padding:'11px 40px',
+                borderBottom:`1px solid ${C.rule}`,
+                background: isSel ? C.ink : (hovered === p.id ? C.paper : C.cream),
+                color: isSel ? C.cream : C.ink,
+                cursor: hovered === p.id ? 'none' : 'pointer',
+                alignItems:'center',
+                transition:'background 0.07s',
+                borderLeft: isSel ? `3px solid ${accent}` : (hovered === p.id ? `3px solid ${accent}` : '3px solid transparent'),
+              }}>
+              <span style={{ fontFamily:GM, fontSize:10, opacity:0.3 }}>{String(i+1).padStart(3,'0')}</span>
+              <span style={{ fontWeight: isSel ? 600 : 400 }}>{p.firstName || p.name}</span>
+              <span style={{ fontFamily:GM, fontSize:10, opacity:0.55 }}>{p.discipline}</span>
+              <span style={{ display:'flex', alignItems:'center', gap:4 }}>
+                <span style={{ width:7, height:7, borderRadius:'50%', background:AVAIL_DOT[p.availability], display:'inline-block', flexShrink:0 }} />
+                <span style={{ fontFamily:GM, fontSize:10, opacity:0.45 }}>{AVAIL_LBL[p.availability]}</span>
+              </span>
+              <span style={{ fontFamily:GM, fontSize:10, opacity:0.45 }}>{p.tz}</span>
+              <span style={{ fontFamily:GM, fontSize:10, opacity:0.65 }}>{p.rate}</span>
+              <span style={{ fontFamily:GM, fontSize:10, opacity:0.45, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.clients[0]}</span>
+              <span style={{ display:'flex', gap:8, alignItems:'center' }}>
+                {p.portfolio && (
+                  <a href={p.portfolio.startsWith('http') ? p.portfolio : `https://${p.portfolio}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="portfolio"
+                    style={{ fontFamily:GM, fontSize:10, opacity:0.55, color:'inherit', textDecoration:'underline', textUnderlineOffset:2 }}>site</a>
+                )}
+                {p.linkedin && (
+                  <a href={p.linkedin.startsWith('http') ? p.linkedin : `https://${p.linkedin}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="linkedin"
+                    style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:14, height:14, background:isSel ? C.cream : C.ink, color:isSel ? C.ink : C.cream, fontFamily:GM, fontSize:8, fontWeight:700, textDecoration:'none' }}>in</a>
+                )}
+              </span>
+              <span style={{ fontFamily:GM, fontSize:11, opacity:0.28, textAlign:'right' }}>{isSel ? '↑' : '↓'}</span>
+            </div>
+            {isSel && (
+              <div style={{ padding:'18px 40px 22px', background:'#111110', borderBottom:`1px solid rgba(255,255,255,0.05)` }}>
+                <p style={{ fontFamily:GS, fontSize:13, fontStyle:'italic', color:'rgba(244,241,236,0.68)', lineHeight:1.55, marginBottom:14, textTransform:'none', maxWidth:'72ch' }}>"{p.note}"</p>
+                <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
+                  {p.clients.map(c => <span key={c} style={{ border:'1px solid rgba(255,255,255,0.12)', padding:'2px 9px', fontFamily:GM, fontSize:10, color:'rgba(244,241,236,0.4)' }}>{c}</span>)}
+                  <span style={{ fontFamily:GM, fontSize:10, color:'rgba(244,241,236,0.3)', marginLeft:'auto' }}>{p.yoe} yrs exp · {p.tz}</span>
+                  {p.emailEnc && (
+                    <button onClick={(e) => { e.stopPropagation(); window.location.href = `mailto:${atob(p.emailEnc)}`; }} style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.08em', background:'transparent', border:`1px solid ${accent}`, color:accent, padding:'7px 14px', cursor:'pointer', flexShrink:0 }}>
+                      contact →
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── ACCESS PAGE ───────────────────────────────────────────────────────────────
+function AccessPage({ accent }) {
+  const [unlocked, setUnlocked] = useState(false);
+  const [expired, setExpired]   = useState(false);
+  const [tier, setTier]         = useState(null);
+  const [code, setCode]         = useState('');
+  const [err, setErr]           = useState(false);
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('t');
+    if (!t) return;
+    const s = checkToken(t);
+    if (s === 'valid') {
+      setUnlocked(true);
+      const { exp, tier: tokenTier } = JSON.parse(atob(t));
+      if (tokenTier) setTier(tokenTier);
+      const tick = () => {
+        const left = exp - Date.now();
+        if (left <= 0) { setExpired(true); setUnlocked(false); return; }
+        const d = Math.floor(left/86400000), h = Math.floor(left%86400000/3600000), m = Math.floor(left%3600000/60000);
+        setTimeLeft(d > 0 ? `${d}d ${h}h remaining` : h > 0 ? `${h}h ${m}m remaining` : `${m}m remaining`);
+      };
+      tick();
+      const id = setInterval(tick, 30000);
+      return () => clearInterval(id);
+    }
+    if (s === 'expired') setExpired(true);
+  }, []);
+
+  const simulate = (t, days) => {
+    const token = btoa(JSON.stringify({ exp: Date.now() + days * 86400000, tier: t }));
+    setTier(t);
+    setUnlocked(true);
+    const d = Math.floor(days);
+    setTimeLeft(d > 0 ? `${d}d remaining` : '24h remaining');
+    window.history.replaceState({}, '', `?t=${token}`);
+  };
+
+  const tryUnlock = () => { if (code.trim().length > 0) setUnlocked(true); else setErr(true); };
+
+  if (expired) return (
+    <div style={{ background: C.cream, minHeight: 'calc(100vh - 54px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: 40, textAlign: 'center' }}>
+      <div style={{ width: 48, height: 48, border: '1.5px solid #b04040', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b04040', fontSize: 20 }}>×</div>
+      <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em' }}>pass expired.</h2>
+      <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '40ch', lineHeight: 1.75 }}>your access window has closed. purchase a new pass for a fresh link.</p>
+    </div>);
+
+
+  if (!unlocked) return (
+    <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 54px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: 40, textAlign: 'center' }}>
+      <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: C.soft }}>client access</p>
+      <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(36px,6vw,72px)', letterSpacing: '-0.035em', lineHeight: 0.93 }}>enter your pass code.</h2>
+      <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, maxWidth: '44ch', lineHeight: 1.75 }}>
+        you received a link after purchase. paste your code below — or type anything to preview.
+      </p>
+      <div style={{ display: 'flex', width: '100%', maxWidth: 440, border: `1px solid ${C.rule}` }}>
+        <input value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && tryUnlock()} placeholder="colophon-xxxx" style={{ flex: 1, background: 'transparent', border: 'none', borderRight: `1px solid ${C.rule}`, padding: '13px 16px', fontFamily: GM, fontSize: 13, color: C.ink, outline: 'none', textTransform: 'none' }} />
+        <button onClick={tryUnlock} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: 'none', padding: '13px 20px', cursor: 'pointer' }}>unlock →</button>
+      </div>
+      {err && <p style={{ fontFamily: GM, fontSize: 10, color: '#b04040' }}>type anything to preview.</p>}
+
+      {/* simulate post-payment flow */}
+      <div style={{ marginTop: 32, padding: '24px 28px', border: `1px solid ${C.rule}`, background: C.paper, maxWidth: 480, textAlign: 'left' }}>
+        <p style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', marginBottom:16 }}>simulate post-payment — step through what a buyer sees</p>
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {[
+            { label:'day pass ($29)',   tier:'day',   days:1  },
+            { label:'week pass ($49)',  tier:'week',  days:7  },
+            { label:'monthly ($149)',   tier:'month', days:30 },
+          ].map(({ label, tier: t, days }) => (
+            <button key={t} onClick={() => simulate(t, days)} style={{ fontFamily:GM, fontSize:11, letterSpacing:'0.06em', background: C.ink, color: C.cream, border:'none', padding:'12px 18px', cursor:'pointer', textAlign:'left', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span>{label}</span>
+              <span style={{ opacity:0.45, fontSize:10 }}>simulate purchase →</span>
+            </button>
+          ))}
+        </div>
+        <p style={{ fontFamily:GM, fontSize:10, color:C.soft, marginTop:14, lineHeight:1.65 }}>
+          in production: stripe webhook generates a signed url → emails it to buyer → they click → lands here with token in the url → auto-unlocks → expires when pass does.
+        </p>
+      </div>
+    </div>);
+
+
+  return (
+    <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 54px)' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', paddingTop: 40, paddingBottom: 64 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 40px 20px', borderBottom: `1px solid ${C.rule}` }}>
+          <div>
+            <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,4vw,48px)', letterSpacing: '-0.025em', lineHeight: 1 }}>the bench. all of it.</h2>
+            <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginTop: 6 }}>real names, real rates, direct contact. reach out yourself.</p>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontFamily: GM, fontSize: 10, color: AVAIL_DOT.available }}>● hi again. the bench is open.</div>
+            {tier && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{tier} pass</div>}
+            {timeLeft && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{timeLeft}</div>}
+          </div>
+        </div>
+        <div style={{ paddingTop: 24 }}><UnlockedBenchTable accent={accent} /></div>
+      </div>
+    </div>);
+
+}
+
+// ── HEADER ────────────────────────────────────────────────────────────────────
+function Header({ page, setPage, accent }) {
+  return (
+    <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 40px', height: 54, borderBottom: `1px solid ${C.rule}`, background: C.cream, fontFamily: GM, fontSize: 12, position: 'sticky', top: 0, zIndex: 100 }}>
+      <button onClick={() => setPage('home')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: GS, fontSize: 15, fontWeight: 700, color: C.ink, letterSpacing: '-0.02em' }}>
+        colo<span style={{ color: accent }}>phon</span>
+      </button>
+      <nav style={{ display: 'flex', gap: 28 }}>
+        {[['pricing', 'get a pass'], ['apply', 'join the bench'], ['access', 'access']].map(([key, label]) =>
+        <button key={key} onClick={() => setPage(key)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: GM, fontSize: 11, letterSpacing: '0.05em', color: page === key ? C.ink : C.soft, borderBottom: page === key ? `1px solid ${C.ink}` : '1px solid transparent', paddingBottom: 1 }}>{label}</button>
+        )}
+      </nav>
+    </header>);
+
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────────
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [page, setPage] = useState('home');
+  const { variant, accent } = tweaks;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <Header page={page} setPage={setPage} accent={accent} />
+      {page === 'home' && <HomePage setPage={setPage} accent={accent} variant={variant} />}
+      {page === 'apply' && <ApplyPage accent={accent} />}
+      {page === 'pricing' && <PricingPage setPage={setPage} accent={accent} />}
+      {page === 'access' && <AccessPage accent={accent} />}
+      <Footer accent={accent} setPage={setPage} />
+      <TweaksPanel title="Tweaks">
+        <TweakRadio label="variant" value={variant} options={['safe', 'bold']} onChange={(v) => setTweak('variant', v)} />
+        <TweakColor label="accent" value={accent} onChange={(v) => setTweak('accent', v)} />
+      </TweaksPanel>
+    </div>);
+
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
