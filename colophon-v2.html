@@ -1044,7 +1044,7 @@ function PricingPage({ setPage, accent }) {
 
 
 // ── UNLOCKED BENCH TABLE ──────────────────────────────────────────────────────
-function UnlockedBenchTable({ accent }) {
+function UnlockedBenchTable({ accent, preview, setPage }) {
   const [liveBench, setLiveBench] = useState(BENCH);
   const [sel, setSel] = useState(null);
   const [filter, setFilter] = useState('all');
@@ -1146,11 +1146,11 @@ function UnlockedBenchTable({ accent }) {
               <span style={{ fontFamily:GM, fontSize:10, opacity:0.65 }}>{p.rate}</span>
               <span style={{ fontFamily:GM, fontSize:10, opacity:0.45, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.clients[0]}</span>
               <span style={{ display:'flex', gap:8, alignItems:'center' }}>
-                {p.portfolio && (
+                {!preview && p.portfolio && (
                   <a href={p.portfolio.startsWith('http') ? p.portfolio : `https://${p.portfolio}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="portfolio"
                     style={{ fontFamily:GM, fontSize:10, opacity:0.55, color:'inherit', textDecoration:'underline', textUnderlineOffset:2 }}>site</a>
                 )}
-                {p.linkedin && (
+                {!preview && p.linkedin && (
                   <a href={p.linkedin.startsWith('http') ? p.linkedin : `https://${p.linkedin}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="linkedin"
                     style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:14, height:14, background:isSel ? C.cream : C.ink, color:isSel ? C.ink : C.cream, fontFamily:GM, fontSize:8, fontWeight:700, textDecoration:'none' }}>in</a>
                 )}
@@ -1163,9 +1163,14 @@ function UnlockedBenchTable({ accent }) {
                 <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
                   {p.clients.map(c => <span key={c} style={{ border:'1px solid rgba(255,255,255,0.12)', padding:'2px 9px', fontFamily:GM, fontSize:10, color:'rgba(244,241,236,0.4)' }}>{c}</span>)}
                   <span style={{ fontFamily:GM, fontSize:10, color:'rgba(244,241,236,0.3)', marginLeft:'auto' }}>{p.yoe} yrs exp · {p.tz}</span>
-                  {p.emailEnc && (
+                  {!preview && p.emailEnc && (
                     <button onClick={(e) => { e.stopPropagation(); window.location.href = `mailto:${atob(p.emailEnc)}`; }} style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.08em', background:'transparent', border:`1px solid ${accent}`, color:accent, padding:'7px 14px', cursor:'pointer', flexShrink:0 }}>
                       contact →
+                    </button>
+                  )}
+                  {preview && (
+                    <button onClick={(e) => { e.stopPropagation(); setPage && setPage('pricing'); }} style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.08em', background: accent, border:`1px solid ${accent}`, color:'#fff', padding:'7px 14px', cursor:'pointer', flexShrink:0 }}>
+                      get a pass to contact →
                     </button>
                   )}
                 </div>
@@ -1179,16 +1184,19 @@ function UnlockedBenchTable({ accent }) {
 }
 
 // ── ACCESS PAGE ───────────────────────────────────────────────────────────────
-function AccessPage({ accent }) {
+function AccessPage({ accent, setPage }) {
   const [unlocked, setUnlocked] = useState(false);
   const [expired, setExpired]   = useState(false);
   const [tier, setTier]         = useState(null);
   const [code, setCode]         = useState('');
   const [err, setErr]           = useState(false);
   const [timeLeft, setTimeLeft] = useState('');
+  const [preview, setPreview]   = useState(false);
 
   useEffect(() => {
-    const t = new URLSearchParams(window.location.search).get('t');
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('preview') === '1') { setPreview(true); setUnlocked(true); return; }
+    const t = params.get('t');
     if (!t) return;
     const s = checkToken(t);
     if (s === 'valid') {
@@ -1271,12 +1279,21 @@ function AccessPage({ accent }) {
             <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginTop: 6 }}>real names, real rates, direct contact. reach out yourself.</p>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontFamily: GM, fontSize: 10, color: AVAIL_DOT.available }}>● hi again. the bench is open.</div>
-            {tier && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{tier} pass</div>}
-            {timeLeft && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{timeLeft}</div>}
+            {preview ? (
+              <>
+                <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.1em' }}>○ preview mode</div>
+                <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>contact info hidden</div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontFamily: GM, fontSize: 10, color: AVAIL_DOT.available }}>● hi again. the bench is open.</div>
+                {tier && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{tier} pass</div>}
+                {timeLeft && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{timeLeft}</div>}
+              </>
+            )}
           </div>
         </div>
-        <div style={{ paddingTop: 24 }}><UnlockedBenchTable accent={accent} /></div>
+        <div style={{ paddingTop: 24 }}><UnlockedBenchTable accent={accent} preview={preview} setPage={setPage} /></div>
       </div>
     </div>);
 
@@ -1310,7 +1327,7 @@ function App() {
       {page === 'home' && <HomePage setPage={setPage} accent={accent} variant={variant} />}
       {page === 'apply' && <ApplyPage accent={accent} />}
       {page === 'pricing' && <PricingPage setPage={setPage} accent={accent} />}
-      {page === 'access' && <AccessPage accent={accent} />}
+      {page === 'access' && <AccessPage accent={accent} setPage={setPage} />}
       <Footer accent={accent} setPage={setPage} />
       <TweaksPanel title="Tweaks">
         <TweakRadio label="variant" value={variant} options={['safe', 'bold']} onChange={(v) => setTweak('variant', v)} />
