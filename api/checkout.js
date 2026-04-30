@@ -43,9 +43,12 @@ export default async function handler(req, res) {
       : catalog.amount;
 
     // Origin: prefer the request's Origin header if it's on the allow-list,
-    // otherwise default to the canonical domain.
+    // then SITE_URL env var, otherwise the canonical domain.
     const reqOrigin = (req.headers.origin || '').toLowerCase();
-    const origin = ALLOWED_ORIGINS.includes(reqOrigin) ? reqOrigin : 'https://colophon.contact';
+    const siteUrl = (process.env.SITE_URL || '').replace(/\/$/, '');
+    const origin = ALLOWED_ORIGINS.includes(reqOrigin)
+      ? reqOrigin
+      : (siteUrl || 'https://colophon.contact');
 
     // Concierge flow returns to /concierge with paid=1 so the brief stage unlocks;
     // every other flow lands on /success.

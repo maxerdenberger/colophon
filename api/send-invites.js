@@ -9,10 +9,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'method not allowed' });
   }
 
-  // ── Auth: Bearer ADMIN_SECRET ─────────────────────────────────────────────
+  // ── Auth: Bearer ADMIN_KEY (or legacy ADMIN_SECRET) ──────────────────────
   const auth = req.headers.authorization || '';
-  const expected = `Bearer ${process.env.ADMIN_SECRET}`;
-  if (!process.env.ADMIN_SECRET || auth !== expected) {
+  const secret = process.env.ADMIN_KEY || process.env.ADMIN_SECRET;
+  const expected = `Bearer ${secret}`;
+  if (!secret || auth !== expected) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 

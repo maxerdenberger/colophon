@@ -17,6 +17,9 @@ export default async function handler(req, res) {
     if (!name || !email) {
       return res.status(400).json({ error: 'name and email required' });
     }
+    if (!process.env.ADMIN_EMAIL) {
+      return res.status(500).json({ error: 'ADMIN_EMAIL env var not configured' });
+    }
 
     const firstName = String(name).trim().split(/\s+/)[0] || 'there';
 

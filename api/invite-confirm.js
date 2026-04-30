@@ -14,6 +14,9 @@ export default async function handler(req, res) {
     if (!email) {
       return res.status(400).json({ error: 'email required' });
     }
+    if (!process.env.ADMIN_EMAIL) {
+      return res.status(500).json({ error: 'ADMIN_EMAIL env var not configured' });
+    }
 
     const row = (label, value) => `
       <tr>
