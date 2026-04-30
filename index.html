@@ -2549,7 +2549,19 @@ function InvitePage({ accent, setPage }) {
 function AdminPage({ accent, setPage }) {
   const [secret, setSecret] = useState('');
   const [authed, setAuthed] = useState(false);
+  const [mode, setMode] = useState('quick'); // 'quick' | 'batch'
+
+  // Quick-test form state
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    referrer: '',
+    discipline: 'art direction',
+  });
+
+  // Batch JSON mode
   const [json, setJson] = useState('[\n  { "name": "Jane Doe", "email": "jane@studio.com", "referrer": "Maria Lopez", "discipline": "art direction" }\n]');
+
   const [result, setResult] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -2562,19 +2574,13 @@ function AdminPage({ accent, setPage }) {
   }, []);
 
   const inputStyle = { background: '#fff', border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '12px 14px', fontFamily: GM, fontSize: 13, color: C.ink, outline: 'none', width: '100%', textTransform: 'none' };
+  const labelStyle = { display: 'block', fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', color: C.soft, marginBottom: 6, textTransform: 'uppercase' };
+  const setF = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const send = async () => {
+  const sendPayload = async (people) => {
     setErr('');
     setResult(null);
-    let people;
-    try {
-      people = JSON.parse(json);
-      if (!Array.isArray(people)) throw new Error('expected an array');
-    } catch (ex) {
-      setErr(`invalid JSON: ${ex.message}`);
-      return;
-    }
-    if (!people.length) { setErr('no recipients in array'); return; }
+    if (!people.length) { setErr('no recipients'); return; }
     setBusy(true);
     try {
       const res = await fetch('/api/send-invites', {
@@ -2585,8 +2591,13 @@ function AdminPage({ accent, setPage }) {
         },
         body: JSON.stringify(people),
       });
-      const j = await res.json();
-      if (res.status === 401) { setAuthed(false); setErr('unauthorized — check the admin secret'); try { sessionStorage.removeItem('colophon_admin_secret'); } catch {} setBusy(false); return; }
+      const j = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        setAuthed(false);
+        setErr('unauthorized — check the admin secret');
+        try { sessionStorage.removeItem('colophon_admin_secret'); } catch {}
+        return;
+      }
       if (!res.ok || j.error) throw new Error(j.error || `error ${res.status}`);
       setResult(j);
     } catch (ex) {
@@ -2596,6 +2607,44 @@ function AdminPage({ accent, setPage }) {
     }
   };
 
+  const sendQuick = (e) => {
+    if (e?.preventDefault) e.preventDefault();
+    if (!form.name.trim() || !form.email.trim() || !form.referrer.trim()) {
+      setErr('name, email, and referrer are required');
+      return;
+    }
+    sendPayload([{
+      name: form.name.trim(),
+      email: form.email.trim(),
+      referrer: form.referrer.trim(),
+      discipline: form.discipline.trim() || undefined,
+    }]);
+  };
+
+  const sendBatch = () => {
+    let people;
+    try {
+      people = JSON.parse(json);
+      if (!Array.isArray(people)) throw new Error('expected an array');
+    } catch (ex) {
+      setErr(`invalid JSON: ${ex.message}`);
+      return;
+    }
+    sendPayload(people);
+  };
+
+  const fillSelfTest = () => {
+    setForm({
+      name: 'Max Erdenberger',
+      email: 'merdenberger@gmail.com',
+      referrer: 'Maria Lopez',
+      discipline: 'art direction',
+    });
+    setErr('');
+    setResult(null);
+  };
+
+  // ── Auth gate ─────────────────────────────────────────────────────────────
   if (!authed) {
     return (
       <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 60px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 40 }}>
@@ -2613,36 +2662,107 @@ function AdminPage({ accent, setPage }) {
       </div>);
   }
 
+  // ── Console ───────────────────────────────────────────────────────────────
+  const segBtn = (key, label) => (
+    <button key={key} onClick={() => { setMode(key); setErr(''); setResult(null); }}
+      style={{
+        fontFamily: GM, fontSize: 10, letterSpacing: '0.08em',
+        padding: '8px 16px',
+        background: mode === key ? C.ink : 'transparent',
+        color: mode === key ? C.cream : C.soft,
+        border: `1px solid ${mode === key ? C.ink : C.rule}`,
+        cursor: 'pointer',
+        borderRadius: 4,
+        textTransform: 'uppercase',
+      }}>
+      {label}
+    </button>
+  );
+
   return (
     <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 60px)' }}>
-      <div style={{ maxWidth: 880, margin: '0 auto', padding: '40px 32px 80px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 24 }}>
-          <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 28, letterSpacing: '-0.02em' }}>send invite batch</h2>
+      <div style={{ maxWidth: 720, margin: '0 auto', padding: '40px 32px 80px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+          <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 28, letterSpacing: '-0.02em' }}>admin · invites</h2>
           <button onClick={() => { try { sessionStorage.removeItem('colophon_admin_secret'); } catch {} setAuthed(false); setSecret(''); }}
             style={{ fontFamily: GM, fontSize: 10, color: C.soft, background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
             sign out
           </button>
         </div>
-        <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.7, marginBottom: 18 }}>
-          Paste a JSON array of approved people. Each needs <code>name</code>, <code>email</code>, <code>referrer</code>, and optional <code>discipline</code>. 100ms delay between sends.
+        <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.7, marginBottom: 22 }}>
+          Sends a referral email via <code>/api/send-invites</code>. The recipient gets a message from <code>bench@colophon.contact</code> with subject <em>“{'{referrer}'} recommended you to Colophon.”</em> and a link to /invite.
         </p>
-        <textarea value={json} onChange={(e) => setJson(e.target.value)} spellCheck={false}
-          style={{ ...inputStyle, fontFamily: GM, fontSize: 12, minHeight: 280, resize: 'vertical', lineHeight: 1.55 }} />
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+          {segBtn('quick', 'quick test')}
+          {segBtn('batch', 'batch (JSON)')}
+        </div>
+
+        {mode === 'quick' && (
+          <form onSubmit={sendQuick} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={labelStyle}>recipient name</label>
+                <input value={form.name} onChange={setF('name')} placeholder="Jane Doe" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>recipient email</label>
+                <input type="email" value={form.email} onChange={setF('email')} placeholder="jane@studio.com" style={inputStyle} />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={labelStyle}>referrer</label>
+                <input value={form.referrer} onChange={setF('referrer')} placeholder="Maria Lopez" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>discipline</label>
+                <input value={form.discipline} onChange={setF('discipline')} placeholder="art direction" style={inputStyle} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 6 }}>
+              <button type="submit" disabled={busy}
+                style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: 'none', padding: '14px 24px', cursor: busy ? 'wait' : 'pointer', borderRadius: 6 }}>
+                {busy ? 'sending…' : 'send invite →'}
+              </button>
+              <button type="button" onClick={fillSelfTest}
+                style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.06em', background: 'transparent', color: C.soft, border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                fill with self-test (merdenberger@gmail.com)
+              </button>
+            </div>
+          </form>
+        )}
+
+        {mode === 'batch' && (
+          <div>
+            <label style={labelStyle}>JSON array of recipients</label>
+            <textarea value={json} onChange={(e) => setJson(e.target.value)} spellCheck={false}
+              style={{ ...inputStyle, fontFamily: GM, fontSize: 12, minHeight: 240, resize: 'vertical', lineHeight: 1.55 }} />
+            <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginTop: 8, lineHeight: 1.6 }}>
+              Each entry needs <code>name</code>, <code>email</code>, <code>referrer</code>; <code>discipline</code> optional. 100ms throttle between sends.
+            </p>
+            <button onClick={sendBatch} disabled={busy}
+              style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: 'none', padding: '14px 24px', cursor: busy ? 'wait' : 'pointer', marginTop: 12, borderRadius: 6 }}>
+              {busy ? 'sending…' : 'send batch →'}
+            </button>
+          </div>
+        )}
+
         {err && (
-          <div style={{ padding: '12px 16px', border: '1px solid #b04040', background: 'rgba(176,64,64,0.08)', color: '#b04040', fontFamily: GM, fontSize: 11, borderRadius: 4, marginTop: 12 }}>
+          <div style={{ marginTop: 18, padding: '12px 16px', border: '1px solid #b04040', background: 'rgba(176,64,64,0.08)', color: '#b04040', fontFamily: GM, fontSize: 11, borderRadius: 4 }}>
             {err}
           </div>
         )}
-        <button onClick={send} disabled={busy}
-          style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: 'none', padding: '14px 24px', cursor: busy ? 'wait' : 'pointer', marginTop: 16, borderRadius: 6 }}>
-          {busy ? 'sending…' : 'send invites →'}
-        </button>
         {result && (
-          <div style={{ marginTop: 24, padding: '16px 20px', border: `1px solid ${C.rule}`, background: '#fff', fontFamily: GM, fontSize: 12, lineHeight: 1.7 }}>
-            <div><strong>sent:</strong> {result.sent}</div>
-            <div><strong>failed:</strong> {result.failed?.length || 0}</div>
+          <div style={{ marginTop: 18, padding: '16px 20px', border: `1px solid ${C.rule}`, background: '#fff', fontFamily: GM, fontSize: 12, lineHeight: 1.7 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: result.sent > 0 ? '#3a8f5a' : '#b04040' }} />
+              <strong style={{ fontWeight: 600 }}>sent: {result.sent}</strong>
+              <span style={{ color: C.soft }}>· failed: {result.failed?.length || 0}</span>
+            </div>
             {result.failed?.length > 0 && (
-              <ul style={{ marginTop: 10, paddingLeft: 18, color: '#b04040' }}>
+              <ul style={{ marginTop: 8, paddingLeft: 18, color: '#b04040' }}>
                 {result.failed.map((f, i) => <li key={i}>{f.email}: {f.error}</li>)}
               </ul>
             )}
