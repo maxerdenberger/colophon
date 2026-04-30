@@ -9,8 +9,8 @@
  */
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const SITE_URL       = process.env.SITE_URL || 'https://colophon.co';
-const FROM_EMAIL     = 'bench@colophon.co';
+const SITE_URL       = process.env.SITE_URL || 'https://colophon.contact';
+const FROM_EMAIL     = 'bench@colophon.contact';
 
 function makeInviteToken(email, type) {
   const payload = { email, type, exp: Date.now() + 30 * 86400000 };
