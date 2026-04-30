@@ -68,6 +68,14 @@ export async function loadBench() {
 
     return {
       id: i + 1,
+      // Personal fields — used by /api/lookup-applicant. Never returned in
+      // public endpoints (e.g. /api/bench-count strips these implicitly by
+      // only returning a count).
+      name:      (r[1] || '').trim(),
+      email:     (r[2] || '').trim().toLowerCase(),
+      portfolio: (r[3] || '').trim(),
+      linkedin:  (r[4] || '').trim(),
+      // Filterable / aggregable fields
       discipline: canonDisc(r[DISC]),
       availability,
       hourlyRate,

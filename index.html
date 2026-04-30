@@ -2583,9 +2583,17 @@ function ConciergePage({ accent, setPage }) {
 // ── INVITE PAGE (60-second confirmation form linked from invite emails) ──
 function InvitePage({ accent, setPage }) {
   const [params, setParams] = useState({ name: '', ref: '' });
-  const [form, setForm] = useState({ email: '', availability: '', notes: '', portfolio: '' });
+  const [form, setForm] = useState({
+    email: '', availability: '', notes: '', portfolio: '',
+    talentRefName: '', talentRefContact: '',
+    buyerRefName:  '', buyerRefOrg:    '', buyerRefContact: '',
+  });
   const [stage, setStage] = useState('form'); // 'form' | 'sending' | 'sent'
   const [err, setErr] = useState('');
+  // Lookup state — when an existing CSV record is matched, we collapse the
+  // form to a single 'confirm availability' control.
+  const [knownData, setKnownData] = useState(null); // null = unknown, false = checked + not found, object = found
+  const [lookingUp, setLookingUp] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -2595,6 +2603,42 @@ function InvitePage({ accent, setPage }) {
 
   const inputStyle = { background: '#fff', border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '14px 16px', fontFamily: GM, fontSize: 14, color: C.ink, outline: 'none', width: '100%', textTransform: 'none' };
   const labelStyle = { display: 'block', fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', color: C.soft, marginBottom: 7, textTransform: 'uppercase' };
+  const setF = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  // Look up the email against the bench. Pre-fills if matched. Triggered on
+  // blur (so it doesn't fire on every keystroke).
+  const lookup = async () => {
+    const email = form.email.trim().toLowerCase();
+    if (!email || !email.includes('@')) return;
+    setLookingUp(true);
+    try {
+      const res = await fetch('/api/lookup-applicant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const j = await res.json();
+      if (j.found && j.knownData) {
+        setKnownData(j.knownData);
+        // Pre-fill what we already know so the admin email is complete.
+        setForm((f) => ({
+          ...f,
+          portfolio: f.portfolio || j.knownData.portfolio || '',
+          availability: f.availability ||
+            (j.knownData.availability === 'available' ? 'Available now'
+             : j.knownData.availability === 'soon'    ? 'Available in 1–2 weeks'
+             : j.knownData.availability === 'booked'  ? 'Booked / waitlist only'
+             : ''),
+        }));
+      } else {
+        setKnownData(false);
+      }
+    } catch {
+      setKnownData(false);
+    } finally {
+      setLookingUp(false);
+    }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -2605,7 +2649,10 @@ function InvitePage({ accent, setPage }) {
       const res = await fetch('/api/invite-confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          knownName: knownData && knownData.firstName ? knownData.firstName : null,
+        }),
       });
       const j = await res.json();
       if (!res.ok || j.error) throw new Error(j.error || 'send failed');
@@ -2628,47 +2675,105 @@ function InvitePage({ accent, setPage }) {
       </div>);
   }
 
+  const isKnown = knownData && knownData.firstName;
+  const friendlyName = isKnown ? knownData.firstName : (params.name ? params.name.split(' ')[0] : '');
+
+  // Section: Email + (lookup-aware) member fields
+  const memberSection = (
+    <>
+      <div>
+        <label style={labelStyle}>email</label>
+        <input type="email" required value={form.email}
+          onChange={setF('email')}
+          onBlur={lookup}
+          style={inputStyle} placeholder="you@studio.com" />
+        {lookingUp && <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 6 }}>checking the directory…</p>}
+        {isKnown && (
+          <p style={{ fontFamily: GM, fontSize: 11, color: '#3a8f5a', marginTop: 6 }}>
+            ● we already have you, {knownData.firstName}. just confirm availability below.
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label style={labelStyle}>{isKnown ? 'still available?' : 'current availability'}</label>
+        <select value={form.availability} onChange={setF('availability')} style={inputStyle}>
+          <option value="">—</option>
+          <option value="Available now">Available now</option>
+          <option value="Available in 1–2 weeks">Available in 1–2 weeks</option>
+          <option value="Booked / waitlist only">Booked / waitlist only</option>
+        </select>
+      </div>
+
+      {/* For unknown applicants we ask the basics. Known members skip these. */}
+      {!isKnown && (
+        <>
+          <div>
+            <label style={labelStyle}>portfolio (optional)</label>
+            <input type="url" value={form.portfolio} onChange={setF('portfolio')}
+              style={inputStyle} placeholder="https://" />
+          </div>
+          <div>
+            <label style={labelStyle}>anything we should know? (optional)</label>
+            <textarea rows={4} value={form.notes} onChange={setF('notes')}
+              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
+              placeholder="rate, focus, current projects, anything that helps." />
+          </div>
+        </>
+      )}
+
+      {/* Known members get a single short note field — used for portfolio updates, rate changes, etc. */}
+      {isKnown && (
+        <div>
+          <label style={labelStyle}>anything to update? (optional)</label>
+          <textarea rows={3} value={form.notes} onChange={setF('notes')}
+            style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
+            placeholder="new portfolio, new rate, new focus — only if it's changed." />
+        </div>
+      )}
+    </>
+  );
+
+  // Section: Optional referrals (always shown — the compounding mechanic)
+  const referralSection = (
+    <div style={{ marginTop: 8, paddingTop: 24, borderTop: `1px solid ${C.rule}` }}>
+      <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', color: C.soft, marginBottom: 6, textTransform: 'uppercase' }}>Refer two (optional)</p>
+      <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.7, marginBottom: 18 }}>
+        if you know one creative we should add, and one buyer we should reach out to, drop them here.
+      </p>
+
+      {/* Talent referral */}
+      <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', color: C.ink, marginBottom: 8, textTransform: 'uppercase' }}>One creative</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
+        <input value={form.talentRefName} onChange={setF('talentRefName')} placeholder="full name" style={inputStyle} />
+        <input value={form.talentRefContact} onChange={setF('talentRefContact')} placeholder="email or linkedin" style={inputStyle} />
+      </div>
+
+      {/* Buyer referral */}
+      <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', color: C.ink, marginBottom: 8, textTransform: 'uppercase' }}>One buyer</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <input value={form.buyerRefName} onChange={setF('buyerRefName')} placeholder="full name" style={inputStyle} />
+        <input value={form.buyerRefOrg} onChange={setF('buyerRefOrg')} placeholder="organisation" style={inputStyle} />
+      </div>
+      <input value={form.buyerRefContact} onChange={setF('buyerRefContact')} placeholder="email (optional)" style={inputStyle} />
+    </div>
+  );
+
   return (
     <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 60px)' }}>
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '52px 32px 80px' }}>
         <PageHeader
           n=""
           label={params.ref ? `Recommended by ${params.ref}` : 'Bench invite'}
-          headline={params.name ? `Hi ${params.name.split(' ')[0]}.` : 'Confirm your details.'}
-          sub="Takes 60 seconds. We use this to make sure clients see the right people for the right work."
+          headline={friendlyName ? `Hi ${friendlyName}.` : 'Confirm your details.'}
+          sub={isKnown
+            ? "We have your details on file. Just confirm you're still open for projects."
+            : 'Takes 60 seconds. We use this to make sure clients see the right people for the right work.'}
           accent="#a8c4b8"
         />
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 20 }}>
-          <div>
-            <label style={labelStyle}>email</label>
-            <input type="email" required value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              style={inputStyle} placeholder="you@studio.com" />
-          </div>
-          <div>
-            <label style={labelStyle}>current availability</label>
-            <select value={form.availability}
-              onChange={(e) => setForm((f) => ({ ...f, availability: e.target.value }))}
-              style={inputStyle}>
-              <option value="">—</option>
-              <option value="Available now">Available now</option>
-              <option value="Available in 1–2 weeks">Available in 1–2 weeks</option>
-              <option value="Booked / waitlist only">Booked / waitlist only</option>
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>portfolio (optional)</label>
-            <input type="url" value={form.portfolio}
-              onChange={(e) => setForm((f) => ({ ...f, portfolio: e.target.value }))}
-              style={inputStyle} placeholder="https://" />
-          </div>
-          <div>
-            <label style={labelStyle}>anything we should know? (optional)</label>
-            <textarea rows={4} value={form.notes}
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
-              placeholder="rate, focus, current projects, anything that helps." />
-          </div>
+          {memberSection}
+          {referralSection}
           {err && (
             <div style={{ padding: '12px 16px', border: '1px solid #b04040', background: 'rgba(176,64,64,0.08)', color: '#b04040', fontFamily: GM, fontSize: 11, borderRadius: 4 }}>
               {err}
