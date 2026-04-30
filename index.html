@@ -1150,7 +1150,7 @@ function ApplyPage({ accent }) {
       <div style={{ width: 48, height: 48, border: `1.5px solid ${accent}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontSize: 18 }}>✓</div>
       <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em', lineHeight: 0.95 }}>you're in the queue.</h2>
       <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '44ch', lineHeight: 1.75 }}>
-        we review applications manually. if you're a fit, you'll hear from us within a week — along with your philosopher name.
+        we review applications manually. if you're a fit, you'll hear from us within a week.
       </p>
     </div>);
 
@@ -1172,8 +1172,8 @@ function ApplyPage({ accent }) {
             <div><label style={lS}>full name</label><input style={iS} value={form.name} onChange={set('name')} required /></div>
             <div><label style={lS}>email</label><input type="email" style={iS} value={form.email} onChange={set('email')} required /></div>
           </div>
-          <div><label style={lS}>professional portfolio link</label><input type="url" style={iS} value={form.portfolio} onChange={set('portfolio')} placeholder="https://" /></div>
-          <div><label style={lS}>linkedin profile url</label><input type="url" style={iS} value={form.linkedin} onChange={set('linkedin')} placeholder="https://linkedin.com/in/" /></div>
+          <div><label style={lS}>professional portfolio link</label><input type="url" style={iS} value={form.portfolio} onChange={set('portfolio')} placeholder="https://" required /></div>
+          <div><label style={lS}>linkedin profile url</label><input type="url" style={iS} value={form.linkedin} onChange={set('linkedin')} placeholder="https://linkedin.com/in/" required /></div>
 
           <h3 style={sH}>your work</h3>
           <div>
@@ -1189,7 +1189,7 @@ function ApplyPage({ accent }) {
           {disciplines.includes('Other (specify below)') && <div><label style={lS}>specify discipline</label><input style={iS} value={form.disciplineOther} onChange={set('disciplineOther')} /></div>}
           <div>
             <label style={lS}>professional level</label>
-            <select style={iS} value={form.expLevel} onChange={set('expLevel')} required>
+            <select style={iS} value={form.expLevel} onChange={set('expLevel')}>
               <option value="">—</option>
               {EXP_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
@@ -1204,7 +1204,7 @@ function ApplyPage({ accent }) {
               )}
             </div>
           </div>
-          <div><label style={lS}>your unique value proposition</label><textarea style={{ ...iS, minHeight: 110, resize: 'vertical' }} value={form.summary} onChange={set('summary')} placeholder="what sets you apart? be specific." required /></div>
+          <div><label style={lS}>your unique value proposition</label><textarea style={{ ...iS, minHeight: 110, resize: 'vertical' }} value={form.summary} onChange={set('summary')} placeholder="what sets you apart? be specific." /></div>
 
           <h3 style={sH}>rates + availability</h3>
           <div>
@@ -1220,8 +1220,8 @@ function ApplyPage({ accent }) {
           </div>
 
           <h3 style={sH}>background</h3>
-          <div><label style={lS}>top 3 most relevant past clients / brands</label><input style={iS} value={form.topClients} onChange={set('topClients')} placeholder="apple, google, nike" required /></div>
-          <div><label style={lS}>referral context — who referred you or where have we crossed paths?</label><input style={iS} value={form.referralContext} onChange={set('referralContext')} required /></div>
+          <div><label style={lS}>top 3 most relevant past clients / brands</label><input style={iS} value={form.topClients} onChange={set('topClients')} placeholder="apple, google, nike" /></div>
+          <div><label style={lS}>referral context — who referred you or where have we crossed paths?</label><input style={iS} value={form.referralContext} onChange={set('referralContext')} /></div>
 
           <h3 style={sH}>refer three people</h3>
           <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.7, marginTop: -8, marginBottom: 8 }}>
@@ -1229,8 +1229,8 @@ function ApplyPage({ accent }) {
           </p>
           {[1, 2, 3].map((n) =>
           <div key={n} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div><label style={lS}>referral {n} — full name</label><input style={iS} value={form[`rec${n}Name`]} onChange={set(`rec${n}Name`)} required /></div>
-              <div><label style={lS}>referral {n} — email or linkedin</label><input style={iS} value={form[`rec${n}Email`]} onChange={set(`rec${n}Email`)} required /></div>
+              <div><label style={lS}>referral {n} — full name</label><input style={iS} value={form[`rec${n}Name`]} onChange={set(`rec${n}Name`)} /></div>
+              <div><label style={lS}>referral {n} — email or linkedin</label><input style={iS} value={form[`rec${n}Email`]} onChange={set(`rec${n}Email`)} /></div>
             </div>
           )}
 
@@ -1239,17 +1239,14 @@ function ApplyPage({ accent }) {
             name one client, brand, or studio that should have access to the bench. we'll reach out.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
-            <div><label style={lS}>their name</label><input style={iS} value={form.buyerName} onChange={set('buyerName')} required /></div>
-            <div><label style={lS}>organisation</label><input style={iS} value={form.buyerOrg} onChange={set('buyerOrg')} required /></div>
+            <div><label style={lS}>their name</label><input style={iS} value={form.buyerName} onChange={set('buyerName')} /></div>
+            <div><label style={lS}>organisation</label><input style={iS} value={form.buyerOrg} onChange={set('buyerOrg')} /></div>
             <div><label style={lS}>email (optional)</label><input type="email" style={iS} value={form.buyerEmail} onChange={set('buyerEmail')} /></div>
           </div>
 
           <button type="submit" style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '15px 24px', cursor: 'pointer', marginTop: 24 }}>
             submit application →
           </button>
-          <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, textAlign: 'center', lineHeight: 1.6 }}>
-            if accepted, you'll be assigned a philosopher name.<br />no real names are ever shown to clients without your consent.
-          </p>
         </form>
       </div>
     </div>);
