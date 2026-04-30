@@ -1126,8 +1126,8 @@ function HomePage({ setPage, accent, variant }) {
             <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, opacity: 0.6, lineHeight: 1.7 }}>$199 intro fee. 4-hour turnaround. credited toward your first invoice.</p>
           </div>
           <div>
-            <button onClick={() => setPage('concierge')} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.06em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '13px 22px', cursor: 'pointer' }}>
-              sounds like me. →
+            <button onClick={() => gotoBrief(setPage)} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.06em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '13px 22px', cursor: 'pointer' }}>
+              send a brief →
             </button>
             <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 12, lineHeight: 1.6 }}>$199 intro fee · at least 5 top-tier names within 4 hours.</p>
           </div>
@@ -2004,7 +2004,7 @@ function DashboardPage({ accent, setPage }) {
           <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '14px 28px', cursor: 'pointer' }}>
             get the pass to see who's available →
           </button>
-          <button onClick={() => setPage('concierge')} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.05em', background: 'transparent', color: C.soft, border: 'none', padding: '8px 0', marginTop: 4, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 4 }}>
+          <button onClick={() => gotoBrief(setPage)} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.05em', background: 'transparent', color: C.soft, border: 'none', padding: '8px 0', marginTop: 4, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 4 }}>
             or just have us send you 5+ names — $199 →
           </button>
         </div>
@@ -2117,7 +2117,7 @@ function ConciergePage({ accent, setPage }) {
             Credited toward your first invoice if you hire one of them. No markup on the creative — you pay them direct.
           </p>
 
-          <a href={stripeUrl} style={{ display: 'block', textAlign: 'center', textDecoration: 'none', fontFamily: GM, fontSize: 12, letterSpacing: '0.08em', background: C.ink, color: C.cream, padding: '20px 24px', borderRadius: 6 }}>
+          <a id="brief-intake" href={stripeUrl} style={{ display: 'block', textAlign: 'center', textDecoration: 'none', fontFamily: GM, fontSize: 12, letterSpacing: '0.08em', background: C.ink, color: C.cream, padding: '20px 24px', borderRadius: 6, scrollMarginTop: 80 }}>
             Pay $199 to start →
           </a>
           <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, textAlign: 'center', marginTop: 12 }}>
@@ -2143,7 +2143,7 @@ function ConciergePage({ accent, setPage }) {
           <span style={{ fontFamily: GM, fontSize: 11, color: C.ink, letterSpacing: '0.04em' }}>$199 received — your brief is next.</span>
         </div>
 
-        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <form id="brief-intake" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14, scrollMarginTop: 80 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <input name="name" required placeholder="Your name"
               style={{ background: C.cream, border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '16px 18px', fontFamily: GM, fontSize: 14, color: C.ink, outline: 'none' }} />
@@ -2234,14 +2234,46 @@ function FolderTab({ n, label, color, active, onClick, isMobile }) {
 
 }
 
-function Header({ page, setPage, accent }) {
-  const [open, setOpen] = useState(false);
+// Navigate to /concierge and scroll to the brief intake (works on both pay and brief stages — both have id="brief-intake")
+function gotoBrief(setPage) {
+  setPage('concierge');
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const el = document.getElementById('brief-intake');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+}
+
+function useIsMobile() {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 760);
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= 760);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+  return isMobile;
+}
+
+// Sticky bottom bar on mobile — single CTA that takes the user to /concierge and scrolls to the brief.
+function MobileBriefBar({ page, setPage }) {
+  if (page === 'concierge') return null;
+  const onClick = () => gotoBrief(setPage);
+  return (
+    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 200, background: C.ink, borderTop: '1px solid rgba(255,255,255,0.08)', padding: 'env(safe-area-inset-bottom, 0)' }}>
+      <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'transparent', border: 'none', color: C.cream, fontFamily: GM, fontSize: 12, letterSpacing: '0.08em', padding: '16px 20px', cursor: 'pointer' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#c89090' }} />
+          send a brief
+        </span>
+        <span style={{ opacity: 0.6 }}>$199 · 4h →</span>
+      </button>
+    </div>);
+}
+
+function Header({ page, setPage, accent }) {
+  const [open, setOpen] = useState(false);
+  const isMobile = useIsMobile();
   const activeTab = TABS.find(([k]) => k === page);
   const activeColor = activeTab ? activeTab[2] : null;
 
@@ -2345,9 +2377,11 @@ function App() {
   }, []);
 
   const { variant, accent } = tweaks;
+  const isMobile = useIsMobile();
+  const showBriefBar = isMobile && page !== 'concierge';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', paddingBottom: showBriefBar ? 60 : 0 }}>
       <Header page={page} setPage={setPage} accent={accent} />
       {page === 'home' && <HomePage setPage={setPage} accent={accent} variant={variant} />}
       {page === 'apply' && <ApplyPage accent={accent} />}
@@ -2356,6 +2390,7 @@ function App() {
       {page === 'dashboard' && <DashboardPage accent={accent} setPage={setPage} />}
       {page === 'concierge' && <ConciergePage accent={accent} setPage={setPage} />}
       <Footer accent={accent} setPage={setPage} />
+      {showBriefBar && <MobileBriefBar page={page} setPage={setPage} />}
       <TweaksPanel title="Tweaks">
         <TweakRadio label="variant" value={variant} options={['safe', 'bold']} onChange={(v) => setTweak('variant', v)} />
         <TweakColor label="accent" value={accent} onChange={(v) => setTweak('accent', v)} />
