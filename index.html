@@ -2636,17 +2636,21 @@ const TABS = [
 ];
 
 function FolderTab({ n, label, color, active, onClick, isMobile, id }) {
-  // Trapezoid-ish file-tab: flat, no shadow, no translucency.
-  // Inactive tabs use a darker tinted version (mixed with ink) to read as "filed behind" the front one.
   const height = active ? 38 : 32;
   const tabColor = active ? color : `color-mix(in srgb, ${color} 70%, #2a2a26 30%)`;
+
+  // SVG path: square left edge, convex top-right (radius 3), slanted right edge,
+  // concave bottom-right (radius 5), straight bottom back to start.
+  // viewBox is 100 wide; preserveAspectRatio="none" stretches it to button width.
+  const path = `M 0 0 L 83 0 A 3 3 0 0 1 86 3 L 95 ${height - 5} A 5 5 0 0 0 100 ${height} L 0 ${height} Z`;
+
   return (
     <button
       id={id}
       onClick={onClick}
       style={{
         position: 'relative',
-        background: tabColor,
+        background: 'transparent',
         border: 'none',
         cursor: 'pointer',
         fontFamily: GM,
@@ -2658,17 +2662,30 @@ function FolderTab({ n, label, color, active, onClick, isMobile, id }) {
         minHeight: height,
         marginBottom: -1,
         marginRight: -10,
-        clipPath: 'polygon(0 0, calc(100% - 14px) 0, 100% 100%, 0 100%)',
         zIndex: active ? 5 : 1,
         display: 'flex',
         alignItems: 'center',
         gap: 8,
-        transition: 'height 0.12s ease, background 0.12s ease',
+        transition: 'height 0.12s ease',
       }}>
-      <span style={{ fontWeight: 600, opacity: active ? 0.6 : 0.5, fontSize: isMobile ? 9 : 10, letterSpacing: '0.1em' }}>{n}</span>
-      <span style={{ fontWeight: active ? 600 : 500 }}>{label}</span>
-    </button>);
-
+      <svg
+        aria-hidden="true"
+        preserveAspectRatio="none"
+        viewBox={`0 0 100 ${height}`}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          zIndex: -1,
+          display: 'block',
+        }}>
+        <path d={path} fill={tabColor} />
+      </svg>
+      <span style={{ position: 'relative', fontWeight: 600, opacity: active ? 0.6 : 0.5, fontSize: isMobile ? 9 : 10, letterSpacing: '0.1em' }}>{n}</span>
+      <span style={{ position: 'relative', fontWeight: active ? 600 : 500 }}>{label}</span>
+    </button>
+  );
 }
 
 // Navigate to /concierge and scroll to the brief intake (works on both pay and brief stages — both have id="brief-intake")
