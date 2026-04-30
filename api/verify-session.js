@@ -17,6 +17,7 @@ export default function handler(req, res) {
     tier: p.tier,
     filters: p.filters || {},
     region: p.region,
+    name: p.name || null,
     issued: p.iat,
     expires: p.exp,
     remaining_ms: Math.max(0, p.exp - Date.now()),

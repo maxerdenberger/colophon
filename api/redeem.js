@@ -55,8 +55,9 @@ export default async function handler(req, res) {
     }
 
     const email = session.customer_details?.email || session.customer_email || null;
+    const name  = session.customer_details?.name || null;
 
-    const token = signSession({ tier, filters, sub: email });
+    const token = signSession({ tier, filters, sub: email, name });
     const accessUrl = `${SITE}/access?token=${encodeURIComponent(token)}`;
     const expMs = Date.now() + TIER_DAYS[tier] * 86_400_000;
 

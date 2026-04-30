@@ -18,7 +18,7 @@ export function tierDurationMs(tier) {
 }
 
 // Sign a session payload; returns an opaque token string.
-export function signSession({ tier, filters = {}, region, sub }) {
+export function signSession({ tier, filters = {}, region, sub, name }) {
   const secret = getSecret();
   if (!secret) throw new Error('SESSION_SECRET not configured');
   const now = Date.now();
@@ -28,6 +28,7 @@ export function signSession({ tier, filters = {}, region, sub }) {
     filters,
     region: region || null,
     sub:    sub    || null,
+    name:   name   || null,
     iat:    now,
     exp:    now + tierDurationMs(tier),
   };

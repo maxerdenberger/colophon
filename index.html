@@ -2209,6 +2209,7 @@ function AccessPage({ accent, setPage }) {
       const apply = (s) => {
         setUnlocked(true);
         if (s.tier) setTier(s.tier);
+        if (s.name) setBuyerName(s.name);
         if (s.filters && Object.keys(s.filters).length) setSessionFilters(s.filters);
         const tick = () => {
           const left = s.expires - Date.now();
@@ -2234,7 +2235,7 @@ function AccessPage({ accent, setPage }) {
             setExpired(true);
             return;
           }
-          const s = { token: signed, tier: j.tier, filters: j.filters, expires: j.expires };
+          const s = { token: signed, tier: j.tier, filters: j.filters, expires: j.expires, name: j.name };
           try { sessionStorage.setItem('colophon_session', JSON.stringify(s)); } catch {}
           cleanup = apply(s);
         })
