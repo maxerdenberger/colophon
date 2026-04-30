@@ -1360,10 +1360,12 @@ function PricingPage({ setPage, accent }) {
     // fallback: trim '-ing' / '-tion' / '-ship' and add 'er(s)' is unsafe, so just use generic
     return matched.length === 1 ? 'creative' : 'creatives';
   })();
-  const BASE = { day: 29, week: 79, month: 249 };
-  const filtersApplied = Object.values(filters).filter(arr => arr.length > 0).length;
-  const discount = Math.min(0.4, filtersApplied * 0.10);
-  const priceFor = (d) => Math.max(29, Math.round(BASE[d] * (1 - discount)));
+  const PRICES = { day: 29, week: 79, month: 249 };
+  const MAX_DISCOUNTED_FILTERS = 4;
+  const rawFilterCount = Object.values(filters).filter(arr => arr.length > 0).length;
+  const filterCount = Math.min(MAX_DISCOUNTED_FILTERS, rawFilterCount);
+  const discount = filterCount * 0.10; // capped at 0.40 via filterCount cap
+  const priceFor = (d) => Math.round(PRICES[d] * (1 - discount));
 
   const toggle = (key, val) => setFilters(f => ({
     ...f,
@@ -1407,20 +1409,20 @@ function PricingPage({ setPage, accent }) {
                 <span key={`${k}-${v}`} style={{ fontFamily: GM, fontSize: 10, letterSpacing:'0.06em', padding:'5px 11px', border:`1px solid ${C.rule}`, background: C.paper, color: C.ink }}>{v}</span>
               ))
             )}
-            {filtersApplied > 0 && (
+            {rawFilterCount > 0 && (
               <button onClick={() => { setFilters({ disciplines: [], avail: [], experience: [], timezone: [], rate: [] }); setStep(0); }}
                 style={{ fontFamily: GM, fontSize: 10, letterSpacing:'0.06em', padding:'5px 11px', background: 'transparent', border:'none', color: C.soft, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:3 }}>reset</button>
             )}
-            {filtersApplied === 0 && (
+            {rawFilterCount === 0 && (
               <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>no filters applied — full bench, full price.</span>
             )}
           </div>
 
           {/* Discount line */}
-          {discount > 0 && (
+          {filterCount > 0 && (
             <div style={{ marginBottom: 40, padding:'14px 18px', background: C.ink, color: C.cream, display:'inline-block' }}>
               <span style={{ fontFamily: GM, fontSize: 11, letterSpacing:'0.06em' }}>
-                {filtersApplied} filter{filtersApplied > 1 ? 's' : ''} applied — <span style={{ color: accent }}>{Math.round(discount*100)}% off</span> all passes.
+                {rawFilterCount} filter{rawFilterCount > 1 ? 's' : ''} applied — <span style={{ color: accent }}>{Math.round(discount*100)}% off</span> all passes.
               </span>
             </div>
           )}
@@ -1434,7 +1436,7 @@ function PricingPage({ setPage, accent }) {
                 <div style={{ fontFamily: GM, fontSize: 10, letterSpacing:'0.08em', opacity: 0.55, marginBottom: 8 }}>{lbl}</div>
                 <div style={{ display:'flex', alignItems:'baseline', gap: 10, marginBottom: 8 }}>
                   <span style={{ fontFamily: GS, fontWeight: 300, fontSize: 56, letterSpacing:'-0.03em', lineHeight: 1 }}>${priceFor(k)}</span>
-                  {discount > 0 && <span style={{ fontFamily: GM, fontSize: 12, opacity: 0.4, textDecoration:'line-through' }}>${BASE[k]}</span>}
+                  {filterCount > 0 && <span style={{ fontFamily: GM, fontSize: 12, opacity: 0.4, textDecoration:'line-through' }}>${PRICES[k]}</span>}
                 </div>
                 <div style={{ fontFamily: GM, fontSize: 11, opacity: 0.5, marginBottom: 24 }}>{sub}</div>
                 {k === 'week' && <span style={{ fontFamily: GM, fontSize: 9, letterSpacing:'0.1em', color: accent, marginTop:'auto' }}>most popular</span>}
