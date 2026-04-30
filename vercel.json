@@ -2,10 +2,13 @@
   "crons": [
     { "path": "/api/ping", "schedule": "0 9 */20 * *" }
   ],
+  "redirects": [
+    { "source": "/pricing", "destination": "/look", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/access",    "destination": "/index.html" },
     { "source": "/apply",     "destination": "/index.html" },
-    { "source": "/pricing",   "destination": "/index.html" },
+    { "source": "/look",      "destination": "/index.html" },
     { "source": "/dashboard", "destination": "/index.html" },
     { "source": "/concierge", "destination": "/index.html" }
   ],

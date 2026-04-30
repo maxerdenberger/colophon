@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
 <!-- ── primary SEO ─────────────────────────────────────────── -->
-<title>colophon — the right bench, on demand. hire vetted creatives directly.</title>
+<title>Colophon — Get a look</title>
 <meta name="description" content="colophon is a curated bench of senior creative directors, designers, and strategists you can hire directly. no agency markup, no recruiter fees. buy a pass, get filtered names, rates, and contact info — reach out yourself."/>
 <meta name="keywords" content="hire creative director, freelance design, creative bench, on-demand creative, vetted designers, hire art director, creative talent marketplace, freelance art direction, brand strategy, design leadership"/>
 <meta name="author" content="colophon"/>
@@ -83,24 +83,38 @@
   /* No-JS / SEO-readable content (visible to crawlers, hidden from users) */
   .seo-only { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
-  /* bench hover panel */
+  /* bench hover panel — folder dropping out of the "01 the bench" tab */
+  :root { --drawer-bg: #a8c4b8; }
   .bench-hover-panel {
     position: fixed;
-    top: 54px;
-    right: 0;
-    width: 320px;
+    top: 60px; /* directly under the header strip */
+    width: 360px;
     bottom: 0;
-    background: #0d0d0b;
-    border-left: 1px solid rgba(255,255,255,0.07);
+    background: var(--drawer-bg);
+    border-top: 3px solid var(--drawer-bg); /* tab-continuation spine */
+    box-shadow: -1px 0 0 rgba(13,13,11,0.08);
+    color: #0d0d0b;
     z-index: 50;
-    transform: translateX(100%);
-    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.16s ease, transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
     pointer-events: none;
     overflow: hidden;
   }
   .bench-hover-panel.open {
-    transform: translateX(0);
+    opacity: 1;
+    transform: translateY(0);
     pointer-events: auto;
+  }
+  /* a small notch that visually finishes the tab into the folder body */
+  .bench-hover-panel::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: 0;
+    width: 14px;
+    height: 3px;
+    background: var(--drawer-bg);
   }
 
   /* anti-scrape: no text selection on sensitive data */
@@ -368,16 +382,18 @@ function parseSheetCSV(text) {
     return f;
   };
   // Fixed column indices (confirmed from schema):
-  // 5=Discipline, 7=Availability, 12=Top Clients, 15=Value Prop
+  // 5=Discipline, 7=Availability, 9=Hourly Rate, 12=Top Clients, 13=Experience Level, 15=Value Prop
   const DISC_IDX   = 5;
   const AVAIL_IDX  = 7;
+  const RATE_IDX   = 9;
   const CLIENT_IDX = 12;
+  const EXP_IDX    = 13;
   const NOTE_IDX   = 15;
   const used = new Set();
   return lines.slice(1).map((line, i) => {
     const row = parseRow(line);
     const rawAvail = (row[AVAIL_IDX] || '').toLowerCase();
-    const availability = rawAvail.includes('immediate') ? 'available'
+    const availability = rawAvail.includes('immediate') || rawAvail.includes('available now') ? 'available'
                        : rawAvail.includes('waitlist')  ? 'booked'
                        : 'soon';
     const note = (row[NOTE_IDX] || '').toLowerCase().slice(0, 130);
@@ -385,21 +401,127 @@ function parseSheetCSV(text) {
     const name = PHIL_POOL.find((n) => !used.has(n)) || `creative ${i+1}`;
     used.add(name);
     const clients = (row[CLIENT_IDX] || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean).slice(0, 3);
-    const rawDisc = (row[DISC_IDX] || '').toLowerCase();
-    const disc = rawDisc.includes('copy') ? 'copywriting'
-               : rawDisc.includes('brand strategy') ? 'brand strategy'
-               : rawDisc.includes('art') ? 'art direction'
-               : rawDisc.includes('design') ? 'design leadership'
-               : rawDisc.includes('ux') ? 'ux / content design'
-               : rawDisc.includes('motion') ? 'motion design'
-               : 'creative direction';
+    const rawDiscFull = (row[DISC_IDX] || '').toLowerCase();
+    const rawDisciplines = rawDiscFull.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+    const canonDisc = (s) => s.includes('copy') ? 'copywriting'
+                          : s.includes('brand strategy') ? 'brand strategy'
+                          : s.includes('art') ? 'art direction'
+                          : s.includes('design lead') || s.includes('leadership') ? 'design leadership'
+                          : s.includes('design') ? 'design leadership'
+                          : s.includes('ux') ? 'ux / content design'
+                          : s.includes('motion') ? 'motion design'
+                          : s.includes('creative dir') ? 'creative direction'
+                          : 'creative direction';
+    const disc = canonDisc(rawDiscFull);
     const firstName = (row[1] || '').split(' ')[0].toLowerCase() || name;
     const emailEnc = btoa(row[2] || '');
     const portfolio = (row[3] || '').trim();
     const linkedin  = (row[4] || '').trim();
     const updatedAt = Date.parse(row[0]) || 0;
-    return { id: i+1, name, firstName, emailEnc, portfolio, linkedin, updatedAt, discipline: disc, availability, tz: TZS[i % TZS.length], rate: RATES[i % RATES.length], yoe: 5 + i % 16, clients: clients.length ? clients : ['portfolio available'], note };
+
+    // Hourly rate from "Preferred Standard Hourly Rate" — extract first number
+    const rateText = String(row[RATE_IDX] || '');
+    const rateMatch = rateText.match(/\d+/);
+    const hourlyRate = rateMatch ? parseInt(rateMatch[0], 10) : 0;
+    const rate = hourlyRate >= 400 ? '$$$$'
+               : hourlyRate >= 250 ? '$$$'
+               : hourlyRate >= 150 ? '$$'
+               : hourlyRate > 0    ? '$'
+               : RATES[i % RATES.length];
+
+    // Experience level → numeric (years). Map level buckets to midpoints.
+    const expText = (row[EXP_IDX] || '').toLowerCase();
+    const yoe = /12\+|veteran|executive/.test(expText) ? 15
+              : /lead|principal|8.{0,3}12/.test(expText) ? 10
+              : /senior|4.{0,3}7/.test(expText) ? 6
+              : /junior|mid|1.{0,3}3/.test(expText) ? 2
+              : 0;
+
+    return {
+      id: i+1, name, firstName, emailEnc, portfolio, linkedin, updatedAt,
+      discipline: disc, rawDisciplines, availability, hourlyRate,
+      tz: TZS[i % TZS.length], // tz still synthesized — no city/tz column in form
+      rate, yoe,
+      clients: clients.length ? clients : ['portfolio available'],
+      note,
+    };
   }).filter(Boolean);
+}
+
+// ── DERIVED COUNTS ────────────────────────────────────────────────────────────
+// Single source of truth — every count rendered on the site flows from here.
+function deriveCounts(rows) {
+  const total = rows.length;
+  const availableNow = rows.filter((r) => r.availability === 'available').length;
+
+  const yoes = rows.map((r) => r.yoe).filter((y) => y > 0).sort((a, b) => a - b);
+  const medianExp = yoes.length === 0 ? 0
+    : yoes.length % 2 === 0
+      ? Math.round((yoes[yoes.length / 2 - 1] + yoes[yoes.length / 2]) / 2)
+      : yoes[Math.floor(yoes.length / 2)];
+
+  const clientSet = new Set();
+  rows.forEach((r) => (r.clients || []).forEach((c) => {
+    const t = (c || '').toLowerCase().trim();
+    if (t && t !== 'portfolio available') clientSet.add(t);
+  }));
+  const pastClients = clientSet.size;
+
+  // Rate bands (hourly rate buckets)
+  const rateBands = { emerging: 0, 'mid-career': 0, senior: 0, 'top-tier': 0 };
+  let rated = 0;
+  rows.forEach((r) => {
+    const h = r.hourlyRate || 0;
+    if (h <= 0) return;
+    rated++;
+    if (h < 150) rateBands.emerging++;
+    else if (h < 250) rateBands['mid-career']++;
+    else if (h < 400) rateBands.senior++;
+    else rateBands['top-tier']++;
+  });
+
+  // Discipline counts (split multi-discipline values from CSV)
+  const canonDisc = (s) => s.includes('copy') ? 'copywriting'
+                        : s.includes('brand strategy') ? 'brand strategy'
+                        : s.includes('art') ? 'art direction'
+                        : s.includes('leadership') ? 'design leadership'
+                        : s.includes('design') ? 'design leadership'
+                        : s.includes('ux') ? 'ux / content design'
+                        : s.includes('motion') ? 'motion design'
+                        : s.includes('creative dir') ? 'creative direction'
+                        : null;
+  const discCount = {};
+  rows.forEach((r) => {
+    const list = (r.rawDisciplines && r.rawDisciplines.length) ? r.rawDisciplines : [r.discipline];
+    list.forEach((d) => {
+      const key = canonDisc((d || '').toLowerCase());
+      if (key) discCount[key] = (discCount[key] || 0) + 1;
+    });
+  });
+  const disciplines = Object.entries(discCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  return { total, availableNow, medianExp, pastClients, rateBands, rated, disciplines };
+}
+
+const BenchCtx = React.createContext(null);
+
+function BenchProvider({ children }) {
+  const [bench, setBench] = useState(BENCH);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    fetch(SHEETS_CSV)
+      .then((r) => r.text())
+      .then((t) => { const p = parseSheetCSV(t); if (p.length > 5) setBench(p); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+  const stats = useMemo(() => deriveCounts(bench), [bench]);
+  return <BenchCtx.Provider value={{ bench, stats, loading }}>{children}</BenchCtx.Provider>;
+}
+
+function useBench() {
+  const ctx = React.useContext(BenchCtx);
+  return ctx || { bench: BENCH, stats: deriveCounts(BENCH), loading: false };
 }
 
 
@@ -570,16 +692,17 @@ function DashStatTile({ value, label, sub, isLast, numStyle, labelStyle }) {
 
 function BenchDashboard({ bench, accent }) {
   const rows = bench || BENCH;
-  const total = rows.length;
+  const stats = useMemo(() => deriveCounts(rows), [rows]);
+  const total = stats.total;
 
   // ── derive stats
   const byAvail = rows.reduce((a, r) => (a[r.availability] = (a[r.availability] || 0) + 1, a), {});
-  const avail = byAvail.available || 0;
+  const avail = stats.availableNow;
   const soon  = byAvail.soon || 0;
   const booked = byAvail.booked || 0;
 
-  const disciplines = Object.entries(rows.reduce((a, r) => (a[r.discipline] = (a[r.discipline] || 0) + 1, a), {}))
-    .sort((a, b) => b[1] - a[1]);
+  // Top 5 disciplines (sorted desc) — from canonicalized, multi-discipline-aware counts
+  const disciplines = stats.disciplines;
 
   // Region grouping (replaces raw timezone breakdown)
   const REGIONS = [
@@ -611,13 +734,15 @@ function BenchDashboard({ bench, accent }) {
   });
   const regionMax = Math.max(...regionStats.map((r) => r.count), 1);
 
-  const rateGroups = rows.reduce((a, r) => (a[r.rate] = (a[r.rate] || 0) + 1, a), {});
+  // Rate bands from real hourly rate data
+  const rateBandKeys = ['emerging', 'mid-career', 'senior', 'top-tier'];
   const rateOrder = ['$', '$$', '$$$', '$$$$'];
 
   // YOE histogram, bucketed
   const buckets = [0, 0, 0, 0, 0, 0]; // 5-7, 8-10, 11-13, 14-16, 17-20, 20+
   rows.forEach((r) => {
     const y = r.yoe;
+    if (y <= 0) return;
     if (y <= 7) buckets[0]++;
     else if (y <= 10) buckets[1]++;
     else if (y <= 13) buckets[2]++;
@@ -625,11 +750,11 @@ function BenchDashboard({ bench, accent }) {
     else if (y <= 20) buckets[4]++;
     else buckets[5]++;
   });
-  const yoeMax = Math.max(...buckets);
-  const medYoe = rows.length ? rows.map((r) => r.yoe).sort((a, b) => a - b)[Math.floor(rows.length / 2)] : 0;
+  const yoeMax = Math.max(...buckets, 1);
+  const medYoe = stats.medianExp;
 
   // unique clients across the bench
-  const uniqClients = new Set(rows.flatMap((r) => r.clients || [])).size;
+  const uniqClients = stats.pastClients;
 
   // ── live ticker
   const TICKER_FEED = useMemo(() => {
@@ -755,16 +880,15 @@ function BenchDashboard({ bench, accent }) {
         <div style={{ padding: '24px 28px', borderRight: `1px solid ${C.rule}` }}>
           <div style={labelStyle}>by rate band</div>
           <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {rateOrder.map((r, i) => {
-              const n = rateGroups[r] || 0;
-              const labels = ['emerging', 'mid-career', 'senior', 'top-tier'];
-              const sub = ['$80–150/hr', '$150–250/hr', '$250–400/hr', '$400+/hr'];
+            {rateBandKeys.map((band, i) => {
+              const n = stats.rateBands[band] || 0;
+              const sub = ['$0–150/hr', '$150–250/hr', '$250–400/hr', '$400+/hr'];
               return (
-                <div key={r} style={{ display: 'grid', gridTemplateColumns: '1fr 40px', gap: 10, alignItems: 'baseline' }}>
+                <div key={band} style={{ display: 'grid', gridTemplateColumns: '1fr 40px', gap: 10, alignItems: 'baseline' }}>
                   <div>
                     <div style={{ fontFamily: GM, fontSize: 11, color: C.ink, display: 'flex', gap: 8, alignItems: 'baseline' }}>
-                      <span style={{ fontFamily: GS, fontWeight: 700, color: accent }}>{r}</span>
-                      <span>{labels[i]}</span>
+                      <span style={{ fontFamily: GS, fontWeight: 700, color: accent }}>{rateOrder[i]}</span>
+                      <span>{band}</span>
                     </div>
                     <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{sub[i]}</div>
                   </div>
@@ -816,42 +940,67 @@ function BenchDashboard({ bench, accent }) {
 }
 
 // ── BENCH TABLE (public teaser) ───────────────────────────────────────────────
+const TAB_SAGE = '#a8c4b8'; // sage from "01 the bench" tab
+const INK_72 = 'rgba(13,13,11,0.72)';
+const INK_55 = 'rgba(13,13,11,0.55)';
+const INK_38 = 'rgba(13,13,11,0.38)';
+
 function BenchTeaser({ accent, bench: benchProp }) {
   const rows = benchProp || BENCH;
   const [hovered, setHovered] = useState(null);
+  const [drawerLeft, setDrawerLeft] = useState(null);
   const hp = rows.find((p) => p.id === hovered);
   const COLS = '36px 2fr 1.4fr 60px 90px 110px';
 
+  // Position the drawer's left edge flush with the "01 the bench" nav tab.
+  useEffect(() => {
+    const update = () => {
+      const el = document.getElementById('nav-tab-dashboard');
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setDrawerLeft(r.left);
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, []);
+
+  const drawerStyle = drawerLeft != null ? { left: drawerLeft, right: 'auto' } : { right: 0 };
+
   return (
     <div style={{ position: 'relative' }}>
-      {/* Hover panel */}
-      <div className={`bench-hover-panel${hovered ? ' open' : ''}`}>
+      {/* Hover drawer — folder under the "01 the bench" tab */}
+      <div className={`bench-hover-panel${hovered ? ' open' : ''}`} style={drawerStyle}>
         {hp &&
-        <div style={{ padding: '40px 28px', height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ fontFamily: GM, fontSize: 10, color: 'rgba(244,241,236,0.3)', letterSpacing: '0.1em', marginBottom: 20 }}>
-              {String(BENCH.findIndex((p) => p.id === hp.id) + 1).padStart(3, '0')} — {hp.discipline}
+        <div style={{ padding: '32px 28px', height: '100%', display: 'flex', flexDirection: 'column', color: '#0d0d0b' }}>
+            <div style={{ fontFamily: GM, fontSize: 10, color: INK_55, letterSpacing: '0.14em', marginBottom: 18, textTransform: 'uppercase' }}>
+              {String(rows.findIndex((p) => p.id === hp.id) + 1).padStart(3, '0')} — {hp.discipline}
             </div>
-            <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em', color: 'rgba(244,241,236,0.95)', marginBottom: 6, lineHeight: 1.1 }}>
+            <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 28, letterSpacing: '-0.02em', color: '#0d0d0b', marginBottom: 10, lineHeight: 1.05 }}>
               {hp.name}
             </h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 22 }}>
               <Dot status={hp.availability} />
-              <span style={{ fontFamily: GM, fontSize: 10, color: 'rgba(244,241,236,0.45)' }}>
-                {AVAIL_LBL[hp.availability]} · {hp.tz} · {hp.yoe} yrs exp
+              <span style={{ fontFamily: GM, fontSize: 10, color: INK_72, letterSpacing: '0.04em' }}>
+                {AVAIL_LBL[hp.availability]} · {hp.tz} · {hp.yoe || '—'} yrs exp
               </span>
             </div>
-            <p style={{ fontFamily: GS, fontSize: 13, fontStyle: 'italic', color: 'rgba(244,241,236,0.6)', lineHeight: 1.6, marginBottom: 24, textTransform: 'none', flex: 1 }}>
-              "{hp.note}"
+            <p style={{ fontFamily: GS, fontSize: 14, fontStyle: 'italic', color: INK_72, lineHeight: 1.55, marginBottom: 24, textTransform: 'none', flex: 1 }}>
+              “{hp.note}”
             </p>
             <div>
-              <div style={{ fontFamily: GM, fontSize: 9, color: 'rgba(244,241,236,0.3)', letterSpacing: '0.1em', marginBottom: 10 }}>selected clients</div>
+              <div style={{ fontFamily: GM, fontSize: 9, color: INK_55, letterSpacing: '0.14em', marginBottom: 10, textTransform: 'uppercase' }}>selected clients</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {hp.clients.map((c) =>
-              <span key={c} style={{ border: '1px solid rgba(255,255,255,0.1)', padding: '3px 10px', fontFamily: GM, fontSize: 10, color: 'rgba(244,241,236,0.42)' }}>{c}</span>
+              <span key={c} style={{ border: '1px solid rgba(13,13,11,0.18)', padding: '3px 10px', fontFamily: GM, fontSize: 10, color: INK_72 }}>{c}</span>
               )}
               </div>
-              <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.07)', fontFamily: GM, fontSize: 10, color: 'rgba(244,241,236,0.22)', lineHeight: 1.7 }}>
-                rates + contact info<br />available with access pass.
+              <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid rgba(13,13,11,0.12)', fontFamily: GM, fontSize: 10, color: INK_55, lineHeight: 1.7 }}>
+                rates + contact info — available with access.
               </div>
             </div>
           </div>
@@ -874,7 +1023,7 @@ function BenchTeaser({ accent, bench: benchProp }) {
               className="bench-row"
               onMouseEnter={() => setHovered(p.id)}
               onMouseLeave={() => setHovered(null)}
-              style={{ display: 'grid', gridTemplateColumns: COLS, padding: '11px 40px', borderBottom: `1px solid ${C.rule}`, background: isH ? C.paper : C.cream, cursor: 'default', transition: 'background 0.12s', alignItems: 'center', borderLeft: isH ? `3px solid ${accent}` : '3px solid transparent' }}>
+              style={{ display: 'grid', gridTemplateColumns: COLS, padding: '11px 40px', borderBottom: `1px solid ${C.rule}`, background: isH ? C.paper : C.cream, cursor: 'default', transition: 'background 0.12s', alignItems: 'center', borderLeft: isH ? `3px solid ${TAB_SAGE}` : '3px solid transparent' }}>
 
               <span style={{ fontFamily: GM, fontSize: 10, color: isH ? C.soft : 'rgba(13,13,11,0.28)' }}><Scramble text={String(i + 1).padStart(3, '0')} delay={d} runKey={rk} /></span>
               <span style={{ fontWeight: isH ? 600 : 400, fontSize: 13, color: C.ink, transition: 'font-weight 0.12s' }}><Scramble text={p.name} delay={d} runKey={rk} /></span>
@@ -954,12 +1103,8 @@ function OppsTable({ accent }) {
 function Footer({ accent, setPage }) {
   const [sent, setSent] = useState(false);
   const [q, setQ] = useState({ what: '', email: '' });
-  const [total, setTotal] = useState(BENCH.length);
-  useEffect(() => {
-    fetch(SHEETS_CSV).then(r => r.text())
-      .then(t => { const p = parseSheetCSV(t); if (p.length > 5) setTotal(p.length); })
-      .catch(() => {});
-  }, []);
+  const { stats } = useBench();
+  const total = stats.total;
 
   const CLOCKS = [
   { city: 'los angeles', tz: 'America/Los_Angeles' },
@@ -1073,19 +1218,10 @@ function Footer({ accent, setPage }) {
 
 // ── HOME PAGE ─────────────────────────────────────────────────────────────────
 function HomePage({ setPage, accent, variant }) {
-  const [liveBench, setLiveBench] = useState(BENCH);
-  const [loading, setLoading] = useState(true);
-  const total = liveBench.length;
-  const avail = liveBench.filter((p) => p.availability === 'available').length;
+  const { bench: liveBench, stats, loading } = useBench();
+  const total = stats.total;
+  const avail = stats.availableNow;
   const isBold = variant === 'bold';
-
-  useEffect(() => {
-    fetch(SHEETS_CSV).
-    then((r) => r.text()).
-    then((text) => {const p = parseSheetCSV(text);if (p.length > 5) setLiveBench(p);}).
-    catch(() => {}).
-    finally(() => setLoading(false));
-  }, []);
 
   const CTAs = () =>
   <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -1120,7 +1256,13 @@ function HomePage({ setPage, accent, variant }) {
             </div> :
           isBold ?
           <div>
-              <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: C.soft, marginBottom: 24 }}>CPH / 001 — a working bench for the people who hire creatives</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
+                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: C.soft }}>CPH / 001 — a working bench for the people who hire creatives</p>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, border: `1px solid ${C.rule}`, background: C.paper, fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', color: C.ink }}>
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#5a8d5a' }} />
+                  est. {total} humans
+                </span>
+              </div>
               <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(72px,12vw,156px)', lineHeight: 0.87, letterSpacing: '-0.045em', marginBottom: 16 }}>
                 the <span style={{ color:'#ff5100' }}>right</span> person.
               </h1>
@@ -1152,18 +1294,18 @@ function HomePage({ setPage, accent, variant }) {
         <div style={{ maxWidth: 1100, margin: '0 auto', paddingTop: 40, paddingBottom: 64 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 40px 16px', borderBottom: `1px solid ${C.rule}` }}>
             <div>
-              <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 16, letterSpacing: '-0.01em' }}>the bench, as of right now.</span>
+              <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 16, letterSpacing: '-0.01em' }}>{total} vetted · {avail} available now</span>
             </div>
-            <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>you're seeing {liveBench.slice(0, 19).length}. there are {Math.max(0, total - liveBench.slice(0, 19).length)} more. a pass turns the names on.</span>
+            <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>{Math.max(0, total - liveBench.slice(0, 19).length)} more creatives sit behind the blur.</span>
           </div>
           <div style={{ position: 'relative' }}>
             <BenchTeaser accent={accent} bench={liveBench.slice(0, 19)} />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 240, background: `linear-gradient(to bottom, transparent, ${C.cream})`, pointerEvents: 'none' }} />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingBottom: 32 }}>
               <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '11px 22px', cursor: 'pointer', position: 'relative', zIndex: 2 }}>
-                get a pass →
+                get a look →
               </button>
-              <span style={{ fontFamily: GM, fontSize: 10, color: C.soft, zIndex: 2 }}>see all {total} names · day, month, or year</span>
+              <span style={{ fontFamily: GM, fontSize: 10, color: C.soft, zIndex: 2 }}>see all {total} names — day, month, or year</span>
               <button onClick={() => setPage('dashboard')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.06em', background: 'transparent', color: C.ink, border: 'none', padding: '6px 0', marginTop: 4, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 4, zIndex: 2 }}>
                 or see the bench by the numbers →
               </button>
@@ -1385,12 +1527,7 @@ function PricingPage({ setPage, accent }) {
     month: 'https://buy.stripe.com/14A145fmk3LIbeU56Sa3u02'
   };
 
-  const [bench, setBench] = useState(BENCH);
-  useEffect(() => {
-    fetch(SHEETS_CSV).then(r => r.text())
-      .then(t => { const p = parseSheetCSV(t); if (p.length > 5) setBench(p); })
-      .catch(() => {});
-  }, []);
+  const { bench } = useBench();
 
   const [step, setStep] = useState(0);
   const [filters, setFilters] = useState({
@@ -1418,7 +1555,7 @@ function PricingPage({ setPage, accent }) {
       options: [['junior','junior — 0\u20133 yrs'],['mid','mid — 4\u20137 yrs'],['senior','senior — 8\u201314 yrs'],['lead','lead — 15+ yrs']] },
     { key: 'rate', label: 'rate', question: 'what does your budget look like?',
       sub: 'we show real rate bands. you talk money directly with them.',
-      options: [['$','$ — under $100/hr'],['$$','$$ — $100\u2013200/hr'],['$$$','$$$ — $200\u2013350/hr'],['$$$$','$$$$ — $350+/hr']] },
+      options: [['$','$ — under $150/hr'],['$$','$$ — $150\u2013250/hr'],['$$$','$$$ — $250\u2013400/hr'],['$$$$','$$$$ — $400+/hr']] },
   ];
 
   // Map a person to filter buckets
@@ -1756,7 +1893,7 @@ function PricingPage({ setPage, accent }) {
 
 // ── UNLOCKED BENCH TABLE ──────────────────────────────────────────────────────
 function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [] }) {
-  const [liveBench, setLiveBench] = useState(BENCH);
+  const { bench: liveBench } = useBench();
   const [sel, setSel] = useState(null);
   const [filter, setFilter] = useState('all');
   const [hovered, setHovered] = useState(null);
@@ -1786,13 +1923,6 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [] }) {
     'sends one revision, gets it right',
   ];
   const quipFor = (id) => QUIPS[(id * 7) % QUIPS.length];
-
-  useEffect(() => {
-    fetch(SHEETS_CSV)
-      .then(r => r.text())
-      .then(text => { const p = parseSheetCSV(text); if (p.length > 5) setLiveBench(p); })
-      .catch(() => {});
-  }, []);
 
   const discs = ['all', ...Array.from(new Set(liveBench.map(p => p.discipline)))];
 
@@ -2083,13 +2213,7 @@ function AccessPage({ accent, setPage }) {
 
 // ── DASHBOARD PAGE ─────────────────────────────────────────────────────
 function DashboardPage({ accent, setPage }) {
-  const [liveBench, setLiveBench] = useState(BENCH);
-  useEffect(() => {
-    fetch(SHEETS_CSV)
-      .then(r => r.text())
-      .then(text => { const p = parseSheetCSV(text); if (p.length > 5) setLiveBench(p); })
-      .catch(() => {});
-  }, []);
+  const { bench: liveBench } = useBench();
   return (
     <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 54px)' }}>
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '52px 40px 80px' }}>
@@ -2301,13 +2425,14 @@ const TABS = [
   ['access',    'access',        '#b8b878'], // olive
 ];
 
-function FolderTab({ n, label, color, active, onClick, isMobile }) {
+function FolderTab({ n, label, color, active, onClick, isMobile, id }) {
   // Trapezoid-ish file-tab: flat, no shadow, no translucency.
   // Inactive tabs use a darker tinted version (mixed with ink) to read as "filed behind" the front one.
   const height = active ? 38 : 32;
   const tabColor = active ? color : `color-mix(in srgb, ${color} 70%, #2a2a26 30%)`;
   return (
     <button
+      id={id}
       onClick={onClick}
       style={{
         position: 'relative',
@@ -2424,6 +2549,7 @@ function Header({ page, setPage, accent }) {
           {TABS.map(([key, label, color], i) =>
             <FolderTab
               key={key}
+              id={`nav-tab-${key}`}
               n={String(i + 1).padStart(2, '0')}
               label={label}
               color={color}
@@ -2445,17 +2571,22 @@ function Header({ page, setPage, accent }) {
 // ── APP ───────────────────────────────────────────────────────────────────────
 function App() {
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  // Route from URL path on first load: /access /apply /pricing → matching page
+  // Route from URL path on first load: /access /apply /look → matching page
+  // (legacy /pricing still resolves to /look for backwards compatibility)
   const pathToPage = (path) => {
     const p = (path || '').replace(/\/$/, '').toLowerCase();
     if (p === '/access') return 'access';
     if (p === '/apply')  return 'apply';
-    if (p === '/pricing') return 'pricing';
+    if (p === '/look' || p === '/pricing') return 'pricing';
     if (p === '/dashboard' || p === '/bench') return 'dashboard';
     if (p === '/concierge') return 'concierge';
     return 'home';
   };
-  const pageToPath = (page) => page === 'home' ? '/' : `/${page}`;
+  const pageToPath = (page) => {
+    if (page === 'home') return '/';
+    if (page === 'pricing') return '/look';
+    return `/${page}`;
+  };
 
   const [page, setPageState] = useState(() => typeof window !== 'undefined' ? pathToPage(window.location.pathname) : 'home');
 
@@ -2477,6 +2608,19 @@ function App() {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
+
+  // Per-route document.title
+  useEffect(() => {
+    const titles = {
+      home:      'Colophon — The right person. Right now.',
+      apply:     'Colophon — Join the bench',
+      pricing:   'Colophon — Get a look',
+      access:    'Colophon — Access',
+      dashboard: 'Colophon — The bench',
+      concierge: 'Colophon — Concierge',
+    };
+    document.title = titles[page] || 'Colophon';
+  }, [page]);
 
   const { variant, accent } = tweaks;
   const isMobile = useIsMobile();
@@ -2501,7 +2645,9 @@ function App() {
 
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <BenchProvider><App /></BenchProvider>
+);
 </script>
 </body>
 </html>
