@@ -86,12 +86,13 @@
   /* No-JS / SEO-readable content (visible to crawlers, hidden from users) */
   .seo-only { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
-  /* bench hover panel — folder dropping out of the "01 the bench" tab */
+  /* bench hover panel — folder dropping out of the "01 the bench" tab.
+     Extends from the tab's left edge all the way to the right edge of the viewport. */
   :root { --drawer-bg: #a8c4b8; }
   .bench-hover-panel {
     position: fixed;
     top: 60px; /* directly under the header strip */
-    width: 360px;
+    right: 0;
     bottom: 0;
     background: var(--drawer-bg);
     border-top: 3px solid var(--drawer-bg); /* tab-continuation spine */
@@ -997,7 +998,7 @@ function BenchTeaser({ accent, bench: benchProp }) {
     };
   }, []);
 
-  const drawerStyle = drawerLeft != null ? { left: drawerLeft, right: 'auto' } : { right: 0 };
+  const drawerStyle = drawerLeft != null ? { left: drawerLeft, right: 0 } : { left: 'auto', right: 0 };
 
   return (
     <div style={{ position: 'relative' }}>
