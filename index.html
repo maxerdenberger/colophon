@@ -581,7 +581,23 @@ function Dot({ status }) {
 }
 
 // ── SCRAMBLE TEXT ─────────────────────────────────────────────────────────────
-const SCRAMBLE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789·—';
+const SCRAMBLE_CHARS = [
+  // Box drawing
+  '─','│','┌','┐','└','┘','├','┤','┬','┴','┼','═','║',
+  // Block elements
+  '░','▒','▓','█','▄','▀','▌','▐',
+  // Geometric
+  '●','○','◆','◇','■','□','▲','△','▼','▽','◢','◣','◤','◥',
+  // Math / logic
+  '∀','∂','∃','∅','∇','∈','∉','∋','∏','∑','√','∝','∞','∠',
+  '∧','∨','∩','∪','∫','≈','≠','≡','≤','≥','±','×','÷',
+  // Arrows
+  '←','↑','→','↓','↔','↕','↖','↗','↘','↙','⇐','⇑','⇒','⇓',
+  // Currency / misc
+  '¢','£','¤','¥','€','₹','₽','§','¶','†','‡','•','※','◊',
+  // Greek / Latin extended (foreign-signal feel)
+  'Æ','Ø','Þ','ß','æ','ð','ø','þ','Ç','Ñ','Ω','Δ','Σ','Λ','Φ','Ψ','Ξ','Θ','Π',
+];
 const SCRAMBLE_PRESERVE = /[\s·—\-\.\/]/; // chars that should not be replaced with noise
 
 function makeNoise(text, charset) {
@@ -596,7 +612,7 @@ function makeNoise(text, charset) {
 
 // `manual` — when true, do NOT animate on mount; only when runKey changes.
 // `runKey` — bump to retrigger the animation (e.g. on hover).
-function Scramble({ text, duration = 600, delay = 0, runKey = 0, manual = false, charset }) {
+function Scramble({ text, duration = 1200, delay = 0, runKey = 0, manual = false, charset }) {
   const target = String(text);
   const [display, setDisplay] = useState(() => manual ? target : makeNoise(target, charset));
   const rafRef = useRef(null);
@@ -639,7 +655,16 @@ function Scramble({ text, duration = 600, delay = 0, runKey = 0, manual = false,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target, duration, runKey, manual]);
 
-  return display;
+  return (
+    <span style={{
+      fontVariantNumeric: 'tabular-nums',
+      fontFeatureSettings: '"tnum", "zero"',
+      display: 'inline-block',
+      minWidth: `${target.length}ch`,
+    }}>
+      {display}
+    </span>
+  );
 }
 
 // ── ANALOG CLOCK ──────────────────────────────────────────────────────────────
@@ -683,7 +708,7 @@ function DashStatTile({ value, label, sub, isLast, numStyle, labelStyle }) {
       onMouseEnter={() => setK((x) => x + 1)}
       style={{ padding: '28px 24px', borderRight: !isLast ? `1px solid ${C.rule}` : 'none', cursor: 'default' }}>
       <div style={numStyle}>
-        <Scramble text={value} duration={300} runKey={k} manual />
+        <Scramble text={value} duration={700} runKey={k} manual />
       </div>
       <div style={{ ...labelStyle, marginTop: 14 }}>{label}</div>
       <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 4 }}>{sub}</div>
