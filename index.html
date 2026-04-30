@@ -1123,13 +1123,13 @@ function HomePage({ setPage, accent, variant }) {
             <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.14em', marginBottom: 16 }}>05 / also available — concierge</p>
             <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,44px)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 16 }}>concierge: when you'd rather just have the names.</h3>
             <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.78, marginBottom: 8 }}>a paragraph from you. five top-tier names from us. you email them yourself.</p>
-            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, opacity: 0.6, lineHeight: 1.7 }}>$199 flat. 24-hour turnaround. credited toward your first invoice if you hire.</p>
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, opacity: 0.6, lineHeight: 1.7 }}>$199 intro fee. 4-hour turnaround. credited toward your first invoice.</p>
           </div>
           <div>
             <button onClick={() => setPage('concierge')} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.06em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '13px 22px', cursor: 'pointer' }}>
               sounds like me. →
             </button>
-            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 12, lineHeight: 1.6 }}>$199 · at least 5 top-tier names within 24 hours.</p>
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 12, lineHeight: 1.6 }}>$199 intro fee · at least 5 top-tier names within 4 hours.</p>
           </div>
         </div>
       </section>
@@ -1514,17 +1514,17 @@ function PricingPage({ setPage, accent }) {
           {showConcierge && (
             <div style={{ padding: '32px 36px', background: C.paper, border: `1px solid ${C.rule}`, position:'relative' }}>
               <span style={{ position:'absolute', top:-10, left:24, background: C.cream, padding:'0 12px', fontFamily: GM, fontSize: 9, letterSpacing:'0.14em', color: C.soft }}>or</span>
-              <h3 style={{ fontFamily: GS, fontWeight: 600, fontSize: 22, letterSpacing:'-0.015em', marginBottom: 8 }}>only {matched.length}? don't want to hire?</h3>
+              <h3 style={{ fontFamily: GS, fontWeight: 600, fontSize: 22, letterSpacing:'-0.015em', marginBottom: 8 }}>only {matched.length}? want us to make the match?</h3>
               <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.7, marginBottom: 18, maxWidth:'56ch' }}>
-                that's a small bench. skip the search — we'll match you with the right person, run the intro, and get you to a kickoff call within 72 hours.
+                that's a tight bench. skip the search — send a brief and we'll come back with 5+ top-tier names within 4 hours.
               </p>
               <div style={{ display:'flex', alignItems:'baseline', gap: 10, marginBottom: 18 }}>
-                <span style={{ fontFamily: GS, fontWeight: 300, fontSize: 40, letterSpacing:'-0.025em' }}>$750</span>
-                <span style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>flat fee. credited toward your first invoice.</span>
+                <span style={{ fontFamily: GS, fontWeight: 300, fontSize: 40, letterSpacing:'-0.025em' }}>$199</span>
+                <span style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>intro fee. credited toward your first invoice.</span>
               </div>
               {conciergeSent ? (
                 <div style={{ fontFamily: GM, fontSize: 13, color: C.ink, padding: '14px 0' }}>
-                  ✓ &nbsp; got it. we'll be in touch within 24 hours.
+                  ✓ &nbsp; brief received. we'll be in touch within 4 hours.
                 </div>
               ) : (
                 <form onSubmit={async (e) => {
@@ -2072,7 +2072,7 @@ function ConciergePage({ accent, setPage }) {
             n="03"
             label="Concierge — Handpicked"
             headline="Just send me the names."
-            sub="Tell us what you're working on. We'll send you at least 5 top-tier names from the bench within 24 hours — handpicked, not algorithmic. You email them yourself."
+            sub="Tell us what you're working on. We'll send you at least 5 top-tier names from the bench within 4 hours — handpicked, not algorithmic. You email them yourself."
             accent="#c89090"
           />
           <div style={{ height: 8 }} />
@@ -2080,9 +2080,9 @@ function ConciergePage({ accent, setPage }) {
           {/* what's included */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0, marginBottom: 40, border: `1px solid ${C.rule}` }}>
             {[
-              ['$199', 'Flat fee'],
+              ['$199', 'Intro fee'],
               ['5+', 'Top-tier names'],
-              ['<24h', 'Turnaround'],
+              ['<4h', 'Turnaround'],
             ].map(([n, l], i) => (
               <div key={i} style={{ padding: '20px 22px', borderRight: i < 2 ? `1px solid ${C.rule}` : 'none' }}>
                 <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 28, letterSpacing: '-0.02em', color: accent }}>{n}</div>
@@ -2098,7 +2098,7 @@ function ConciergePage({ accent, setPage }) {
               {[
                 ['Pay $199', 'Stripe checkout. Refundable if we can\u2019t match you.'],
                 ['Send your brief', 'After payment you\u2019ll be returned here to fill in a short brief.'],
-                ['Get 5+ names in 24h', 'Real names, real rates, real contact info. You email them yourself.'],
+                ['Get 5+ names in 4h', 'Real names, real rates, real contact info. You email them yourself.'],
               ].map(([t, d], i) => (
                 <div key={i} style={{ display: 'grid', gridTemplateColumns: '36px 1fr', gap: 14, padding: '18px 0', borderTop: `1px solid ${C.rule}`, borderBottom: i === 2 ? `1px solid ${C.rule}` : 'none' }}>
                   <div style={{ fontFamily: GM, fontSize: 11, color: accent, letterSpacing: '0.1em' }}>0{i+1}</div>
