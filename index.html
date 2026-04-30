@@ -2416,6 +2416,216 @@ function ConciergePage({ accent, setPage }) {
     </div>);
 }
 
+// ── INVITE PAGE (60-second confirmation form linked from invite emails) ──
+function InvitePage({ accent, setPage }) {
+  const [params, setParams] = useState({ name: '', ref: '' });
+  const [form, setForm] = useState({ email: '', availability: '', notes: '', portfolio: '' });
+  const [stage, setStage] = useState('form'); // 'form' | 'sending' | 'sent'
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const u = new URLSearchParams(window.location.search);
+    setParams({ name: u.get('name') || '', ref: u.get('ref') || '' });
+  }, []);
+
+  const inputStyle = { background: '#fff', border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '14px 16px', fontFamily: GM, fontSize: 14, color: C.ink, outline: 'none', width: '100%', textTransform: 'none' };
+  const labelStyle = { display: 'block', fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', color: C.soft, marginBottom: 7, textTransform: 'uppercase' };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!form.email) return;
+    setErr('');
+    setStage('sending');
+    try {
+      const res = await fetch('/api/invite-confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const j = await res.json();
+      if (!res.ok || j.error) throw new Error(j.error || 'send failed');
+      setStage('sent');
+    } catch (ex) {
+      setStage('form');
+      setErr(ex.message || 'something went wrong');
+    }
+  };
+
+  if (stage === 'sent') {
+    return (
+      <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 60px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 40, textAlign: 'center' }}>
+        <div style={{ width: 48, height: 48, border: `1.5px solid ${accent}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontSize: 18 }}>✓</div>
+        <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,52px)', letterSpacing: '-0.03em', lineHeight: 0.95 }}>Confirmed.</h2>
+        <p style={{ fontFamily: GM, fontSize: 13, color: C.soft, maxWidth: '46ch', lineHeight: 1.75 }}>
+          We have your details. Someone from Colophon will follow up shortly.
+        </p>
+        <button onClick={() => setPage('home')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', background: 'transparent', color: C.ink, border: `1px solid ${C.rule}`, padding: '12px 22px', marginTop: 8, cursor: 'pointer' }}>back to home</button>
+      </div>);
+  }
+
+  return (
+    <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 60px)' }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '52px 32px 80px' }}>
+        <PageHeader
+          n=""
+          label={params.ref ? `Recommended by ${params.ref}` : 'Bench invite'}
+          headline={params.name ? `Hi ${params.name.split(' ')[0]}.` : 'Confirm your details.'}
+          sub="Takes 60 seconds. We use this to make sure clients see the right people for the right work."
+          accent="#a8c4b8"
+        />
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 20 }}>
+          <div>
+            <label style={labelStyle}>email</label>
+            <input type="email" required value={form.email}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              style={inputStyle} placeholder="you@studio.com" />
+          </div>
+          <div>
+            <label style={labelStyle}>current availability</label>
+            <select value={form.availability}
+              onChange={(e) => setForm((f) => ({ ...f, availability: e.target.value }))}
+              style={inputStyle}>
+              <option value="">—</option>
+              <option value="Available now">Available now</option>
+              <option value="Available in 1–2 weeks">Available in 1–2 weeks</option>
+              <option value="Booked / waitlist only">Booked / waitlist only</option>
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>portfolio (optional)</label>
+            <input type="url" value={form.portfolio}
+              onChange={(e) => setForm((f) => ({ ...f, portfolio: e.target.value }))}
+              style={inputStyle} placeholder="https://" />
+          </div>
+          <div>
+            <label style={labelStyle}>anything we should know? (optional)</label>
+            <textarea rows={4} value={form.notes}
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
+              placeholder="rate, focus, current projects, anything that helps." />
+          </div>
+          {err && (
+            <div style={{ padding: '12px 16px', border: '1px solid #b04040', background: 'rgba(176,64,64,0.08)', color: '#b04040', fontFamily: GM, fontSize: 11, borderRadius: 4 }}>
+              {err}
+            </div>
+          )}
+          <button type="submit" disabled={stage === 'sending'}
+            style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '15px 24px', cursor: stage === 'sending' ? 'wait' : 'pointer', marginTop: 10, borderRadius: 6 }}>
+            {stage === 'sending' ? 'sending…' : 'confirm →'}
+          </button>
+        </form>
+      </div>
+    </div>);
+}
+
+// ── ADMIN PAGE (Bearer-gated console for sending invite batches) ──────────
+function AdminPage({ accent, setPage }) {
+  const [secret, setSecret] = useState('');
+  const [authed, setAuthed] = useState(false);
+  const [json, setJson] = useState('[\n  { "name": "Jane Doe", "email": "jane@studio.com", "referrer": "Maria Lopez", "discipline": "art direction" }\n]');
+  const [result, setResult] = useState(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem('colophon_admin_secret');
+      if (stored) { setSecret(stored); setAuthed(true); }
+    } catch {}
+  }, []);
+
+  const inputStyle = { background: '#fff', border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '12px 14px', fontFamily: GM, fontSize: 13, color: C.ink, outline: 'none', width: '100%', textTransform: 'none' };
+
+  const send = async () => {
+    setErr('');
+    setResult(null);
+    let people;
+    try {
+      people = JSON.parse(json);
+      if (!Array.isArray(people)) throw new Error('expected an array');
+    } catch (ex) {
+      setErr(`invalid JSON: ${ex.message}`);
+      return;
+    }
+    if (!people.length) { setErr('no recipients in array'); return; }
+    setBusy(true);
+    try {
+      const res = await fetch('/api/send-invites', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${secret}`,
+        },
+        body: JSON.stringify(people),
+      });
+      const j = await res.json();
+      if (res.status === 401) { setAuthed(false); setErr('unauthorized — check the admin secret'); try { sessionStorage.removeItem('colophon_admin_secret'); } catch {} setBusy(false); return; }
+      if (!res.ok || j.error) throw new Error(j.error || `error ${res.status}`);
+      setResult(j);
+    } catch (ex) {
+      setErr(ex.message || 'send failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!authed) {
+    return (
+      <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 60px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 40 }}>
+        <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 32, letterSpacing: '-0.02em' }}>admin</h2>
+        <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '38ch', lineHeight: 1.7, textAlign: 'center' }}>Paste the admin secret to unlock the invite sender.</p>
+        <input type="password" value={secret} onChange={(e) => setSecret(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && secret.trim()) { try { sessionStorage.setItem('colophon_admin_secret', secret.trim()); } catch {} setAuthed(true); } }}
+          placeholder="admin secret"
+          style={{ ...inputStyle, maxWidth: 360 }} />
+        <button onClick={() => { if (!secret.trim()) return; try { sessionStorage.setItem('colophon_admin_secret', secret.trim()); } catch {} setAuthed(true); }}
+          style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: 'none', padding: '12px 22px', cursor: 'pointer', borderRadius: 6 }}>
+          unlock →
+        </button>
+        {err && <p style={{ fontFamily: GM, fontSize: 11, color: '#b04040' }}>{err}</p>}
+      </div>);
+  }
+
+  return (
+    <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 60px)' }}>
+      <div style={{ maxWidth: 880, margin: '0 auto', padding: '40px 32px 80px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 24 }}>
+          <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 28, letterSpacing: '-0.02em' }}>send invite batch</h2>
+          <button onClick={() => { try { sessionStorage.removeItem('colophon_admin_secret'); } catch {} setAuthed(false); setSecret(''); }}
+            style={{ fontFamily: GM, fontSize: 10, color: C.soft, background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+            sign out
+          </button>
+        </div>
+        <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.7, marginBottom: 18 }}>
+          Paste a JSON array of approved people. Each needs <code>name</code>, <code>email</code>, <code>referrer</code>, and optional <code>discipline</code>. 100ms delay between sends.
+        </p>
+        <textarea value={json} onChange={(e) => setJson(e.target.value)} spellCheck={false}
+          style={{ ...inputStyle, fontFamily: GM, fontSize: 12, minHeight: 280, resize: 'vertical', lineHeight: 1.55 }} />
+        {err && (
+          <div style={{ padding: '12px 16px', border: '1px solid #b04040', background: 'rgba(176,64,64,0.08)', color: '#b04040', fontFamily: GM, fontSize: 11, borderRadius: 4, marginTop: 12 }}>
+            {err}
+          </div>
+        )}
+        <button onClick={send} disabled={busy}
+          style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: 'none', padding: '14px 24px', cursor: busy ? 'wait' : 'pointer', marginTop: 16, borderRadius: 6 }}>
+          {busy ? 'sending…' : 'send invites →'}
+        </button>
+        {result && (
+          <div style={{ marginTop: 24, padding: '16px 20px', border: `1px solid ${C.rule}`, background: '#fff', fontFamily: GM, fontSize: 12, lineHeight: 1.7 }}>
+            <div><strong>sent:</strong> {result.sent}</div>
+            <div><strong>failed:</strong> {result.failed?.length || 0}</div>
+            {result.failed?.length > 0 && (
+              <ul style={{ marginTop: 10, paddingLeft: 18, color: '#b04040' }}>
+                {result.failed.map((f, i) => <li key={i}>{f.email}: {f.error}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+    </div>);
+}
+
 // ── HEADER ────────────────────────────────────────────────────────────────────
 const TABS = [
   ['dashboard', 'the bench',     '#a8c4b8'], // sage teal
@@ -2580,6 +2790,8 @@ function App() {
     if (p === '/look' || p === '/pricing') return 'pricing';
     if (p === '/dashboard' || p === '/bench') return 'dashboard';
     if (p === '/concierge') return 'concierge';
+    if (p === '/invite')   return 'invite';
+    if (p === '/admin')    return 'admin';
     return 'home';
   };
   const pageToPath = (page) => {
@@ -2618,13 +2830,15 @@ function App() {
       access:    'Colophon — Access',
       dashboard: 'Colophon — The bench',
       concierge: 'Colophon — Concierge',
+      invite:    'Colophon — Confirm your details',
+      admin:     'Colophon — Admin',
     };
     document.title = titles[page] || 'Colophon';
   }, [page]);
 
   const { variant, accent } = tweaks;
   const isMobile = useIsMobile();
-  const showBriefBar = isMobile && page !== 'concierge';
+  const showBriefBar = isMobile && page !== 'concierge' && page !== 'invite' && page !== 'admin';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', paddingBottom: showBriefBar ? 60 : 0 }}>
@@ -2635,6 +2849,8 @@ function App() {
       {page === 'access' && <AccessPage accent={accent} setPage={setPage} />}
       {page === 'dashboard' && <DashboardPage accent={accent} setPage={setPage} />}
       {page === 'concierge' && <ConciergePage accent={accent} setPage={setPage} />}
+      {page === 'invite' && <InvitePage accent={accent} setPage={setPage} />}
+      {page === 'admin' && <AdminPage accent={accent} setPage={setPage} />}
       <Footer accent={accent} setPage={setPage} />
       {showBriefBar && <MobileBriefBar page={page} setPage={setPage} />}
       <TweaksPanel title="Tweaks">
