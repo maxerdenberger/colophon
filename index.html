@@ -926,7 +926,7 @@ function BenchDashboard({ bench, accent }) {
         <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
           this is everything except the names. <span style={{ color: C.ink }}>a look turns the names on.</span>
         </span>
-        <span style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.12em' }}>{total} humans · 0 algorithms</span>
+        <span style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.12em' }}>{total} humans · 0 algorithms · $199 to open the bench.</span>
       </div>
 
       <style>{`
@@ -1367,13 +1367,13 @@ function HomePage({ setPage, accent, variant }) {
             <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.14em', marginBottom: 16 }}>05 / also available — concierge</p>
             <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,44px)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 16 }}>concierge: when you'd rather just have the names.</h3>
             <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.78, marginBottom: 8 }}>a paragraph from you. five top-tier names from us. you email them yourself.</p>
-            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, opacity: 0.6, lineHeight: 1.7 }}>$199 intro fee. 4-hour turnaround. credited toward your first invoice.</p>
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, opacity: 0.6, lineHeight: 1.7 }}>$199 to open the bench.</p>
           </div>
           <div>
             <button onClick={() => gotoBrief(setPage)} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.06em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '13px 22px', cursor: 'pointer' }}>
               send a brief →
             </button>
-            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 12, lineHeight: 1.6 }}>$199 intro fee · at least 5 top-tier names within 4 hours.</p>
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 12, lineHeight: 1.6 }}>$199 to open the bench.</p>
           </div>
         </div>
       </section>
@@ -1761,7 +1761,7 @@ function PricingPage({ setPage, accent }) {
               </p>
               <div style={{ display:'flex', alignItems:'baseline', gap: 10, marginBottom: 18 }}>
                 <span style={{ fontFamily: GS, fontWeight: 300, fontSize: 40, letterSpacing:'-0.025em' }}>$199</span>
-                <span style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>intro fee. credited toward your first invoice.</span>
+                <span style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>to open the bench.</span>
               </div>
               {conciergeSent ? (
                 <div style={{ fontFamily: GM, fontSize: 13, color: C.ink, padding: '14px 0' }}>
@@ -2283,7 +2283,7 @@ function ConciergePage({ accent, setPage }) {
       <div style={{ width: 48, height: 48, border: `1.5px solid ${accent}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontSize: 18 }}>✓</div>
       <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em', lineHeight: 0.95 }}>Brief received.</h2>
       <p style={{ fontFamily: GM, fontSize: 13, color: C.soft, maxWidth: '46ch', lineHeight: 1.75 }}>
-        You'll hear back within 4 hours. Credited toward your first invoice if you hire one of them.
+        You'll hear back within 4 hours.
       </p>
       <button onClick={() => setPage('home')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', background: 'transparent', color: C.ink, border: `1px solid ${C.rule}`, padding: '12px 22px', marginTop: 8, cursor: 'pointer' }}>back to home</button>
     </div>);
@@ -2340,7 +2340,7 @@ function ConciergePage({ accent, setPage }) {
           </div>
 
           <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 24, lineHeight: 1.7 }}>
-            Credited toward your first invoice if you hire one of them. No markup on the creative — you pay them direct.
+            $199 to open the bench. No markup on the creative — you pay them direct.
           </p>
 
           <a id="brief-intake" href={stripeUrl} style={{ display: 'block', textAlign: 'center', textDecoration: 'none', fontFamily: GM, fontSize: 12, letterSpacing: '0.08em', background: C.ink, color: C.cream, padding: '20px 24px', borderRadius: 6, scrollMarginTop: 80 }}>
