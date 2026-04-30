@@ -319,6 +319,31 @@ const BENCH = [
 // ── LIVE DATA ────────────────────────────────────────────────────────────
 const SHEETS_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTxk39b5nWFUyQ_1vU0JdVufD2xkyG-RJepoFzv8_P_OIm_3CM21FmZTOXGMuscST6_7kpXruKt1_Rt/pub?gid=437022839&single=true&output=csv';
 
+// Form delivery — accepts any Formspree / Zapier / Make / n8n webhook that takes JSON.
+// Drop your endpoint in here. Falls back to mailto:hello@colophon.contact when blank.
+const FORM_ENDPOINT = '';
+const FORM_FALLBACK_EMAIL = 'hello@colophon.contact';
+
+async function submitForm(payload) {
+  if (FORM_ENDPOINT) {
+    try {
+      const res = await fetch(FORM_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) return { ok: true };
+    } catch {}
+  }
+  // Fallback: open the user's mail client so the message still gets to us.
+  const subj = encodeURIComponent(`${payload._subject || payload.source || 'inquiry'} — colophon`);
+  const lines = Object.entries(payload)
+    .filter(([k]) => !k.startsWith('_'))
+    .map(([k, v]) => `${k}: ${v}`).join('\n');
+  window.location.href = `mailto:${FORM_FALLBACK_EMAIL}?subject=${subj}&body=${encodeURIComponent(lines)}`;
+  return { ok: true, viaMailto: true };
+}
+
 const PHIL_POOL = [
 'simone weil', 'walter benjamin', 'hannah arendt', 'dieter rams', 'susan sontag', 'john berger',
 'el lissitzky', 'theodor adorno', 'bell hooks', 'adrienne rich', 'roland barthes', 'italo calvino',
@@ -870,27 +895,13 @@ function Footer({ accent, setPage }) {
             </p>
             {sent ?
             <div style={{ fontFamily: GM, fontSize: 12, color: 'rgba(244,241,236,0.55)', lineHeight: 1.75 }}>
-                ✓ &nbsp; got it. we'll be in touch within 24 hours.
+                ✓ &nbsp; brief received. you'll hear back within 4 hours.
               </div> :
 
             <form onSubmit={async (e) => {
                 e.preventDefault();
-                // Try API; if not deployed, fall back to mailto
-                try {
-                  const res = await fetch('/api/lead', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ what: q.what, email: q.email, source: 'home-got-a-project' })
-                  });
-                  if (res.ok) { setSent(true); return; }
-                  throw new Error('api unavailable');
-                } catch {
-                  // Fallback: open user's mail client to hello@colophon.contact
-                  const subj = encodeURIComponent('project inquiry — colophon');
-                  const body = encodeURIComponent(`from: ${q.email}\n\n${q.what}`);
-                  window.location.href = `mailto:hello@colophon.contact?subject=${subj}&body=${body}`;
-                  setSent(true);
-                }
+                await submitForm({ what: q.what, email: q.email, source: 'home-got-a-project', _subject: 'project inquiry' });
+                setSent(true);
               }} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <textarea
                 value={q.what} onChange={(e) => setQ((p) => ({ ...p, what: e.target.value }))}
@@ -1166,7 +1177,17 @@ function ApplyPage({ accent }) {
           accent="#b8a8c8"
         />
         <div style={{ height: 24 }} />
-        <form onSubmit={(e) => {e.preventDefault();setDone(true);}} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          await submitForm({
+            ...form,
+            disciplines: disciplines.join(', '),
+            categories: categories.join(', '),
+            source: 'apply-bench',
+            _subject: 'bench application',
+          });
+          setDone(true);
+        }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <h3 style={{ ...sH, marginTop: 0, paddingTop: 0, borderTop: 'none' }}>about you</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div><label style={lS}>full name</label><input style={iS} value={form.name} onChange={set('name')} required /></div>
@@ -1281,6 +1302,7 @@ function PricingPage({ setPage, accent }) {
   const [buyerName, setBuyerName] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
   const [conciergeSent, setConciergeSent] = useState(false);
+  const [checkoutErr, setCheckoutErr] = useState('');
 
   const STEPS = [
     { key: 'disciplines', label: 'discipline',  question: 'what do you actually need?',
@@ -1451,9 +1473,10 @@ function PricingPage({ setPage, accent }) {
           <button onClick={async () => {
               if (!duration) return;
               if (!buyerName.trim() || !buyerEmail.trim()) {
-                alert('add your name and email so we can mint your bench.');
+                setCheckoutErr('add your name and email so we can mint your bench.');
                 return;
               }
+              setCheckoutErr('');
               try {
                 const r = await fetch('/api/checkout', {
                   method: 'POST',
@@ -1468,19 +1491,24 @@ function PricingPage({ setPage, accent }) {
                   }),
                 });
                 const j = await r.json();
-                if (j.url) { window.location.href = j.url; }
-                else { alert('checkout error: ' + (j.error || 'unknown')); }
+                if (j.url) { window.location.href = j.url; return; }
+                throw new Error(j.error || 'checkout unavailable');
               } catch (err) {
                 // fallback to static link if api isn't deployed yet
                 window.location.href = STRIPE[duration];
               }
             }}
             disabled={!duration}
-            style={{ display:'block', width:'100%', padding:'20px 28px', background: duration ? C.ink : C.rule, color: duration ? C.cream : C.soft, fontFamily: GM, fontSize: 12, letterSpacing:'0.08em', textAlign:'center', textDecoration:'none', cursor: duration ? 'pointer' : 'not-allowed', marginBottom: 40, border:'none' }}>
+            style={{ display:'block', width:'100%', padding:'20px 28px', background: duration ? C.ink : C.rule, color: duration ? C.cream : C.soft, fontFamily: GM, fontSize: 12, letterSpacing:'0.08em', textAlign:'center', textDecoration:'none', cursor: duration ? 'pointer' : 'not-allowed', marginBottom: checkoutErr ? 12 : 40, border:'none' }}>
             {duration
               ? (buyerName.trim() ? `mint ${buyerName.trim().split(' ')[0]}'s bench — $${priceFor(duration)} →` : `unlock ${matched.length} ${roleLabel} — $${priceFor(duration)} →`)
               : 'pick a duration above to continue'}
           </button>
+          {checkoutErr && (
+            <div style={{ marginBottom: 40, padding: '12px 16px', border: '1px solid #b04040', background: 'rgba(176,64,64,0.08)', color: '#b04040', fontFamily: GM, fontSize: 11, letterSpacing: '0.04em', borderRadius: 4 }}>
+              {checkoutErr}
+            </div>
+          )}
 
           {/* Concierge upsell — only if bench is small */}
           {showConcierge && (
@@ -2012,24 +2040,12 @@ function ConciergePage({ accent, setPage }) {
       brief:   fd.get('brief'),
       timing:  fd.get('timing'),
       budget:  fd.get('budget'),
-      source:  'concierge-page'
+      source:  'concierge-brief',
+      _subject: 'concierge brief',
     };
-    try {
-      const res = await fetch('/api/inquiry', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) { setStage('sent'); setSubmitting(false); return; }
-      throw new Error();
-    } catch {
-      const subj = encodeURIComponent('concierge brief — colophon');
-      const body = encodeURIComponent(
-        `name: ${payload.name}\nemail: ${payload.email}\ncompany: ${payload.company}\ntiming: ${payload.timing}\nbudget: ${payload.budget}\n\nbrief:\n${payload.brief}`);
-      window.location.href = `mailto:hello@colophon.contact?subject=${subj}&body=${body}`;
-      setStage('sent');
-      setSubmitting(false);
-    }
+    await submitForm(payload);
+    setStage('sent');
+    setSubmitting(false);
   };
 
   if (stage === 'sent') {
@@ -2037,9 +2053,9 @@ function ConciergePage({ accent, setPage }) {
     return (
     <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 54px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: 40, textAlign: 'center' }}>
       <div style={{ width: 48, height: 48, border: `1.5px solid ${accent}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontSize: 18 }}>✓</div>
-      <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em', lineHeight: 0.95 }}>Got it.</h2>
+      <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em', lineHeight: 0.95 }}>Brief received.</h2>
       <p style={{ fontFamily: GM, fontSize: 13, color: C.soft, maxWidth: '46ch', lineHeight: 1.75 }}>
-        We'll review your brief and send you 5+ top-tier names within 24 hours. Credited toward your first invoice if you hire one of them.
+        You'll hear back within 4 hours. Credited toward your first invoice if you hire one of them.
       </p>
       <button onClick={() => setPage('home')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', background: 'transparent', color: C.ink, border: `1px solid ${C.rule}`, padding: '12px 22px', marginTop: 8, cursor: 'pointer' }}>back to home</button>
     </div>);
@@ -2117,7 +2133,7 @@ function ConciergePage({ accent, setPage }) {
           n="03"
           label="Concierge — Brief"
           headline="Tell us what you need."
-          sub="You're paid up. Now share the brief. We'll match you with 5+ top-tier names within 24 hours."
+          sub="You're paid up. Now share the brief. We'll match you with 5+ top-tier names within 4 hours."
           accent="#c89090"
         />
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: '#a8c4b833', borderRadius: 6, marginBottom: 32 }}>
@@ -2165,7 +2181,7 @@ function ConciergePage({ accent, setPage }) {
             {submitting ? 'Sending…' : 'Send my brief — get 5+ names →'}
           </button>
           <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, textAlign: 'center', marginTop: 4 }}>
-            We'll have your names back to you within 24 hours.
+            We'll have your names back to you within 4 hours.
           </p>
         </form>
       </div>
