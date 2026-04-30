@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@vercel/analytics": "^1.4.1",
-    "resend": "^4.0.1"
+    "resend": "^4.0.1",
+    "stripe": "^17.5.0"
   }
 }

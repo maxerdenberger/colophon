@@ -1557,11 +1557,7 @@ function ApplyPage({ accent }) {
 // ── PRICING PAGE ──────────────────────────────────────────────────────────────
 // ── BENCH BUILDER (replaces fixed pricing) ─────────────────────────────────
 function PricingPage({ setPage, accent }) {
-  const STRIPE = {
-    day: 'https://buy.stripe.com/5kQ5klb64beagze9n8a3u00',
-    week: 'https://buy.stripe.com/8x2fYZ1vuaa6fvaeHsa3u01',
-    month: 'https://buy.stripe.com/14A145fmk3LIbeU56Sa3u02'
-  };
+  // Checkout is handled by /api/checkout — no static Payment Links.
 
   const { bench } = useBench();
 
@@ -1767,12 +1763,11 @@ function PricingPage({ setPage, accent }) {
                     email: buyerEmail.trim(),
                   }),
                 });
-                const j = await r.json();
+                const j = await r.json().catch(() => ({}));
                 if (j.url) { window.location.href = j.url; return; }
-                throw new Error(j.error || 'checkout unavailable');
+                throw new Error(j.error || `error ${r.status}`);
               } catch (err) {
-                // fallback to static link if api isn't deployed yet
-                window.location.href = STRIPE[duration];
+                setCheckoutErr(err.message || 'checkout failed. please try again.');
               }
             }}
             disabled={!duration}
@@ -2275,8 +2270,7 @@ function DashboardPage({ accent, setPage }) {
 }
 
 // ── CONCIERGE PAGE (pay-first → brief → confirmation) ─────────────────
-const STRIPE_CONCIERGE = 'https://buy.stripe.com/6oU8wP1ja18EcBTe399fW00';
-
+// Checkout is handled by /api/checkout — no static Payment Link needed.
 function ConciergePage({ accent, setPage }) {
   // stage: 'pay' | 'brief' | 'sent'
   const [stage, setStage] = useState(() => {
@@ -2326,9 +2320,24 @@ function ConciergePage({ accent, setPage }) {
   }
 
   // PAY STAGE
+  const [payErr, setPayErr] = useState('');
+  const startCheckout = async () => {
+    setPayErr('');
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product: 'concierge' }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (j.url) { window.location.href = j.url; return; }
+      throw new Error(j.error || `error ${res.status}`);
+    } catch (ex) {
+      setPayErr(ex.message || 'checkout failed');
+    }
+  };
+
   if (stage === 'pay') {
-    const continueUrl = encodeURIComponent(window.location.origin + '/concierge?paid=1');
-    const stripeUrl = `${STRIPE_CONCIERGE}?success_url=${continueUrl}`;
     return (
       <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 54px)' }}>
         <div style={{ maxWidth: 720, margin: '0 auto', padding: '52px 40px 80px' }}>
@@ -2379,9 +2388,14 @@ function ConciergePage({ accent, setPage }) {
             $199 to open the bench. No markup on the creative — you pay them direct.
           </p>
 
-          <a id="brief-intake" href={stripeUrl} style={{ display: 'block', textAlign: 'center', textDecoration: 'none', fontFamily: GM, fontSize: 12, letterSpacing: '0.08em', background: C.ink, color: C.cream, padding: '20px 24px', borderRadius: 6, scrollMarginTop: 80 }}>
+          <button id="brief-intake" onClick={startCheckout} style={{ display: 'block', width: '100%', textAlign: 'center', fontFamily: GM, fontSize: 12, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: 'none', padding: '20px 24px', borderRadius: 6, scrollMarginTop: 80, cursor: 'pointer' }}>
             Pay $199 to start →
-          </a>
+          </button>
+          {payErr && (
+            <div style={{ marginTop: 12, padding: '10px 14px', border: '1px solid #b04040', background: 'rgba(176,64,64,0.08)', color: '#b04040', fontFamily: GM, fontSize: 11, borderRadius: 4 }}>
+              {payErr}
+            </div>
+          )}
           <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, textAlign: 'center', marginTop: 12 }}>
             Secure checkout via Stripe. You'll fill in the brief immediately after.
           </p>
