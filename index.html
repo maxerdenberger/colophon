@@ -458,6 +458,68 @@ function Dot({ status }) {
   return <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: AVAIL_DOT[status], flexShrink: 0 }} />;
 }
 
+// ── SCRAMBLE TEXT ─────────────────────────────────────────────────────────────
+const SCRAMBLE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789·—';
+const SCRAMBLE_PRESERVE = /[\s·—\-\.\/]/; // chars that should not be replaced with noise
+
+function makeNoise(text, charset) {
+  const cs = charset || SCRAMBLE_CHARS;
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    out += SCRAMBLE_PRESERVE.test(c) ? c : cs[Math.floor(Math.random() * cs.length)];
+  }
+  return out;
+}
+
+// `manual` — when true, do NOT animate on mount; only when runKey changes.
+// `runKey` — bump to retrigger the animation (e.g. on hover).
+function Scramble({ text, duration = 600, delay = 0, runKey = 0, manual = false, charset }) {
+  const target = String(text);
+  const [display, setDisplay] = useState(() => manual ? target : makeNoise(target, charset));
+  const rafRef = useRef(null);
+  const firstRef = useRef(true);
+
+  useEffect(() => {
+    if (manual && runKey === 0) {
+      firstRef.current = false;
+      setDisplay(target);
+      return;
+    }
+    cancelAnimationFrame(rafRef.current);
+    const cs = charset || SCRAMBLE_CHARS;
+    const len = target.length;
+    const eDelay = firstRef.current ? delay : 0;
+    firstRef.current = false;
+    const t0 = performance.now() + eDelay;
+
+    const tick = (now) => {
+      if (now < t0) {
+        // pre-start hold: keep showing noise
+        setDisplay(makeNoise(target, cs));
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      const t = Math.min(1, (now - t0) / duration);
+      const settled = Math.floor(t * len);
+      let out = '';
+      for (let i = 0; i < len; i++) {
+        const c = target[i];
+        out += (i < settled || SCRAMBLE_PRESERVE.test(c))
+          ? c
+          : cs[Math.floor(Math.random() * cs.length)];
+      }
+      setDisplay(out);
+      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, duration, runKey, manual]);
+
+  return display;
+}
+
 // ── ANALOG CLOCK ──────────────────────────────────────────────────────────────
 function AnalogClock({ tz, city, accent }) {
   const [now, setNow] = useState(new Date());
@@ -492,6 +554,20 @@ function AnalogClock({ tz, city, accent }) {
 }
 
 // ── BENCH DASHBOARD (public, aggregate, no names) ──────────────────────
+function DashStatTile({ value, label, sub, isLast, numStyle, labelStyle }) {
+  const [k, setK] = useState(0);
+  return (
+    <div
+      onMouseEnter={() => setK((x) => x + 1)}
+      style={{ padding: '28px 24px', borderRight: !isLast ? `1px solid ${C.rule}` : 'none', cursor: 'default' }}>
+      <div style={numStyle}>
+        <Scramble text={value} duration={300} runKey={k} manual />
+      </div>
+      <div style={{ ...labelStyle, marginTop: 14 }}>{label}</div>
+      <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 4 }}>{sub}</div>
+    </div>);
+}
+
 function BenchDashboard({ bench, accent }) {
   const rows = bench || BENCH;
   const total = rows.length;
@@ -602,11 +678,7 @@ function BenchDashboard({ bench, accent }) {
           { n: medYoe + 'yr', l: 'median experience', sub: 'range: 5–28 years' },
           { n: uniqClients, l: 'past clients represented', sub: 'apple to zara' },
         ].map((s, i) => (
-          <div key={i} style={{ padding: '28px 24px', borderRight: i < 3 ? `1px solid ${C.rule}` : 'none' }}>
-            <div style={numStyle}>{s.n}</div>
-            <div style={{ ...labelStyle, marginTop: 14 }}>{s.l}</div>
-            <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 4 }}>{s.sub}</div>
-          </div>
+          <DashStatTile key={i} value={String(s.n)} label={s.l} sub={s.sub} isLast={i === 3} numStyle={numStyle} labelStyle={labelStyle} />
         ))}
       </div>
 
@@ -794,6 +866,8 @@ function BenchTeaser({ accent, bench: benchProp }) {
         </div>
         {rows.map((p, i) => {
           const isH = hovered === p.id;
+          const rk = `${p.id}-${isH ? 1 : 0}`;
+          const d = i * 80;
           return (
             <div
               key={p.id}
@@ -801,16 +875,16 @@ function BenchTeaser({ accent, bench: benchProp }) {
               onMouseEnter={() => setHovered(p.id)}
               onMouseLeave={() => setHovered(null)}
               style={{ display: 'grid', gridTemplateColumns: COLS, padding: '11px 40px', borderBottom: `1px solid ${C.rule}`, background: isH ? C.paper : C.cream, cursor: 'default', transition: 'background 0.12s', alignItems: 'center', borderLeft: isH ? `3px solid ${accent}` : '3px solid transparent' }}>
-              
-              <span style={{ fontFamily: GM, fontSize: 10, color: isH ? C.soft : 'rgba(13,13,11,0.28)' }}>{String(i + 1).padStart(3, '0')}</span>
-              <span style={{ fontWeight: isH ? 600 : 400, fontSize: 13, color: C.ink, transition: 'font-weight 0.12s' }}>{p.name}</span>
-              <span style={{ color: C.soft, fontSize: 11 }}>{p.discipline}</span>
+
+              <span style={{ fontFamily: GM, fontSize: 10, color: isH ? C.soft : 'rgba(13,13,11,0.28)' }}><Scramble text={String(i + 1).padStart(3, '0')} delay={d} runKey={rk} /></span>
+              <span style={{ fontWeight: isH ? 600 : 400, fontSize: 13, color: C.ink, transition: 'font-weight 0.12s' }}><Scramble text={p.name} delay={d} runKey={rk} /></span>
+              <span style={{ color: C.soft, fontSize: 11 }}><Scramble text={p.discipline} delay={d} runKey={rk} /></span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <Dot status={p.availability} />
-                <span style={{ fontSize: 10, color: C.soft }}>{AVAIL_LBL[p.availability]}</span>
+                <span style={{ fontSize: 10, color: C.soft }}><Scramble text={AVAIL_LBL[p.availability]} delay={d} runKey={rk} /></span>
               </span>
-              <span style={{ color: C.soft, fontSize: 10, letterSpacing: '0.04em' }}>{p.tz}</span>
-              <span style={{ fontSize: 10, color: C.soft, opacity: 0.55, letterSpacing: '0.05em' }}>{p.rate}</span>
+              <span style={{ color: C.soft, fontSize: 10, letterSpacing: '0.04em' }}><Scramble text={p.tz} delay={d} runKey={rk} /></span>
+              <span style={{ fontSize: 10, color: C.soft, opacity: 0.55, letterSpacing: '0.05em' }}><Scramble text={p.rate} delay={d} runKey={rk} /></span>
             </div>);
 
         })}
