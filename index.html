@@ -2545,6 +2545,55 @@ function InvitePage({ accent, setPage }) {
     </div>);
 }
 
+// ── SUCCESS PAGE (Stripe checkout return URL) ────────────────────────────
+function SuccessPage({ accent, setPage }) {
+  const [sessionId, setSessionId] = useState('');
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const u = new URLSearchParams(window.location.search);
+    setSessionId(u.get('session_id') || '');
+    // If a checkout session is present, mark the concierge flow as paid so
+    // a refresh / direct-link to /concierge unlocks the brief stage.
+    if (u.get('session_id')) {
+      try { localStorage.setItem('concierge_paid', '1'); } catch {}
+    }
+  }, []);
+
+  const sidShort = sessionId ? sessionId.slice(0, 8) + '…' + sessionId.slice(-4) : '';
+
+  const goConcierge = () => {
+    setPage('concierge');
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = document.getElementById('brief-intake');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+  };
+
+  return (
+    <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 60px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: 40, textAlign: 'center' }}>
+      <div style={{ width: 56, height: 56, border: `1.5px solid ${accent}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontSize: 22 }}>✓</div>
+      <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(36px,5vw,56px)', letterSpacing: '-0.03em', lineHeight: 0.95 }}>Payment received.</h2>
+      <p style={{ fontFamily: GM, fontSize: 13, color: C.soft, maxWidth: '46ch', lineHeight: 1.75 }}>
+        Thank you. Your access is open.
+      </p>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', marginTop: 8 }}>
+        <button onClick={goConcierge} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: 'none', padding: '14px 22px', cursor: 'pointer', borderRadius: 6 }}>
+          continue to your brief →
+        </button>
+        <button onClick={() => setPage('access')} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.08em', background: 'transparent', color: C.ink, border: `1px solid ${C.rule}`, padding: '14px 22px', cursor: 'pointer', borderRadius: 6 }}>
+          view the directory →
+        </button>
+      </div>
+      {sidShort && (
+        <p style={{ fontFamily: GM, fontSize: 9, color: C.soft, opacity: 0.6, marginTop: 22, letterSpacing: '0.1em' }}>
+          ref · {sidShort}
+        </p>
+      )}
+    </div>);
+}
+
 // ── ADMIN PAGE (Bearer-gated console for sending invite batches) ──────────
 function AdminPage({ accent, setPage }) {
   const [secret, setSecret] = useState('');
@@ -2955,6 +3004,7 @@ function App() {
     if (p === '/concierge') return 'concierge';
     if (p === '/invite')   return 'invite';
     if (p === '/admin')    return 'admin';
+    if (p === '/success')  return 'success';
     return 'home';
   };
   const pageToPath = (page) => {
@@ -2995,13 +3045,14 @@ function App() {
       concierge: 'Colophon — Concierge',
       invite:    'Colophon — Confirm your details',
       admin:     'Colophon — Admin',
+      success:   'Colophon — Payment received',
     };
     document.title = titles[page] || 'Colophon';
   }, [page]);
 
   const { variant, accent } = tweaks;
   const isMobile = useIsMobile();
-  const showBriefBar = isMobile && page !== 'concierge' && page !== 'invite' && page !== 'admin';
+  const showBriefBar = isMobile && page !== 'concierge' && page !== 'invite' && page !== 'admin' && page !== 'success';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', paddingBottom: showBriefBar ? 60 : 0 }}>
@@ -3014,6 +3065,7 @@ function App() {
       {page === 'concierge' && <ConciergePage accent={accent} setPage={setPage} />}
       {page === 'invite' && <InvitePage accent={accent} setPage={setPage} />}
       {page === 'admin' && <AdminPage accent={accent} setPage={setPage} />}
+      {page === 'success' && <SuccessPage accent={accent} setPage={setPage} />}
       <Footer accent={accent} setPage={setPage} />
       {showBriefBar && <MobileBriefBar page={page} setPage={setPage} />}
       <TweaksPanel title="Tweaks">
