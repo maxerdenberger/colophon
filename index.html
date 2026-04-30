@@ -1569,7 +1569,7 @@ function PricingPage({ setPage, accent }) {
     timezone: [],      // [] = all  ('americas'|'europe'|'asia')
     rate: [],          // [] = all
   });
-  const [duration, setDuration] = useState(null); // 'day' | 'week' | 'month'
+  const [duration, setDuration] = useState('week'); // 'day' | 'week' | 'month' — default to most popular
   const [buyerName, setBuyerName] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
   const [conciergeSent, setConciergeSent] = useState(false);
@@ -1724,22 +1724,105 @@ function PricingPage({ setPage, accent }) {
             </div>
           )}
 
-          {/* Duration tiers */}
-          <h2 style={{ fontFamily: GS, fontWeight: 600, fontSize: 22, letterSpacing:'-0.015em', marginBottom: 20 }}>how long do you need access?</h2>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap: 1, background: C.rule, marginBottom: 48 }}>
-            {[['day','24 hours','for one urgent brief'],['week','7 days','most common'],['month','30 days','for ongoing search']].map(([k, lbl, sub]) => (
-              <div key={k} style={{ background: duration === k ? C.ink : C.cream, color: duration === k ? C.cream : C.ink, padding: '32px 28px', display:'flex', flexDirection:'column', cursor:'pointer' }}
-                onClick={() => setDuration(k)}>
-                <div style={{ fontFamily: GM, fontSize: 10, letterSpacing:'0.08em', opacity: 0.55, marginBottom: 8 }}>{lbl}</div>
-                <div style={{ display:'flex', alignItems:'baseline', gap: 10, marginBottom: 8 }}>
-                  <span style={{ fontFamily: GS, fontWeight: 300, fontSize: 56, letterSpacing:'-0.03em', lineHeight: 1 }}>${priceFor(k)}</span>
-                  {filterCount > 0 && <span style={{ fontFamily: GM, fontSize: 12, opacity: 0.4, textDecoration:'line-through' }}>${PRICES[k]}</span>}
+          {/* Duration slider — three breakpoints */}
+          <h2 style={{ fontFamily: GS, fontWeight: 600, fontSize: 22, letterSpacing: '-0.015em', marginBottom: 32 }}>how long do you need access?</h2>
+          {(() => {
+            const TIERS = ['day', 'week', 'month'];
+            const TIER_META = {
+              day:   { lbl: '24 hours', sub: 'for one urgent brief' },
+              week:  { lbl: '7 days',   sub: 'most common' },
+              month: { lbl: '30 days',  sub: 'for ongoing search' },
+            };
+            const idx = Math.max(0, TIERS.indexOf(duration));
+            const meta = TIER_META[duration];
+            const onKey = (e) => {
+              if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                setDuration(TIERS[Math.max(0, idx - 1)]);
+              } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                setDuration(TIERS[Math.min(TIERS.length - 1, idx + 1)]);
+              }
+            };
+            return (
+              <div style={{ marginBottom: 48 }}>
+                {/* Track + stops */}
+                <div
+                  role="slider"
+                  tabIndex={0}
+                  aria-valuemin={0} aria-valuemax={2} aria-valuenow={idx}
+                  aria-valuetext={`${meta.lbl} pass`}
+                  aria-label="how long do you need access"
+                  onKeyDown={onKey}
+                  style={{ position: 'relative', height: 28, padding: '0 14px', cursor: 'pointer', outline: 'none' }}>
+                  {/* base rule */}
+                  <div style={{ position: 'absolute', top: '50%', left: 14, right: 14, height: 1, background: C.rule, transform: 'translateY(-0.5px)' }} />
+                  {/* filled portion */}
+                  <div style={{ position: 'absolute', top: '50%', left: 14, height: 1, width: `calc((100% - 28px) * ${idx / 2})`, background: C.ink, transform: 'translateY(-0.5px)', transition: 'width 0.22s cubic-bezier(0.4, 0, 0.2, 1)' }} />
+                  {/* stops */}
+                  {TIERS.map((t, i) => {
+                    const left = `calc(14px + (100% - 28px) * ${i / 2})`;
+                    const active = duration === t;
+                    const past = i < idx;
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setDuration(t)}
+                        aria-label={`${TIER_META[t].lbl} pass`}
+                        style={{
+                          position: 'absolute',
+                          left, top: '50%',
+                          transform: 'translate(-50%, -50%)',
+                          width: active ? 22 : 12,
+                          height: active ? 22 : 12,
+                          borderRadius: '50%',
+                          background: active ? C.ink : (past ? C.ink : C.cream),
+                          border: `1.5px solid ${C.ink}`,
+                          padding: 0,
+                          cursor: 'pointer',
+                          transition: 'width 0.18s ease, height 0.18s ease, background 0.18s ease',
+                        }}
+                      />
+                    );
+                  })}
                 </div>
-                <div style={{ fontFamily: GM, fontSize: 11, opacity: 0.5, marginBottom: 24 }}>{sub}</div>
-                {k === 'week' && <span style={{ fontFamily: GM, fontSize: 9, letterSpacing:'0.1em', color: accent, marginTop:'auto' }}>most popular</span>}
+
+                {/* Labels under stops */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: 16 }}>
+                  {TIERS.map((t, i) => (
+                    <div key={t} style={{ textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => setDuration(t)}
+                        style={{
+                          background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
+                          fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
+                          color: duration === t ? C.ink : C.soft,
+                          fontWeight: duration === t ? 600 : 400,
+                        }}>
+                        {TIER_META[t].lbl}
+                      </button>
+                      {t === 'week' && (
+                        <div style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', color: accent, marginTop: 4, textTransform: 'uppercase', textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center' }}>
+                          most popular
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Selected price + caption */}
+                <div style={{ marginTop: 36, display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' }}>
+                  <span style={{ fontFamily: GS, fontWeight: 300, fontSize: 88, letterSpacing: '-0.03em', lineHeight: 1, color: C.ink }}>${priceFor(duration)}</span>
+                  {filterCount > 0 && (
+                    <span style={{ fontFamily: GM, fontSize: 16, color: C.soft, opacity: 0.55, textDecoration: 'line-through' }}>${PRICES[duration]}</span>
+                  )}
+                  <span style={{ fontFamily: GM, fontSize: 12, color: C.soft, marginLeft: 'auto', alignSelf: 'flex-end' }}>{meta.sub}</span>
+                </div>
               </div>
-            ))}
-          </div>
+            );
+          })()}
 
           {/* Name + email capture — feels like signing into your private bench */}
           <div style={{ marginBottom: 24, padding: '28px 32px', background: C.cream, border: `1.5px solid ${C.ink}`, borderRadius: 8 }}>
@@ -1796,11 +1879,10 @@ function PricingPage({ setPage, accent }) {
                 setCheckoutErr(err.message || 'checkout failed. please try again.');
               }
             }}
-            disabled={!duration}
-            style={{ display:'block', width:'100%', padding:'20px 28px', background: duration ? C.ink : C.rule, color: duration ? C.cream : C.soft, fontFamily: GM, fontSize: 12, letterSpacing:'0.08em', textAlign:'center', textDecoration:'none', cursor: duration ? 'pointer' : 'not-allowed', marginBottom: checkoutErr ? 12 : 40, border:'none' }}>
-            {duration
-              ? (buyerName.trim() ? `mint ${buyerName.trim().split(' ')[0]}'s bench — $${priceFor(duration)} →` : `unlock ${matched.length} ${roleLabel} — $${priceFor(duration)} →`)
-              : 'pick a duration above to continue'}
+            style={{ display:'block', width:'100%', padding:'20px 28px', background: C.ink, color: C.cream, fontFamily: GM, fontSize: 12, letterSpacing:'0.08em', textAlign:'center', textDecoration:'none', cursor:'pointer', marginBottom: checkoutErr ? 12 : 40, border:'none' }}>
+            {buyerName.trim()
+              ? `mint ${buyerName.trim().split(' ')[0]}'s bench — $${priceFor(duration)} →`
+              : `unlock ${matched.length} ${roleLabel} — $${priceFor(duration)} →`}
           </button>
           {checkoutErr && (
             <div style={{ marginBottom: 40, padding: '12px 16px', border: '1px solid #b04040', background: 'rgba(176,64,64,0.08)', color: '#b04040', fontFamily: GM, fontSize: 11, letterSpacing: '0.04em', borderRadius: 4 }}>
