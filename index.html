@@ -1213,7 +1213,7 @@ function Footer({ accent, setPage }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40 }}>
               <div>
                 <div style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.12em', color: 'rgba(244,241,236,0.28)', marginBottom: 14 }}>pages</div>
-                {[['home', 'home'], ['dashboard', 'the directory'], ['pricing', 'membership'], ['concierge', 'concierge'], ['apply', 'apply'], ['access', 'members']].map(([key, label]) =>
+                {[['home', 'home'], ['dashboard', 'the directory'], ['pricing', 'a look'], ['concierge', 'concierge'], ['apply', 'apply'], ['access', 'members']].map(([key, label]) =>
                 <div key={key} style={{ marginBottom: 10 }}>
                     <button onClick={() => setPage(key)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: GM, fontSize: 13, color: 'rgba(244,241,236,0.78)', letterSpacing: '0.03em' }}>
                       {label}
@@ -2865,7 +2865,7 @@ function AdminPage({ accent, setPage }) {
 // ── HEADER ────────────────────────────────────────────────────────────────────
 const TABS = [
   ['dashboard', 'the directory', '#a8c4b8'], // sage teal
-  ['pricing',   'membership',    '#e8c478'], // warm cream/yellow
+  ['pricing',   'a look',        '#e8c478'], // warm cream/yellow
   ['concierge', 'concierge',     '#c89090'], // dusty rose
   ['apply',     'apply',         '#b8a8c8'], // soft lilac
   ['access',    'members',       '#b8b878'], // olive
