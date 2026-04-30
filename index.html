@@ -4,6 +4,16 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
+<!-- Canonical-host guard: any request landing on the legacy domain bounces to colophon.contact, preserving path + query (so Stripe's ?session_id=... still arrives intact). -->
+<script>
+  (function () {
+    var h = location.hostname;
+    if (h === 'colophon.xyz' || h === 'www.colophon.xyz') {
+      location.replace('https://colophon.contact' + location.pathname + location.search + location.hash);
+    }
+  })();
+</script>
+
 <!-- ── primary SEO ─────────────────────────────────────────── -->
 <title>Colophon — Get a look</title>
 <meta name="description" content="A directory of senior creative directors, designers, copywriters, and strategists, available for direct engagement. Membership by application."/>
