@@ -919,7 +919,7 @@ function Footer({ accent, setPage }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40 }}>
               <div>
                 <div style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.12em', color: 'rgba(244,241,236,0.28)', marginBottom: 14 }}>pages</div>
-                {[['home', 'home'], ['dashboard', 'the bench'], ['pricing', 'pricing'], ['concierge', 'concierge'], ['apply', 'join the bench'], ['access', 'access']].map(([key, label]) =>
+                {[['home', 'home'], ['dashboard', 'the bench'], ['pricing', 'build a bench'], ['concierge', 'concierge'], ['apply', 'join the bench'], ['access', 'access']].map(([key, label]) =>
                 <div key={key} style={{ marginBottom: 10 }}>
                     <button onClick={() => setPage(key)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: GM, fontSize: 13, color: 'rgba(244,241,236,0.78)', letterSpacing: '0.03em' }}>
                       {label}
@@ -1358,7 +1358,7 @@ function PricingPage({ setPage, accent }) {
 
   const stepHeader = (
     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 56, fontFamily: GM, fontSize: 10, letterSpacing:'0.14em', color: C.soft }}>
-      <span>build your bench</span>
+      <span>build a bench</span>
       <span>{isReveal ? 'your bench' : `0${step+1} / 0${STEPS.length+1}`}</span>
     </div>
   );
@@ -1571,15 +1571,26 @@ function PricingPage({ setPage, accent }) {
         <p style={{ fontFamily: GS, fontStyle:'italic', fontSize: 17, color: C.soft, lineHeight: 1.5, marginBottom: 40, maxWidth:'48ch' }}>{cur.sub}</p>
 
         {/* Options */}
-        <div style={{ display:'flex', flexDirection:'column', gap: 0, marginBottom: 48 }}>
+        <div style={{ display:'flex', flexWrap:'wrap', gap: 10, marginBottom: 48 }}>
           {cur.options.map((opt) => {
             const [val, label] = Array.isArray(opt) ? opt : [opt, opt];
             const on = curSelected.includes(val);
             return (
               <button key={val} onClick={() => toggle(cur.key, val)}
-                style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'22px 4px', borderBottom:`1px solid ${C.rule}`, background:'transparent', cursor:'pointer', fontFamily: GS, fontSize: 22, fontWeight: on ? 600 : 400, color: on ? C.ink : C.soft, textAlign:'left', letterSpacing:'-0.01em' }}>
+                style={{
+                  display:'inline-flex', alignItems:'center', gap: 10,
+                  padding:'14px 20px',
+                  borderRadius: 999,
+                  border: on ? `1px solid ${C.ink}` : `1px solid ${C.rule}`,
+                  background: on ? C.ink : C.paper,
+                  color: on ? C.cream : C.ink,
+                  cursor:'pointer',
+                  fontFamily: GS, fontSize: 15, fontWeight: on ? 600 : 500,
+                  letterSpacing:'-0.005em',
+                  transition: 'background 0.12s ease, color 0.12s ease, border-color 0.12s ease',
+                }}>
+                {on && <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width: 16, height: 16, borderRadius:'50%', background: C.cream, color: C.ink, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>✓</span>}
                 <span>{label}</span>
-                <span style={{ width: 16, height: 16, border: `1.5px solid ${on ? C.ink : C.rule}`, background: on ? C.ink : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', color: C.cream, fontSize: 11, flexShrink: 0 }}>{on ? '✓' : ''}</span>
               </button>
             );
           })}
@@ -2164,7 +2175,7 @@ function ConciergePage({ accent, setPage }) {
 // ── HEADER ────────────────────────────────────────────────────────────────────
 const TABS = [
   ['dashboard', 'the bench',     '#a8c4b8'], // sage teal
-  ['pricing',   'get a pass',    '#e8c478'], // warm cream/yellow
+  ['pricing',   'build a bench', '#e8c478'], // warm cream/yellow
   ['concierge', 'concierge',     '#c89090'], // dusty rose
   ['apply',     'join the bench','#b8a8c8'], // soft lilac
   ['access',    'access',        '#b8b878'], // olive
