@@ -397,7 +397,7 @@ function Footer({ accent, setPage }) {
       <div style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '40px 40px 36px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.14em', color: 'rgba(244,241,236,0.3)', marginBottom: 28 }}>
-            the bench is global. these are the cities most of them are in.
+            the bench is global. these are the cities where most of them work.
           </p>
           <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap' }}>
             {CLOCKS.map((c) => <AnalogClock key={c.city} tz={c.tz} city={c.city} accent={accent} />)}
@@ -411,10 +411,10 @@ function Footer({ accent, setPage }) {
           {/* inquiry form */}
           <div>
             <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,44px)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 18 }}>
-              got a project?
+              something to make?
             </h3>
             <p style={{ fontFamily: GM, fontSize: 11, color: 'rgba(244,241,236,0.42)', lineHeight: 1.75, marginBottom: 24, maxWidth: '44ch' }}>
-              tell us what you're working on. we'll match it to someone on the bench. no commitment, no markup.
+              describe the work. we'll name the right person on the bench. no commitment, no intake call, no markup.
             </p>
             {sent ?
             <div style={{ fontFamily: GM, fontSize: 12, color: 'rgba(244,241,236,0.55)', lineHeight: 1.75 }}>
@@ -463,7 +463,7 @@ function Footer({ accent, setPage }) {
                   <div>get a pass.</div>
                   <div>the names appear.</div>
                   <div>email them direct.</div>
-                  <div style={{ marginTop: 10, color: 'rgba(244,241,236,0.22)' }}>we're not in the middle — that's the whole point.</div>
+                  <div style={{ marginTop: 10, color: 'rgba(244,241,236,0.22)' }}>no one in between — that's the structure.</div>
                 </div>
               </div>
             </div>
@@ -477,7 +477,7 @@ function Footer({ accent, setPage }) {
                 </span>
               </div>
               <p style={{ fontFamily: GM, fontSize: 10, color: 'rgba(244,241,236,0.2)', marginTop: 6, lineHeight: 1.6 }}>
-                the bench is private. the work is public.<br />
+                the names are private. the work is public.<br />
                 <span style={{ opacity: 0.55 }}>v0.12 · {total} humans · 0 algorithms</span>
               </p>
             </div>
@@ -532,26 +532,26 @@ function HomePage({ setPage, accent, variant }) {
                   <span style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.1em', marginLeft: 10, color: AVAIL_DOT.available, opacity: 1 }}>available</span>
                 </div>
                 <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.75, maxWidth: '44ch' }}>
-                  a private bench. {total} vetted creatives. pull out a pass, see who's actually free, hire them direct. no middlemen, no shortlists, no agency markup.
+                  a private bench. {total} screened creatives. take a pass, see who's free, reach out directly. no shortlist. no managed introduction. no markup.
                 </p>
               </div>
             </div> :
           isBold ?
           <div>
-              <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: C.soft, marginBottom: 24 }}>CPH / 001 — a working bench for the people who hire creatives</p>
+              <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: C.soft, marginBottom: 24 }}>CPH / 001 — direct access for people who know exactly what they're looking for</p>
               <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(72px,12vw,156px)', lineHeight: 0.87, letterSpacing: '-0.045em', marginBottom: 16 }}>
                 the <span style={{ color:'#ff5100' }}>right</span> person.
               </h1>
               <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(72px,12vw,156px)', lineHeight: 0.87, letterSpacing: '-0.045em', color: C.soft, marginBottom: 36 }}>right now.</h2>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'end', maxWidth: 900 }}>
-                <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.75 }}>a private bench. {total} vetted creatives. pull out a pass, see who's actually free, hire them direct. no middlemen, no shortlists, no agency markup.</p>
+                <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.75 }}>a private bench. {total} screened creatives. take a pass, see who's free, reach out directly. no shortlist. no managed introduction. no markup.</p>
                 <CTAs />
               </div>
             </div> :
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'end' }}>
               <div>
-                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: C.soft, marginBottom: 20 }}>CPH / 001 — a working bench for the people who hire creatives</p>
+                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: C.soft, marginBottom: 20 }}>CPH / 001 — direct access for people who know exactly what they're looking for</p>
                 <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(44px,7vw,96px)', lineHeight: 0.92, letterSpacing: '-0.035em', marginBottom: 8 }}>
                   the <span style={{ color:'#ff5100' }}>right</span> person.
                 </h1>
@@ -572,7 +572,7 @@ function HomePage({ setPage, accent, variant }) {
             <div>
               <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 16, letterSpacing: '-0.01em' }}>the bench, as of right now.</span>
             </div>
-            <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>you're seeing {liveBench.slice(0, 19).length}. there are {Math.max(0, total - liveBench.slice(0, 19).length)} more. a pass turns the names on.</span>
+            <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>you're seeing {liveBench.slice(0, 19).length}. there are {Math.max(0, total - liveBench.slice(0, 19).length)} more. a pass reveals the rest.</span>
           </div>
           <div style={{ position: 'relative' }}>
             <BenchTeaser accent={accent} bench={liveBench.slice(0, 19)} />
@@ -610,16 +610,16 @@ function HomePage({ setPage, accent, variant }) {
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80 }}>
           <div>
             <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.14em', marginBottom: 16 }}>03 / how it works</p>
-            <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,4vw,52px)', lineHeight: 1, letterSpacing: '-0.03em', marginBottom: 20 }}>it's not complicated.</h2>
+            <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,4vw,52px)', lineHeight: 1, letterSpacing: '-0.03em', marginBottom: 20 }}>this is direct access.</h2>
             <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.8, maxWidth: '44ch' }}>
-              pay for a pass. the names appear. email them direct.<br />we're not in the middle — that's the whole point.
+              take a pass. the names surface. write to them yourself.<br />no managed introduction. no one in the room with you.
             </p>
           </div>
           <div>
             {[
-            ['01', 'buy a pass.', 'day, month, or year. whichever matches the project. the credit card thing takes 30 seconds.'],
+            ['01', 'buy a pass.', 'day, week, or month. pick your window. access in under a minute.'],
             ['02', 'the names appear.', `all ${total} of them. filter by discipline, timezone, when you need them.`],
-            ['03', 'email them direct.', 'their work, their rate, their email. we\'re not in the middle.']].
+            ['03', 'email them direct.', 'their folio, their rate, their inbox. no managed intro. no one in between.']].
             map(([n, t, d]) =>
             <div key={n} style={{ display: 'grid', gridTemplateColumns: '36px 1fr', gap: 16, padding: '18px 0', borderBottom: `1px solid ${C.rule}` }}>
                 <span style={{ fontFamily: GM, fontSize: 10, color: accent, paddingTop: 3 }}>{n}</span>
@@ -638,8 +638,8 @@ function HomePage({ setPage, accent, variant }) {
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'center' }}>
           <div>
             <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.14em', marginBottom: 16 }}>05 / also available — concierge</p>
-            <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,44px)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 16 }}>concierge: when you'd rather just have three names.</h3>
-            <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.78, marginBottom: 8 }}>a paragraph from you. three names from us. you email them yourself.</p>
+            <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,44px)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 16 }}>concierge: when you want us to do the looking.</h3>
+            <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.78, marginBottom: 8 }}>a brief from you. three names from us. you reach out yourself.</p>
             <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, opacity: 0.6, lineHeight: 1.7 }}>comes with year passes. available à la carte for day & month. pricing on the passes page.</p>
           </div>
           <div>
@@ -677,7 +677,7 @@ function ApplyPage({ accent }) {
       <div style={{ width: 48, height: 48, border: `1.5px solid ${accent}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontSize: 18 }}>✓</div>
       <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em', lineHeight: 0.95 }}>you're in the queue.</h2>
       <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '44ch', lineHeight: 1.75 }}>
-        we review applications manually. if you're a fit, you'll hear from us within a week — along with your philosopher name.
+        applications are reviewed by hand. if there's a fit, you'll hear from us within the week — along with your alias.
       </p>
     </div>);
 
@@ -688,7 +688,7 @@ function ApplyPage({ accent }) {
         <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: C.soft, marginBottom: 18 }}>application</p>
         <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(44px,7vw,80px)', letterSpacing: '-0.035em', lineHeight: 0.92, marginBottom: 16 }}>apply to the bench.</h1>
         <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.8, marginBottom: 48, maxWidth: '52ch' }}>
-          we say no to most people. not because they're bad — but because the bench only works if every name on it is someone we'd hire ourselves. to apply, you must also refer three peers and name a potential client.
+          admission is selective. the bench only holds its value if every name on it is one we'd stake our own work on. to be considered, you also need to refer three peers and name a potential buyer.
         </p>
         <form onSubmit={(e) => {e.preventDefault();setDone(true);}} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <h3 style={{ ...sH, marginTop: 0, paddingTop: 0, borderTop: 'none' }}>about you</h3>
@@ -772,7 +772,7 @@ function ApplyPage({ accent }) {
             submit application →
           </button>
           <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, textAlign: 'center', lineHeight: 1.6 }}>
-            if accepted, you'll be assigned a philosopher name.<br />no real names are ever shown to clients without your consent.
+            if accepted, you'll be assigned an alias.<br />no real names surface to clients without your consent.
           </p>
         </form>
       </div>
@@ -807,10 +807,10 @@ function PricingPage({ setPage, accent }) {
   const [duration, setDuration] = useState(null); // 'day' | 'week' | 'month'
 
   const STEPS = [
-    { key: 'disciplines', label: 'discipline',  question: 'what do you actually need?',
-      sub: 'pick all that apply. or skip to see the whole bench.',
+    { key: 'disciplines', label: 'discipline',  question: 'what are you hiring for?',
+      sub: 'pick what applies. skip to see everyone.',
       options: ['art direction','copywriting','design leadership','creative direction','brand strategy','motion design','ux / content design'] },
-    { key: 'avail', label: 'availability', question: 'when do you need them?',
+    { key: 'avail', label: 'availability', question: 'when does this need to start?',
       sub: 'we keep this fresh — every name pings every 20 days.',
       options: [['available','available now'],['soon','available in 1\u20132 weeks'],['booked','anytime in the next quarter']] },
     { key: 'experience', label: 'experience', question: 'what level of experience?',
