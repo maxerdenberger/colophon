@@ -505,12 +505,35 @@ function BenchDashboard({ bench, accent }) {
   const disciplines = Object.entries(rows.reduce((a, r) => (a[r.discipline] = (a[r.discipline] || 0) + 1, a), {}))
     .sort((a, b) => b[1] - a[1]);
 
-  const tzGroups = rows.reduce((a, r) => (a[r.tz] = (a[r.tz] || 0) + 1, a), {});
-  const tzSorted = Object.entries(tzGroups).sort((a, b) => {
-    const v = (s) => parseInt(s.replace(/UTC|−/g, '-').replace('+', '')) || 0;
-    return v(a[0]) - v(b[0]);
+  // Region grouping (replaces raw timezone breakdown)
+  const REGIONS = [
+    { key: 'americas',     label: 'Americas',       offsetMin: -12, offsetMax: -3 },
+    { key: 'europe-africa',label: 'Europe / Africa',offsetMin: -2,  offsetMax: 3  },
+    { key: 'asia-pacific', label: 'Asia–Pacific',   offsetMin: 4,   offsetMax: 12 },
+  ];
+  const TZ_CITY = {
+    'UTC−12':'AKL','UTC−11':'PPG','UTC−10':'HNL','UTC−9':'ANC','UTC−8':'LA',
+    'UTC−7':'DEN','UTC−6':'MEX','UTC−5':'NYC','UTC−4':'TOR','UTC−3':'SAO',
+    'UTC−2':'CVE','UTC−1':'PDL','UTC+0':'LON','UTC+1':'BER','UTC+2':'IST',
+    'UTC+3':'NBO','UTC+4':'DXB','UTC+5':'KHI','UTC+6':'DAC','UTC+7':'BKK',
+    'UTC+8':'HKG','UTC+9':'TYO','UTC+10':'SYD','UTC+11':'NOU','UTC+12':'WLG',
+  };
+  const tzOffset = (tz) => parseInt((tz || '').replace(/UTC|−/g, '-').replace('+', '')) || 0;
+  const regionFor = (tz) => REGIONS.find((r) => {
+    const o = tzOffset(tz);
+    return o >= r.offsetMin && o <= r.offsetMax;
   });
-  const tzMax = Math.max(...Object.values(tzGroups));
+  const regionStats = REGIONS.map((r) => {
+    const inRegion = rows.filter((p) => regionFor(p.tz)?.key === r.key);
+    const cityCounts = inRegion.reduce((a, p) => {
+      const c = TZ_CITY[p.tz];
+      if (c) a[c] = (a[c] || 0) + 1;
+      return a;
+    }, {});
+    const cities = Object.entries(cityCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c]) => c);
+    return { ...r, count: inRegion.length, cities };
+  });
+  const regionMax = Math.max(...regionStats.map((r) => r.count), 1);
 
   const rateGroups = rows.reduce((a, r) => (a[r.rate] = (a[r.rate] || 0) + 1, a), {});
   const rateOrder = ['$', '$$', '$$$', '$$$$'];
@@ -635,17 +658,22 @@ function BenchDashboard({ bench, accent }) {
 
       {/* BOTTOM GRID: timezones + rate bands + live ticker */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr' }}>
-        {/* timezones */}
+        {/* working regions */}
         <div style={{ padding: '24px 28px', borderRight: `1px solid ${C.rule}` }}>
-          <div style={labelStyle}>across timezones</div>
-          <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 7 }}>
-            {tzSorted.map(([tz, n]) => (
-              <div key={tz} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 24px', gap: 10, alignItems: 'center' }}>
-                <span style={{ fontFamily: GM, fontSize: 10, color: C.ink }}>{tz}</span>
-                <div style={{ height: 6, background: C.paper, position: 'relative' }}>
-                  <div style={{ position: 'absolute', inset: 0, width: `${(n / tzMax) * 100}%`, background: C.ink, opacity: 0.78 }} />
+          <div style={labelStyle}>working regions</div>
+          <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {regionStats.map((r) => (
+              <div key={r.key}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'baseline' }}>
+                  <span style={{ fontFamily: GM, fontSize: 11, color: C.ink, letterSpacing: '0.02em' }}>{r.label}</span>
+                  <span style={{ fontFamily: GM, fontSize: 11, color: C.soft, textAlign: 'right' }}>{r.count}</span>
                 </div>
-                <span style={{ fontFamily: GM, fontSize: 10, color: C.soft, textAlign: 'right' }}>{n}</span>
+                <div style={{ height: 4, background: C.paper, position: 'relative', marginTop: 6 }}>
+                  <div style={{ position: 'absolute', inset: 0, width: `${(r.count / regionMax) * 100}%`, background: C.ink, opacity: 0.78 }} />
+                </div>
+                <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, marginTop: 6, letterSpacing: '0.08em', textTransform: 'uppercase', minHeight: 11 }}>
+                  {r.cities.length ? r.cities.join(' · ') : '—'}
+                </div>
               </div>
             ))}
           </div>
@@ -700,7 +728,7 @@ function BenchDashboard({ bench, accent }) {
       {/* footer note */}
       <div style={{ padding: '14px 24px', borderTop: `1px solid ${C.rule}`, background: C.paper, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
-          this is everything except the names. <span style={{ color: C.ink }}>a pass turns the names on.</span>
+          this is everything except the names. <span style={{ color: C.ink }}>a look turns the names on.</span>
         </span>
         <span style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.12em' }}>{total} humans · 0 algorithms</span>
       </div>
@@ -1995,14 +2023,14 @@ function DashboardPage({ accent, setPage }) {
           n="01"
           label={`The Bench · Live · ${liveBench.length} on the bench`}
           headline={<><span>Everything we know.</span><br/><span style={{ color: C.soft }}>At this moment.</span></>}
-          sub="A real-time look at the shape of the bench — disciplines, experience, geography, rates. Names stay private until you have a pass."
+          sub="A real-time view of the shape of the bench — disciplines, experience, geography, rates. Names stay private until you have a look."
           accent="#a8c4b8"
         />
         <div style={{ height: 8 }} />
         <BenchDashboard bench={liveBench} accent={accent} />
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingTop: 40 }}>
           <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '14px 28px', cursor: 'pointer' }}>
-            get the pass to see who's available →
+            get the look to see who's available →
           </button>
           <button onClick={() => gotoBrief(setPage)} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.05em', background: 'transparent', color: C.soft, border: 'none', padding: '8px 0', marginTop: 4, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 4 }}>
             or just have us send you 5+ names — $199 →
