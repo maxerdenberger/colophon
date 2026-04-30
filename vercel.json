@@ -2,13 +2,12 @@
   "crons": [
     { "path": "/api/ping", "schedule": "0 9 */20 * *" }
   ],
-  "redirects": [
-    { "source": "/", "destination": "/colophon-v2.html", "permanent": false }
-  ],
   "rewrites": [
-    { "source": "/access", "destination": "/colophon-v2.html" },
-    { "source": "/apply", "destination": "/colophon-v2.html" },
-    { "source": "/pricing", "destination": "/colophon-v2.html" }
+    { "source": "/access",    "destination": "/index.html" },
+    { "source": "/apply",     "destination": "/index.html" },
+    { "source": "/pricing",   "destination": "/index.html" },
+    { "source": "/dashboard", "destination": "/index.html" },
+    { "source": "/concierge", "destination": "/index.html" }
   ],
   "cleanUrls": true,
   "trailingSlash": false
