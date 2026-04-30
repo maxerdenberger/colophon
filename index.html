@@ -6,7 +6,7 @@
 
 <!-- ── primary SEO ─────────────────────────────────────────── -->
 <title>Colophon — Get a look</title>
-<meta name="description" content="colophon is a curated bench of senior creative directors, designers, and strategists you can hire directly. no agency markup, no recruiter fees. buy a pass, get filtered names, rates, and contact info — reach out yourself."/>
+<meta name="description" content="A directory of senior creative directors, designers, copywriters, and strategists, available for direct engagement. Membership by application."/>
 <meta name="keywords" content="hire creative director, freelance design, creative bench, on-demand creative, vetted designers, hire art director, creative talent marketplace, freelance art direction, brand strategy, design leadership"/>
 <meta name="author" content="colophon"/>
 <meta name="robots" content="index, follow, max-image-preview:large"/>
@@ -15,8 +15,8 @@
 <!-- ── Open Graph (LinkedIn, Slack, Discord, FB) ─────────────── -->
 <meta property="og:type" content="website"/>
 <meta property="og:site_name" content="colophon"/>
-<meta property="og:title" content="colophon — the right bench, on demand."/>
-<meta property="og:description" content="hire vetted senior creatives directly. no agency markup. filter by discipline, availability, rate, and timezone — buy a pass, get the bench."/>
+<meta property="og:title" content="Colophon — A directory of independent senior creatives."/>
+<meta property="og:description" content="A directory of senior creative directors, designers, copywriters, and strategists, available for direct engagement. Membership by application."/>
 <meta property="og:url" content="https://colophon.contact/"/>
 <meta property="og:image" content="https://colophon.contact/og.png"/>
 <meta property="og:image:width" content="1200"/>
@@ -24,8 +24,8 @@
 
 <!-- ── Twitter / X ─────────────────────────────────────────── -->
 <meta name="twitter:card" content="summary_large_image"/>
-<meta name="twitter:title" content="colophon — the right bench, on demand."/>
-<meta name="twitter:description" content="hire vetted senior creatives directly. no agency markup. buy a pass, get the bench."/>
+<meta name="twitter:title" content="Colophon — A directory of independent senior creatives."/>
+<meta name="twitter:description" content="A directory of senior creative directors, designers, copywriters, and strategists, available for direct engagement. Membership by application."/>
 <meta name="twitter:image" content="https://colophon.contact/og.png"/>
 
 <!-- ── Favicon: dot in a dot ───────────────────────────────── -->
@@ -51,7 +51,7 @@
   "name": "colophon bench access",
   "provider": { "@type": "Organization", "name": "colophon" },
   "serviceType": "Creative talent marketplace",
-  "description": "Filter and hire vetted senior creative directors, art directors, designers, copywriters, and strategists. Direct contact with each creative, no agency markup, no recruiter fees.",
+  "description": "A directory of senior creative directors, art directors, designers, copywriters, and strategists, available for direct engagement. Membership by application; inclusion by referral and editor review.",
   "offers": [
     { "@type": "Offer", "name": "day pass",   "price": "29",  "priceCurrency": "USD", "description": "24 hours of bench access" },
     { "@type": "Offer", "name": "week pass",  "price": "79",  "priceCurrency": "USD", "description": "7 days of bench access" },
@@ -61,7 +61,7 @@
 </script>
 
 <!-- ── AI assistants / LLMs hint ───────────────────────────── -->
-<meta name="ai-content-declaration" content="colophon is a curated marketplace where companies hire senior creative talent directly. founders, marketers, and resource managers can filter by discipline (creative direction, art direction, design, copywriting, strategy), availability, timezone, and rate, then contact creatives directly. pricing starts at $29 for a day pass."/>
+<meta name="ai-content-declaration" content="Colophon is a directory of senior independent creatives — directors, designers, copywriters, and strategists who have left the agency system to work directly with the people who hire them. Access is by membership; inclusion is by referral and editor review."/>
 
 <!-- ── Fonts + libs ─────────────────────────────────────────── -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -253,11 +253,9 @@
 
 <!-- SEO/AI-readable content. Search engines and LLM crawlers see this; users don't. -->
 <div class="seo-only" aria-hidden="true">
-  <h1>colophon — the right bench, on demand.</h1>
-  <p>colophon is a curated marketplace where companies hire senior creative directors, art directors, designers, copywriters, and brand strategists directly. no agency markup, no recruiter fees, no middlemen. buy a time-bound pass, filter the bench by discipline, availability, timezone, experience, and rate, then contact creatives yourself.</p>
-  <h2>who it's for</h2>
-  <p>resource managers, founders, marketing leaders, and design directors who need to hire freelance or contract creative talent fast. ideal for agencies, in-house teams, and brand-side creative departments.</p>
-  <h2>disciplines on the bench</h2>
+  <h1>Colophon — A directory of independent senior creatives.</h1>
+  <p>Colophon is a directory of senior independent creatives — directors, designers, copywriters, and strategists who have left the agency system to work directly with the people who hire them. Access is by membership. Each name is personally known to the editors.</p>
+  <h2>Disciplines</h2>
   <ul>
     <li>creative direction</li>
     <li>art direction</li>
@@ -266,15 +264,14 @@
     <li>brand strategy</li>
     <li>design leadership</li>
   </ul>
-  <h2>pricing</h2>
+  <h2>Membership</h2>
   <ul>
-    <li>day pass — $29 for 24 hours</li>
-    <li>week pass — $79 for 7 days</li>
-    <li>month pass — $249 for 30 days</li>
+    <li>day — $29</li>
+    <li>week — $79</li>
+    <li>month — $249</li>
   </ul>
-  <p>each pass unlocks the full bench with real names, real rates, real contact info, and direct outreach. apply filters at purchase to scope your bench and unlock a lower price.</p>
-  <h2>how to apply to the bench</h2>
-  <p>senior creatives with 5+ years of experience can apply at colophon.contact/apply. selection is curated, invite-driven, and ongoing.</p>
+  <h2>On admission</h2>
+  <p>Inclusion is by referral and editor review. Applicants are asked to name three peers whose work they would personally vouch for, and one client, brand, or studio they believe should have access to the directory. Decisions are issued quarterly.</p>
 </div>
 
 <div id="root"></div>
@@ -787,7 +784,7 @@ function BenchDashboard({ bench, accent }) {
 
   // ── live ticker
   const TICKER_FEED = useMemo(() => {
-    const acts = ['just opened availability', 'joined the bench', 'updated their rate', 'closed for q2', 'matched a client'];
+    const acts = ['open for projects', 'admitted to the directory', 'rate revised', 'closed through Q2', 'engaged with a client'];
     const adjs = ['senior', 'principal', 'lead', 'staff', ''];
     const cities = ['brooklyn', 'london', 'lisbon', 'berlin', 'la', 'tokyo', 'amsterdam', 'mexico city', 'oslo', 'sf'];
     const out = [];
@@ -827,7 +824,7 @@ function BenchDashboard({ bench, accent }) {
       {/* TOP STAT ROW */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderBottom: `1px solid ${C.rule}` }}>
         {[
-          { n: total, l: 'humans on the bench', sub: 'each personally vetted' },
+          { n: total, l: 'members of the directory', sub: 'admitted by referral' },
           { n: avail, l: 'available right now', sub: `${soon} more in 2–4 weeks` },
           { n: medYoe + 'yr', l: 'median experience', sub: 'range: 5–28 years' },
           { n: uniqClients, l: 'past clients represented', sub: 'apple to zara' },
@@ -1150,7 +1147,7 @@ function Footer({ accent, setPage }) {
       <div style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '40px 40px 36px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.14em', color: 'rgba(244,241,236,0.3)', marginBottom: 28 }}>
-            the bench is global. these are the cities most of them are in.
+            the directory spans seventeen cities. a representative selection follows.
           </p>
           <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap' }}>
             {CLOCKS.map((c) => <AnalogClock key={c.city} tz={c.tz} city={c.city} accent={accent} />)}
@@ -1206,7 +1203,7 @@ function Footer({ accent, setPage }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40 }}>
               <div>
                 <div style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.12em', color: 'rgba(244,241,236,0.28)', marginBottom: 14 }}>pages</div>
-                {[['home', 'home'], ['dashboard', 'the bench'], ['pricing', 'build a bench'], ['concierge', 'concierge'], ['apply', 'join the bench'], ['access', 'access']].map(([key, label]) =>
+                {[['home', 'home'], ['dashboard', 'the directory'], ['pricing', 'membership'], ['concierge', 'concierge'], ['apply', 'apply'], ['access', 'members']].map(([key, label]) =>
                 <div key={key} style={{ marginBottom: 10 }}>
                     <button onClick={() => setPage(key)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: GM, fontSize: 13, color: 'rgba(244,241,236,0.78)', letterSpacing: '0.03em' }}>
                       {label}
@@ -1215,12 +1212,12 @@ function Footer({ accent, setPage }) {
                 )}
               </div>
               <div>
-                <div style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.12em', color: 'rgba(244,241,236,0.28)', marginBottom: 14 }}>how it works</div>
+                <div style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.12em', color: 'rgba(244,241,236,0.28)', marginBottom: 14 }}>on access</div>
                 <div style={{ fontFamily: GM, fontSize: 12, color: 'rgba(244,241,236,0.65)', lineHeight: 1.85 }}>
-                  <div>get a pass.</div>
-                  <div>the names appear.</div>
-                  <div>email them direct.</div>
-                  <div style={{ marginTop: 10, color: 'rgba(244,241,236,0.45)' }}>we're not in the middle — that's the whole point.</div>
+                  <div>request membership.</div>
+                  <div>the directory is opened.</div>
+                  <div>correspond with members directly.</div>
+                  <div style={{ marginTop: 10, color: 'rgba(244,241,236,0.45)' }}>nothing sits between you and the work.</div>
                 </div>
               </div>
             </div>
@@ -1254,7 +1251,7 @@ function HomePage({ setPage, accent, variant }) {
 
   const CTAs = () =>
   <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-      <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '12px 22px', cursor: 'pointer' }}>get a pass →</button>
+      <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '12px 22px', cursor: 'pointer' }}>request membership →</button>
     </div>;
 
 
@@ -1279,14 +1276,14 @@ function HomePage({ setPage, accent, variant }) {
                   <span style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.1em', marginLeft: 10, color: AVAIL_DOT.available, opacity: 1 }}>available</span>
                 </div>
                 <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.75, maxWidth: '44ch' }}>
-                  a private bench. {total} vetted creatives. pull out a pass, see who's actually free, hire them direct. no middlemen, no shortlists, no agency markup.
+                  {total} senior creatives, listed by name. correspond with members directly. membership by application.
                 </p>
               </div>
             </div> :
           isBold ?
           <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
-                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: C.soft }}>CPH / 001 — a working bench for the people who hire creatives</p>
+                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: C.soft }}>CPH / 001 — a standing directory of independent senior creatives.</p>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, border: `1px solid ${C.rule}`, background: C.paper, fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', color: C.ink }}>
                   <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#5a8d5a' }} />
                   est. {total} humans
@@ -1297,14 +1294,14 @@ function HomePage({ setPage, accent, variant }) {
               </h1>
               <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(72px,12vw,156px)', lineHeight: 0.87, letterSpacing: '-0.045em', color: C.soft, marginBottom: 36 }}>right now.</h2>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'end', maxWidth: 900 }}>
-                <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.75 }}>a private bench. {total} vetted creatives. pull out a pass, see who's actually free, hire them direct. no middlemen, no shortlists, no agency markup.</p>
+                <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.75 }}>{total} senior creatives, listed by name. correspond with members directly. membership by application.</p>
                 <CTAs />
               </div>
             </div> :
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'end' }}>
               <div>
-                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: C.soft, marginBottom: 20 }}>CPH / 001 — a working bench for the people who hire creatives</p>
+                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: C.soft, marginBottom: 20 }}>CPH / 001 — a standing directory of independent senior creatives.</p>
                 <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(44px,7vw,96px)', lineHeight: 0.92, letterSpacing: '-0.035em', marginBottom: 8 }}>
                   the <span style={{ color:'#ff5100' }}>right</span> person.
                 </h1>
@@ -1323,7 +1320,7 @@ function HomePage({ setPage, accent, variant }) {
         <div style={{ maxWidth: 1100, margin: '0 auto', paddingTop: 40, paddingBottom: 64 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 40px 16px', borderBottom: `1px solid ${C.rule}` }}>
             <div>
-              <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 16, letterSpacing: '-0.01em' }}>{total} vetted · {avail} available now</span>
+              <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 16, letterSpacing: '-0.01em' }}>{total} listed · {avail} open for projects</span>
             </div>
             <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>{Math.max(0, total - liveBench.slice(0, 19).length)} more creatives sit behind the blur.</span>
           </div>
@@ -1332,11 +1329,11 @@ function HomePage({ setPage, accent, variant }) {
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 240, background: `linear-gradient(to bottom, transparent, ${C.cream})`, pointerEvents: 'none' }} />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingBottom: 32 }}>
               <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '11px 22px', cursor: 'pointer', position: 'relative', zIndex: 2 }}>
-                get a look →
+                request membership →
               </button>
               <span style={{ fontFamily: GM, fontSize: 10, color: C.soft, zIndex: 2 }}>see all {total} names — day, month, or year</span>
               <button onClick={() => setPage('dashboard')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.06em', background: 'transparent', color: C.ink, border: 'none', padding: '6px 0', marginTop: 4, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 4, zIndex: 2 }}>
-                or see the bench by the numbers →
+                or survey the directory by the numbers →
               </button>
             </div>
           </div>
@@ -1348,10 +1345,10 @@ function HomePage({ setPage, accent, variant }) {
       <section style={{ borderTop: `1px solid ${C.rule}`, borderBottom: `1px solid ${C.rule}`, padding: '0 40px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 0 }}>
           {[
-          [String(total), 'vetted humans'],
-          [String(avail), 'available this week'],
-          ['<24h', 'from pass to first email'],
-          ['3', 'pass options']].
+          [String(total), 'in the directory'],
+          [String(avail), 'open for projects'],
+          ['<24h', 'from inquiry to correspondence'],
+          ['3', 'tiers of membership']].
           map(([n, l], i) =>
           <div key={l} style={{ padding: '28px 0', borderRight: i < 3 ? `1px solid ${C.rule}` : 'none', paddingRight: 32, paddingLeft: i > 0 ? 32 : 0 }}>
               <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 36, letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 6 }}>{n}</div>
@@ -1365,17 +1362,17 @@ function HomePage({ setPage, accent, variant }) {
       <section style={{ background: C.paper, borderTop: `1px solid ${C.rule}`, padding: '72px 40px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80 }}>
           <div>
-            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.14em', marginBottom: 16 }}>03 / how it works</p>
-            <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,4vw,52px)', lineHeight: 1, letterSpacing: '-0.03em', marginBottom: 20 }}>it's not complicated.</h2>
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.14em', marginBottom: 16 }}>03 / on access</p>
+            <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,4vw,52px)', lineHeight: 1, letterSpacing: '-0.03em', marginBottom: 20 }}>the directory is straightforward.</h2>
             <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.8, maxWidth: '44ch' }}>
-              pay for a pass. the names appear. email them direct.<br />we're not in the middle — that's the whole point.
+              membership is requested. the directory is opened. members are corresponded with directly.<br />nothing sits between the inquiry and the work.
             </p>
           </div>
           <div>
             {[
-            ['01', 'buy a pass.', 'day, month, or year. whichever matches the project. the credit card thing takes 30 seconds.'],
-            ['02', 'the names appear.', `all ${total} of them. filter by discipline, timezone, when you need them.`],
-            ['03', 'email them direct.', 'their work, their rate, their email. we\'re not in the middle.']].
+            ['01', 'request membership.', 'a day, a month, or a year. issued on receipt of payment.'],
+            ['02', 'the directory is opened.', `all ${total} entries, viewable by discipline, region, availability, and rate.`],
+            ['03', 'correspond directly.', 'each entry lists the member, their portfolio, their rate, and their address. no intermediary.']].
             map(([n, t, d]) =>
             <div key={n} style={{ display: 'grid', gridTemplateColumns: '36px 1fr', gap: 16, padding: '18px 0', borderBottom: `1px solid ${C.rule}` }}>
                 <span style={{ fontFamily: GM, fontSize: 10, color: accent, paddingTop: 3 }}>{n}</span>
@@ -1445,8 +1442,8 @@ function ApplyPage({ accent }) {
         <PageHeader
           n="04"
           label="Application — Join The Bench"
-          headline="Apply to the bench."
-          sub="We say no to most people. Not because they're bad — but because the bench only works if every name on it is someone we'd hire ourselves. To apply, you must also refer three peers and name a potential client."
+          headline="Apply for inclusion."
+          sub="Most applications are declined. The directory functions because every name in it has been vouched for by an existing member or by the editors directly."
           accent="#b8a8c8"
         />
         <div style={{ height: 24 }} />
@@ -1735,7 +1732,7 @@ function PricingPage({ setPage, accent }) {
               />
             </div>
             <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginTop: 14, lineHeight: 1.6 }}>
-              we'll mint a private bench page just for you. shareable internally with your team.
+              a private view of the directory will be issued in your name. shareable within your team.
             </p>
           </div>
 
@@ -2074,12 +2071,12 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [] }) {
                   <span style={{ fontFamily:GM, fontSize:10, color:'rgba(244,241,236,0.3)', marginLeft:'auto' }}>{p.yoe} yrs exp · {p.tz}</span>
                   {!preview && p.emailEnc && (
                     <button onClick={(e) => { e.stopPropagation(); window.location.href = `mailto:${atob(p.emailEnc)}`; }} style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.08em', background:'transparent', border:`1px solid ${accent}`, color:accent, padding:'7px 14px', cursor:'pointer', flexShrink:0 }}>
-                      contact →
+                      inquire →
                     </button>
                   )}
                   {preview && (
                     <button onClick={(e) => { e.stopPropagation(); setPage && setPage('pricing'); }} style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.08em', background: accent, border:`1px solid ${accent}`, color:'#fff', padding:'7px 14px', cursor:'pointer', flexShrink:0 }}>
-                      get a pass to contact →
+                      request membership to inquire →
                     </button>
                   )}
                 </div>
@@ -2226,7 +2223,7 @@ function AccessPage({ accent, setPage }) {
               </>
             ) : (
               <>
-                <div style={{ fontFamily: GM, fontSize: 10, color: AVAIL_DOT.available }}>● hi again. the bench is open.</div>
+                <div style={{ fontFamily: GM, fontSize: 10, color: AVAIL_DOT.available }}>● the directory is open.</div>
                 {tier && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{tier} pass</div>}
                 {timeLeft && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{timeLeft}</div>}
               </>
@@ -2257,7 +2254,7 @@ function DashboardPage({ accent, setPage }) {
         <BenchDashboard bench={liveBench} accent={accent} />
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingTop: 40 }}>
           <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '14px 28px', cursor: 'pointer' }}>
-            get the look to see who's available →
+            request membership to view the directory →
           </button>
           <button onClick={() => gotoBrief(setPage)} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.05em', background: 'transparent', color: C.soft, border: 'none', padding: '8px 0', marginTop: 4, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 4 }}>
             or just have us send you 5+ names — $199 →
@@ -2657,11 +2654,11 @@ function AdminPage({ accent, setPage }) {
 
 // ── HEADER ────────────────────────────────────────────────────────────────────
 const TABS = [
-  ['dashboard', 'the bench',     '#a8c4b8'], // sage teal
-  ['pricing',   'build a bench', '#e8c478'], // warm cream/yellow
+  ['dashboard', 'the directory', '#a8c4b8'], // sage teal
+  ['pricing',   'membership',    '#e8c478'], // warm cream/yellow
   ['concierge', 'concierge',     '#c89090'], // dusty rose
-  ['apply',     'join the bench','#b8a8c8'], // soft lilac
-  ['access',    'access',        '#b8b878'], // olive
+  ['apply',     'apply',         '#b8a8c8'], // soft lilac
+  ['access',    'members',       '#b8b878'], // olive
 ];
 
 function FolderTab({ n, label, color, active, onClick, isMobile, id }) {
