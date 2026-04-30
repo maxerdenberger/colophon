@@ -1,22 +1,25 @@
 import Stripe from 'stripe';
 import { Resend } from 'resend';
+import { signSession } from './_utils/session.js';
 
-const stripe  = new Stripe(process.env.STRIPE_SECRET_KEY);
-const resend  = new Resend(process.env.RESEND_API_KEY);
-const FROM    = 'Colophon <bench@colophon.contact>';
-const SITE    = (process.env.SITE_URL || 'https://colophon.contact').replace(/\/$/, '');
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY);
+const FROM   = 'Colophon <bench@colophon.contact>';
+const SITE   = (process.env.SITE_URL || 'https://colophon.contact').replace(/\/$/, '');
 
-const DURATION_DAYS = {
-  'day-pass':   1,
-  'week-pass':  7,
-  'month-pass': 30,
+const PRODUCT_TIER = {
+  'day-pass':   'day',
+  'week-pass':  'week',
+  'month-pass': 'month',
 };
 
 const DURATION_LABEL = {
-  'day-pass':   '24-hour',
-  'week-pass':  '7-day',
-  'month-pass': '30-day',
+  day:   '24-hour',
+  week:  '7-day',
+  month: '30-day',
 };
+
+const TIER_DAYS = { day: 1, week: 7, month: 30 };
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -32,32 +35,31 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'session_id required' });
     }
 
-    // Verify the session is paid before issuing a token. This is the security
-    // boundary — without it, anyone could call /redeem with a fabricated id.
+    // Verify the Stripe session is paid before issuing a token. This is the
+    // security boundary — without it anyone could call /redeem with a fake id.
     const session = await stripe.checkout.sessions.retrieve(session_id);
     if (session.payment_status !== 'paid') {
       return res.status(402).json({ error: `payment not complete (status: ${session.payment_status})` });
     }
 
     const product = session.metadata?.product || 'day-pass';
-    const days = DURATION_DAYS[product];
-    if (!days) {
-      // Concierge or unknown product — redeem doesn't apply
+    const tier = PRODUCT_TIER[product];
+    if (!tier) {
       return res.status(400).json({ error: `redeem only handles passes (got: ${product})` });
     }
 
-    // Mint a base64 token compatible with the existing /access page checker:
-    //   { exp: <ms epoch>, tier: 'day' | 'week' | 'month' }
-    const expMs = Date.now() + days * 86_400_000;
-    const tier  = product.replace('-pass', ''); // 'day' | 'week' | 'month'
-    const token = Buffer.from(JSON.stringify({ exp: expMs, tier })).toString('base64');
-    const accessUrl = `${SITE}/access?t=${encodeURIComponent(token)}`;
+    // Restore filters from Stripe metadata (set by /api/checkout).
+    let filters = {};
+    if (session.metadata?.filters) {
+      try { filters = JSON.parse(session.metadata.filters); } catch {}
+    }
 
-    const email = session.customer_details?.email || session.customer_email;
+    const email = session.customer_details?.email || session.customer_email || null;
 
-    // Send the colophon-branded confirmation. Failure here doesn't fail the
-    // overall redeem — the token is still issued so the user can land on their
-    // bench even if the email send hiccups.
+    const token = signSession({ tier, filters, sub: email });
+    const accessUrl = `${SITE}/access?token=${encodeURIComponent(token)}`;
+    const expMs = Date.now() + TIER_DAYS[tier] * 86_400_000;
+
     let emailSent = false;
     if (email && process.env.RESEND_API_KEY) {
       try {
@@ -65,7 +67,7 @@ export default async function handler(req, res) {
           from: FROM,
           to: email,
           subject: 'Your access is open.',
-          html: confirmationHtml({ accessUrl, durationLabel: DURATION_LABEL[product], expMs }),
+          html: confirmationHtml({ accessUrl, durationLabel: DURATION_LABEL[tier], expMs }),
         });
         emailSent = true;
       } catch (e) {

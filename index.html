@@ -1574,6 +1574,7 @@ function PricingPage({ setPage, accent }) {
   const [buyerEmail, setBuyerEmail] = useState('');
   const [conciergeSent, setConciergeSent] = useState(false);
   const [checkoutErr, setCheckoutErr] = useState('');
+  const [serverCount, setServerCount] = useState(null);   // authoritative bench count from /api/bench-count
 
   const STEPS = [
     { key: 'disciplines', label: 'discipline',  question: 'what do you actually need?',
@@ -1643,6 +1644,19 @@ function PricingPage({ setPage, accent }) {
     [key]: f[key].includes(val) ? f[key].filter(v => v !== val) : [...f[key], val]
   }));
 
+  // Authoritative server-side count — debounced. Used to surface the actual
+  // result size (and warn on narrow looks) BEFORE purchase.
+  useEffect(() => {
+    const ctrl = new AbortController();
+    const id = setTimeout(() => {
+      fetch('/api/bench-count?filters=' + encodeURIComponent(JSON.stringify(filters)), { signal: ctrl.signal })
+        .then((r) => r.json())
+        .then((j) => { if (typeof j.count === 'number') setServerCount(j.count); })
+        .catch(() => {});
+    }, 250);
+    return () => { clearTimeout(id); ctrl.abort(); };
+  }, [filters]);
+
   const TZS_OPT = [['americas','americas (utc-3 to utc-8)'],['europe','europe / africa (utc+0 to utc+2)'],['asia','asia / pacific (utc+5 to utc+12)']];
 
   // ──────────────────────────────────────────────────
@@ -1688,6 +1702,18 @@ function PricingPage({ setPage, accent }) {
               <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>no filters applied — full bench, full price.</span>
             )}
           </div>
+
+          {/* Live count preview from /api/bench-count (authoritative) */}
+          {(serverCount != null && rawFilterCount > 0) && (
+            <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 18, letterSpacing: '0.04em' }}>
+              your look would show <span style={{ color: C.ink, fontWeight: 600 }}>{serverCount}</span> {serverCount === 1 ? 'creative' : 'creatives'}.
+            </p>
+          )}
+          {(serverCount != null && serverCount <= 2 && rawFilterCount > 0) && (
+            <div style={{ marginBottom: 24, padding: '12px 16px', border: '1px solid #c87c18', background: 'rgba(200,124,24,0.08)', color: '#7a4a0e', fontFamily: GM, fontSize: 11, lineHeight: 1.6, borderRadius: 4 }}>
+              narrow filters — only {serverCount} match. broaden your search or go filterless.
+            </div>
+          )}
 
           {/* Discount line */}
           {filterCount > 0 && (
@@ -1923,13 +1949,34 @@ function PricingPage({ setPage, accent }) {
 
 
 // ── UNLOCKED BENCH TABLE ──────────────────────────────────────────────────────
-function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [] }) {
+function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionFilters = null }) {
   const { bench: liveBench } = useBench();
   const [sel, setSel] = useState(null);
   const [filter, setFilter] = useState('all');
   const [hovered, setHovered] = useState(null);
   const [cursor, setCursor] = useState({ x: 0, y: 0, quip: '' });
   const [showAll, setShowAll] = useState(false);
+
+  // Apply session filters from the signed token (set at purchase time, restored
+  // on page load via /api/verify-session). This is what they paid for: they
+  // see only matching rows. `showAll` lets them broaden during the session.
+  const matchesSessionFilters = (p) => {
+    if (showAll || !sessionFilters) return true;
+    const f = sessionFilters;
+    if (f.disciplines?.length && !f.disciplines.includes(p.discipline)) return false;
+    if (f.avail?.length && !f.avail.includes(p.availability)) return false;
+    if (f.experience?.length) {
+      const lvl = p.yoe < 4 ? 'junior' : p.yoe < 8 ? 'mid' : p.yoe < 15 ? 'senior' : 'lead';
+      if (!f.experience.includes(lvl)) return false;
+    }
+    if (f.timezone?.length) {
+      const o = parseInt((p.tz || '').replace(/UTC|−/g, '-').replace('+', '')) || 0;
+      const region = o <= -3 ? 'americas' : o <= 3 ? 'europe' : 'asia';
+      if (!f.timezone.includes(region)) return false;
+    }
+    if (f.rate?.length && !f.rate.includes(p.rate)) return false;
+    return true;
+  };
 
   const QUIPS = [
     'a beast in the slack',
@@ -1986,7 +2033,8 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [] }) {
     return true;
   };
 
-  const buyerScoped = liveBench.filter(matchesBuyerTags);
+  const sessionScoped = liveBench.filter(matchesSessionFilters);
+  const buyerScoped = sessionScoped.filter(matchesBuyerTags);
   const filtered = filter === 'all' ? buyerScoped : buyerScoped.filter(p => p.discipline === filter);
   // freshness reward: most-recently-updated first within each availability tier
   const AVAIL_RANK = { available: 0, soon: 1, booked: 2 };
@@ -2095,6 +2143,17 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [] }) {
 }
 
 // ── ACCESS PAGE ───────────────────────────────────────────────────────────────
+function humanizeMs(ms) {
+  if (ms <= 0) return 'expired';
+  const d = Math.floor(ms / 86400000);
+  const h = Math.floor((ms % 86400000) / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  if (d >= 2) return `${d} days`;
+  if (d >= 1) return `1 day ${h}h`;
+  if (h >= 1) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
 function AccessPage({ accent, setPage }) {
   const [unlocked, setUnlocked] = useState(false);
   const [expired, setExpired]   = useState(false);
@@ -2105,12 +2164,13 @@ function AccessPage({ accent, setPage }) {
   const [preview, setPreview]   = useState(false);
   const [buyerName, setBuyerName] = useState('');
   const [buyerTags, setBuyerTags] = useState([]);
+  const [sessionFilters, setSessionFilters] = useState(null); // null = no filter applied
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('preview') === '1') { setPreview(true); setUnlocked(true); return; }
 
-    // Stripe success redirect → mint a local token from the tier and unlock
+    // Stripe success redirect → mint a local token from the tier and unlock (legacy)
     if (params.get('paid') === '1') {
       const paidTier = params.get('tier') || 'month';
       const days = paidTier === 'day' ? 1 : paidTier === 'week' ? 7 : 30;
@@ -2133,6 +2193,56 @@ function AccessPage({ accent, setPage }) {
       return;
     }
 
+    // ── New flow: ?token=<HMAC-signed JWT-style> verified server-side ──────
+    const signed = params.get('token');
+    if (signed) {
+      // hydrate from sessionStorage if we already verified this token in-tab
+      let cached = null;
+      try {
+        const raw = sessionStorage.getItem('colophon_session');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.token === signed && parsed.expires > Date.now()) cached = parsed;
+        }
+      } catch {}
+
+      const apply = (s) => {
+        setUnlocked(true);
+        if (s.tier) setTier(s.tier);
+        if (s.filters && Object.keys(s.filters).length) setSessionFilters(s.filters);
+        const tick = () => {
+          const left = s.expires - Date.now();
+          if (left <= 0) {
+            try { sessionStorage.removeItem('colophon_session'); } catch {}
+            setExpired(true); setUnlocked(false); return;
+          }
+          setTimeLeft(humanizeMs(left));
+        };
+        tick();
+        const id = setInterval(tick, 30000);
+        return () => clearInterval(id);
+      };
+
+      if (cached) return apply(cached);
+
+      let cleanup;
+      fetch('/api/verify-session?token=' + encodeURIComponent(signed))
+        .then((r) => r.json())
+        .then((j) => {
+          if (!j.valid) {
+            try { sessionStorage.removeItem('colophon_session'); } catch {}
+            setExpired(true);
+            return;
+          }
+          const s = { token: signed, tier: j.tier, filters: j.filters, expires: j.expires };
+          try { sessionStorage.setItem('colophon_session', JSON.stringify(s)); } catch {}
+          cleanup = apply(s);
+        })
+        .catch(() => setExpired(true));
+      return () => { if (cleanup) cleanup(); };
+    }
+
+    // ── Legacy ?t=<base64> path, kept for back-compat ─────────────────────
     const t = params.get('t');
     if (!t) return;
     const s = checkToken(t);
@@ -2146,8 +2256,7 @@ function AccessPage({ accent, setPage }) {
       const tick = () => {
         const left = exp - Date.now();
         if (left <= 0) { setExpired(true); setUnlocked(false); return; }
-        const d = Math.floor(left/86400000), h = Math.floor(left%86400000/3600000), m = Math.floor(left%3600000/60000);
-        setTimeLeft(d > 0 ? `${d}d ${h}h remaining` : h > 0 ? `${h}h ${m}m remaining` : `${m}m remaining`);
+        setTimeLeft(humanizeMs(left));
       };
       tick();
       const id = setInterval(tick, 30000);
@@ -2170,8 +2279,9 @@ function AccessPage({ accent, setPage }) {
   if (expired) return (
     <div style={{ background: C.cream, minHeight: 'calc(100vh - 54px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: 40, textAlign: 'center' }}>
       <div style={{ width: 48, height: 48, border: '1.5px solid #b04040', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b04040', fontSize: 20 }}>×</div>
-      <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em' }}>pass expired.</h2>
-      <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '40ch', lineHeight: 1.75 }}>your access window has closed. purchase a new pass for a fresh link.</p>
+      <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em' }}>this look has expired.</h2>
+      <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '40ch', lineHeight: 1.75 }}>the access window has closed.</p>
+      <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: 'none', padding: '14px 22px', cursor: 'pointer', borderRadius: 6, marginTop: 8 }}>request a new look →</button>
     </div>);
 
 
@@ -2229,14 +2339,17 @@ function AccessPage({ accent, setPage }) {
             ) : (
               <>
                 <div style={{ fontFamily: GM, fontSize: 10, color: AVAIL_DOT.available }}>● the directory is open.</div>
-                {tier && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{tier} pass</div>}
-                {timeLeft && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{timeLeft}</div>}
+                {tier && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{tier} look</div>}
+                {timeLeft && <div style={{ fontFamily: GM, fontSize: 10, color: C.ink, marginTop: 2 }}>look expires in {timeLeft}</div>}
+                {sessionFilters && Object.keys(sessionFilters).some((k) => Array.isArray(sessionFilters[k]) && sessionFilters[k].length) && (
+                  <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, marginTop: 4, letterSpacing: '0.06em' }}>filters applied</div>
+                )}
               </>
             )}
           </div>
           </div>
         </div>
-        <div style={{ paddingTop: 24 }}><UnlockedBenchTable accent={accent} preview={preview} setPage={setPage} buyerTags={buyerTags} /></div>
+        <div style={{ paddingTop: 24 }}><UnlockedBenchTable accent={accent} preview={preview} setPage={setPage} buyerTags={buyerTags} sessionFilters={sessionFilters} /></div>
       </div>
     </div>);
 
