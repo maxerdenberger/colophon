@@ -108,7 +108,7 @@
     border-top: 3px solid var(--drawer-bg); /* tab-continuation spine */
     box-shadow: -1px 0 0 rgba(13,13,11,0.08);
     color: #0d0d0b;
-    z-index: 90; /* above .drawer (80) so the dossier panel rides over the bench drawer */
+    z-index: 50; /* above .drawer (40), below the sticky nav (100); portaled to body so the drawer's transform doesn't trap it */
     opacity: 0;
     transform: translateY(-6px);
     transition: opacity 0.16s ease, transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
@@ -158,31 +158,32 @@
   .bench-row, .bench-row * { border-radius: 0 !important; }
 
   /* ── DRAWER ─────────────────────────────────────────────────────────── */
+  :root { --nav-h: 60px; }
+  @media (max-width: 760px) { :root { --nav-h: 52px; } }
   .drawer {
     position: fixed;
-    top: 60px;            /* directly below the nav strip */
+    top: var(--nav-h);
     left: 0;
     right: 0;
-    max-height: calc(100vh - 60px);
+    height: calc(100vh - var(--nav-h));
     overflow-y: auto;
     background: #f4f1ec;  /* C.cream */
     border-bottom: 1px solid rgba(13,13,11,0.14);
-    z-index: 80;
-    /* opacity-only animation: no transform, so position:fixed children
-       (the bench dossier panel) stay viewport-relative and reach the right edge */
-    animation: drawerIn 0.16s ease both;
+    z-index: 40;          /* above page, below sticky nav (100) */
+    opacity: 0;
+    transform: translateY(-8px);
+    pointer-events: none;
+    visibility: hidden;
+    /* hide visibility instantly on enter, defer on exit so it counts as
+       'display:none after transition' for fixed descendants like portals */
+    transition: opacity 120ms ease, transform 120ms ease, visibility 0s 120ms;
   }
-  @keyframes drawerIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-  }
-  /* Mobile: full-screen drawer + close button slot */
-  @media (max-width: 760px) {
-    .drawer {
-      top: 52px;
-      max-height: calc(100vh - 52px);
-      height: calc(100vh - 52px);
-    }
+  .drawer.active {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+    visibility: visible;
+    transition: opacity 120ms ease, transform 120ms ease, visibility 0s 0s;
   }
   .drawer-close {
     position: absolute;
@@ -1052,41 +1053,47 @@ function BenchTeaser({ accent, bench: benchProp }) {
 
   const drawerStyle = drawerLeft != null ? { left: drawerLeft, right: 0 } : { left: 'auto', right: 0 };
 
-  return (
-    <div style={{ position: 'relative' }}>
-      {/* Hover drawer — folder under the "01 the bench" tab */}
-      <div className={`bench-hover-panel${hovered ? ' open' : ''}`} style={drawerStyle}>
-        {hp &&
-        <div style={{ padding: '32px 28px', height: '100%', display: 'flex', flexDirection: 'column', color: '#0d0d0b' }}>
-            <div style={{ fontFamily: GM, fontSize: 10, color: INK_55, letterSpacing: '0.14em', marginBottom: 18, textTransform: 'uppercase' }}>
-              {String(rows.findIndex((p) => p.id === hp.id) + 1).padStart(3, '0')} — {hp.discipline}
+  // Portal the dossier panel directly to <body> so it stays viewport-relative
+  // (any ancestor with `transform` would otherwise become its containing block —
+  // e.g. the drawer's enter animation — clipping it before the right edge).
+  const dossier = (
+    <div className={`bench-hover-panel${hovered ? ' open' : ''}`} style={drawerStyle}>
+      {hp &&
+      <div style={{ padding: '32px 28px', height: '100%', display: 'flex', flexDirection: 'column', color: '#0d0d0b' }}>
+          <div style={{ fontFamily: GM, fontSize: 10, color: INK_55, letterSpacing: '0.14em', marginBottom: 18, textTransform: 'uppercase' }}>
+            {String(rows.findIndex((p) => p.id === hp.id) + 1).padStart(3, '0')} — {hp.discipline}
+          </div>
+          <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 28, letterSpacing: '-0.02em', color: '#0d0d0b', marginBottom: 10, lineHeight: 1.05 }}>
+            {hp.name}
+          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 22 }}>
+            <Dot status={hp.availability} />
+            <span style={{ fontFamily: GM, fontSize: 10, color: INK_72, letterSpacing: '0.04em' }}>
+              {AVAIL_LBL[hp.availability]} · {hp.tz} · {hp.yoe || '—'} yrs exp
+            </span>
+          </div>
+          <p style={{ fontFamily: GS, fontSize: 14, fontStyle: 'italic', color: INK_72, lineHeight: 1.55, marginBottom: 24, textTransform: 'none', flex: 1 }}>
+            “{hp.note}”
+          </p>
+          <div>
+            <div style={{ fontFamily: GM, fontSize: 9, color: INK_55, letterSpacing: '0.14em', marginBottom: 10, textTransform: 'uppercase' }}>selected clients</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {hp.clients.map((c) =>
+            <span key={c} style={{ border: '1px solid rgba(13,13,11,0.18)', padding: '3px 10px', fontFamily: GM, fontSize: 10, color: INK_72 }}>{c}</span>
+            )}
             </div>
-            <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 28, letterSpacing: '-0.02em', color: '#0d0d0b', marginBottom: 10, lineHeight: 1.05 }}>
-              {hp.name}
-            </h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 22 }}>
-              <Dot status={hp.availability} />
-              <span style={{ fontFamily: GM, fontSize: 10, color: INK_72, letterSpacing: '0.04em' }}>
-                {AVAIL_LBL[hp.availability]} · {hp.tz} · {hp.yoe || '—'} yrs exp
-              </span>
-            </div>
-            <p style={{ fontFamily: GS, fontSize: 14, fontStyle: 'italic', color: INK_72, lineHeight: 1.55, marginBottom: 24, textTransform: 'none', flex: 1 }}>
-              “{hp.note}”
-            </p>
-            <div>
-              <div style={{ fontFamily: GM, fontSize: 9, color: INK_55, letterSpacing: '0.14em', marginBottom: 10, textTransform: 'uppercase' }}>selected clients</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {hp.clients.map((c) =>
-              <span key={c} style={{ border: '1px solid rgba(13,13,11,0.18)', padding: '3px 10px', fontFamily: GM, fontSize: 10, color: INK_72 }}>{c}</span>
-              )}
-              </div>
-              <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid rgba(13,13,11,0.12)', fontFamily: GM, fontSize: 10, color: INK_55, lineHeight: 1.7 }}>
-                rates + contact info — available with access.
-              </div>
+            <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid rgba(13,13,11,0.12)', fontFamily: GM, fontSize: 10, color: INK_55, lineHeight: 1.7 }}>
+              rates + contact info — available with access.
             </div>
           </div>
-        }
-      </div>
+        </div>
+      }
+    </div>
+  );
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {typeof document !== 'undefined' && ReactDOM.createPortal(dossier, document.body)}
 
       <div style={{ fontFamily: GM, fontSize: 12, marginRight: hovered ? 0 : 0, transition: 'margin 0.22s ease' }}>
         <div className="bench-row-head" style={{ display: 'grid', gridTemplateColumns: COLS, padding: '8px 40px', borderBottom: `1px solid ${C.rule}`, background: C.paper }}>
@@ -3188,35 +3195,36 @@ function AdminPage({ accent, setPage }) {
 // ── DRAWER WRAPPER ───────────────────────────────────────────────────────────
 // Renders a full-width panel below the nav. Closes on ESC and on clicks outside
 // the drawer (click on the home content visible behind/below).
-function Drawer({ open, onClose, children }) {
+// Always-mounted drawer. Toggles .active class for visibility/transition.
+// Compares its own id against `active` to decide if it's open. ESC + click-outside close.
+function Drawer({ id, active, onClose, children }) {
   const ref = useRef(null);
   const isMobile = useIsMobile();
+  const open = active === id;
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     const onClick = (e) => {
-      // Ignore clicks inside the drawer or inside any header element (so tab
-      // toggles + the hamburger reach their own handlers without double-firing).
       const t = e.target;
-      if (ref.current && ref.current.contains(t)) return;
-      if (t.closest && t.closest('header')) return;
+      if (ref.current && ref.current.contains(t)) return;     // inside drawer
+      if (t.closest && t.closest('header'))      return;      // tabs handle themselves
+      if (t.closest && t.closest('.bench-hover-panel')) return; // dossier panel (portaled to body)
       onClose();
     };
     window.addEventListener('keydown', onKey);
-    // Defer one frame so the click that opened the drawer doesn't immediately close it.
-    const id = requestAnimationFrame(() => document.addEventListener('click', onClick));
+    // Defer one frame so the same click that opened the drawer doesn't close it.
+    const raf = requestAnimationFrame(() => document.addEventListener('click', onClick));
     return () => {
       window.removeEventListener('keydown', onKey);
-      cancelAnimationFrame(id);
+      cancelAnimationFrame(raf);
       document.removeEventListener('click', onClick);
     };
   }, [open, onClose]);
 
-  if (!open) return null;
   return (
-    <div ref={ref} className="drawer" role="dialog" aria-modal="false">
-      {isMobile && (
+    <div ref={ref} className={`drawer${open ? ' active' : ''}`} aria-hidden={!open} role="region">
+      {isMobile && open && (
         <button className="drawer-close" onClick={onClose} aria-label="close">×</button>
       )}
       {children}
@@ -3571,26 +3579,22 @@ function App() {
       {page === 'admin' && <AdminPage accent={accent} setPage={setPage} />}
       {page === 'success' && <SuccessPage accent={accent} setPage={setPage} />}
 
-      {/* Drawer overlays — only on home */}
+      {/* Drawer overlays — always mounted on home so transitions animate cleanly */}
       {page === 'home' && (
-        <Drawer open={activeDrawer === 'bench'} onClose={closeDrawer}>
-          <BenchDrawer accent={accent} setActiveDrawer={setActiveDrawer} />
-        </Drawer>
-      )}
-      {page === 'home' && (
-        <Drawer open={activeDrawer === 'look'} onClose={closeDrawer}>
-          <PricingPage setPage={setPage} accent={accent} />
-        </Drawer>
-      )}
-      {page === 'home' && (
-        <Drawer open={activeDrawer === 'concierge'} onClose={closeDrawer}>
-          <ConciergePage accent={accent} setPage={setPage} />
-        </Drawer>
-      )}
-      {page === 'home' && (
-        <Drawer open={activeDrawer === 'apply'} onClose={closeDrawer}>
-          <ApplyPage accent={accent} onDone={() => setTimeout(closeDrawer, 3000)} />
-        </Drawer>
+        <>
+          <Drawer id="bench" active={activeDrawer} onClose={closeDrawer}>
+            <BenchDrawer accent={accent} setActiveDrawer={setActiveDrawer} />
+          </Drawer>
+          <Drawer id="look" active={activeDrawer} onClose={closeDrawer}>
+            <PricingPage setPage={setPage} accent={accent} />
+          </Drawer>
+          <Drawer id="concierge" active={activeDrawer} onClose={closeDrawer}>
+            <ConciergePage accent={accent} setPage={setPage} />
+          </Drawer>
+          <Drawer id="apply" active={activeDrawer} onClose={closeDrawer}>
+            <ApplyPage accent={accent} onDone={() => setTimeout(closeDrawer, 3000)} />
+          </Drawer>
+        </>
       )}
 
       <Footer accent={accent} setPage={setPage} />
