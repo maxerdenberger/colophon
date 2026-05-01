@@ -168,11 +168,13 @@
     background: #f4f1ec;  /* C.cream */
     border-bottom: 1px solid rgba(13,13,11,0.14);
     z-index: 80;
+    /* opacity-only animation: no transform, so position:fixed children
+       (the bench dossier panel) stay viewport-relative and reach the right edge */
     animation: drawerIn 0.16s ease both;
   }
   @keyframes drawerIn {
-    from { opacity: 0; transform: translateY(-8px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
   }
   /* Mobile: full-screen drawer + close button slot */
   @media (max-width: 760px) {
