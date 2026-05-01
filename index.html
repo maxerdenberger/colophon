@@ -3199,13 +3199,21 @@ function AdminPage({ accent, setPage }) {
 // Compares its own id against `active` to decide if it's open. ESC + click-outside close.
 function Drawer({ id, active, onClose, children }) {
   const ref = useRef(null);
+  const justOpened = useRef(false);
   const isMobile = useIsMobile();
   const open = active === id;
 
   useEffect(() => {
     if (!open) return;
+    // Defensive: ignore clicks for ~150ms after open — covers the click that
+    // opened the drawer (which can race the listener attach in some browsers)
+    // and any synthetic-event echoes.
+    justOpened.current = true;
+    const t1 = setTimeout(() => { justOpened.current = false; }, 150);
+
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     const onClick = (e) => {
+      if (justOpened.current) return;
       const t = e.target;
       if (ref.current && ref.current.contains(t)) return;     // inside drawer
       if (t.closest && t.closest('header'))      return;      // tabs handle themselves
@@ -3213,11 +3221,10 @@ function Drawer({ id, active, onClose, children }) {
       onClose();
     };
     window.addEventListener('keydown', onKey);
-    // Defer one frame so the same click that opened the drawer doesn't close it.
-    const raf = requestAnimationFrame(() => document.addEventListener('click', onClick));
+    document.addEventListener('click', onClick);
     return () => {
+      clearTimeout(t1);
       window.removeEventListener('keydown', onKey);
-      cancelAnimationFrame(raf);
       document.removeEventListener('click', onClick);
     };
   }, [open, onClose]);

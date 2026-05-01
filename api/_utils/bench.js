@@ -32,6 +32,8 @@ function canonDisc(s) {
 let cache = { data: null, ts: 0 };
 const TTL_MS = 60_000; // 1 minute
 
+export function invalidateBenchCache() { cache = { data: null, ts: 0 }; }
+
 export async function loadBench() {
   if (cache.data && Date.now() - cache.ts < TTL_MS) return cache.data;
   const res = await fetch(SHEETS_CSV);

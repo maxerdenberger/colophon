@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@vercel/analytics": "^1.4.1",
+    "googleapis": "^144.0.0",
     "resend": "^4.0.1",
     "stripe": "^17.5.0"
   }

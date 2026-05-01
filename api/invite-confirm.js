@@ -1,4 +1,6 @@
 import { Resend } from 'resend';
+import { findBenchRowByEmail, updateBenchRow } from './_utils/sheets.js';
+import { invalidateBenchCache } from './_utils/bench.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = 'Colophon <bench@colophon.contact>';
@@ -75,7 +77,26 @@ export default async function handler(req, res) {
       html,
     });
 
-    return res.status(200).json({ success: true });
+    // Phase B — live update the Google Sheet. If the email matches an existing
+    // bench row, patch availability + portfolio in place. Failures here don't
+    // fail the request — admin email already went out, the sheet write is a
+    // bonus that catches up on the next /api/lookup-applicant call.
+    let sheetUpdate = null;
+    try {
+      const match = await findBenchRowByEmail(email);
+      if (match) {
+        const r = await updateBenchRow(match.rowNumber, { availability, portfolio });
+        invalidateBenchCache(); // so the next /api/lookup-applicant sees the fresh data
+        sheetUpdate = { matched: true, rowNumber: match.rowNumber, updated: r.updated };
+      } else {
+        sheetUpdate = { matched: false };
+      }
+    } catch (sheetErr) {
+      console.error('sheet update error (non-fatal):', sheetErr);
+      sheetUpdate = { matched: false, error: sheetErr.message };
+    }
+
+    return res.status(200).json({ success: true, sheetUpdate });
   } catch (err) {
     console.error('invite-confirm error:', err);
     return res.status(500).json({ error: err.message || 'send failed' });
