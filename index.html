@@ -108,7 +108,7 @@
     border-top: 3px solid var(--drawer-bg); /* tab-continuation spine */
     box-shadow: -1px 0 0 rgba(13,13,11,0.08);
     color: #0d0d0b;
-    z-index: 50;
+    z-index: 90; /* above .drawer (80) so the dossier panel rides over the bench drawer */
     opacity: 0;
     transform: translateY(-6px);
     transition: opacity 0.16s ease, transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
@@ -156,6 +156,49 @@
 
   /* Prevent the rounding from breaking the dense bench-table grid rows */
   .bench-row, .bench-row * { border-radius: 0 !important; }
+
+  /* ── DRAWER ─────────────────────────────────────────────────────────── */
+  .drawer {
+    position: fixed;
+    top: 60px;            /* directly below the nav strip */
+    left: 0;
+    right: 0;
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+    background: #f4f1ec;  /* C.cream */
+    border-bottom: 1px solid rgba(13,13,11,0.14);
+    z-index: 80;
+    animation: drawerIn 0.16s ease both;
+  }
+  @keyframes drawerIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  /* Mobile: full-screen drawer + close button slot */
+  @media (max-width: 760px) {
+    .drawer {
+      top: 52px;
+      max-height: calc(100vh - 52px);
+      height: calc(100vh - 52px);
+    }
+  }
+  .drawer-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 90;
+    background: transparent;
+    border: 1px solid rgba(13,13,11,0.14);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    color: #0d0d0b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
   /* ── MOBILE PASS ─────────────────────────────────────────────────────── */
   @media (max-width: 760px) {
@@ -991,7 +1034,7 @@ function BenchTeaser({ accent, bench: benchProp }) {
   // Position the drawer's left edge flush with the "01 the bench" nav tab.
   useEffect(() => {
     const update = () => {
-      const el = document.getElementById('nav-tab-dashboard');
+      const el = document.getElementById('nav-tab-bench');
       if (!el) return;
       const r = el.getBoundingClientRect();
       setDrawerLeft(r.left);
@@ -1213,7 +1256,7 @@ function Footer({ accent, setPage }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40 }}>
               <div>
                 <div style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.12em', color: 'rgba(244,241,236,0.28)', marginBottom: 14 }}>pages</div>
-                {[['home', 'home'], ['dashboard', 'the directory'], ['pricing', 'a look'], ['concierge', 'concierge'], ['apply', 'apply'], ['access', 'members']].map(([key, label]) =>
+                {[['home', 'home'], ['bench', 'the bench'], ['look', 'build a bench'], ['concierge', 'concierge'], ['apply', 'join the bench'], ['access', 'access']].map(([key, label]) =>
                 <div key={key} style={{ marginBottom: 10 }}>
                     <button onClick={() => setPage(key)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: GM, fontSize: 13, color: 'rgba(244,241,236,0.78)', letterSpacing: '0.03em' }}>
                       {label}
@@ -1418,7 +1461,7 @@ function HomePage({ setPage, accent, variant }) {
 }
 
 // ── APPLY PAGE ────────────────────────────────────────────────────────────────
-function ApplyPage({ accent }) {
+function ApplyPage({ accent, onDone }) {
   const [done, setDone] = useState(false);
   const [disciplines, setDisciplines] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -1467,6 +1510,7 @@ function ApplyPage({ accent }) {
             _subject: 'bench application',
           });
           setDone(true);
+          if (typeof onDone === 'function') onDone();
         }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <h3 style={{ ...sH, marginTop: 0, paddingTop: 0, borderTop: 'none' }}>about you</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -2439,31 +2483,7 @@ function AccessPage({ accent, setPage }) {
 }
 
 // ── DASHBOARD PAGE ─────────────────────────────────────────────────────
-function DashboardPage({ accent, setPage }) {
-  const { bench: liveBench } = useBench();
-  return (
-    <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 54px)' }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '52px 40px 80px' }}>
-        <PageHeader
-          n="01"
-          label={`The Bench · Live · ${liveBench.length} on the bench`}
-          headline={<><span>Everything we know.</span><br/><span style={{ color: C.soft }}>At this moment.</span></>}
-          sub="A real-time view of the shape of the bench — disciplines, experience, geography, rates. Names stay private until you have a look."
-          accent="#a8c4b8"
-        />
-        <div style={{ height: 8 }} />
-        <BenchDashboard bench={liveBench} accent={accent} />
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingTop: 40 }}>
-          <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '14px 28px', cursor: 'pointer' }}>
-            request membership to view the directory →
-          </button>
-          <button onClick={() => gotoBrief(setPage)} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.05em', background: 'transparent', color: C.soft, border: 'none', padding: '8px 0', marginTop: 4, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 4 }}>
-            or just have us send you 5+ names — $199 →
-          </button>
-        </div>
-      </div>
-    </div>);
-}
+// DashboardPage retired — its content lives in the BenchDrawer (tab 01) now.
 
 // ── CONCIERGE PAGE (pay-first → brief → confirmation) ─────────────────
 // Checkout is handled by /api/checkout — no static Payment Link needed.
@@ -3163,14 +3183,96 @@ function AdminPage({ accent, setPage }) {
     </div>);
 }
 
+// ── DRAWER WRAPPER ───────────────────────────────────────────────────────────
+// Renders a full-width panel below the nav. Closes on ESC and on clicks outside
+// the drawer (click on the home content visible behind/below).
+function Drawer({ open, onClose, children }) {
+  const ref = useRef(null);
+  const isMobile = useIsMobile();
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onClick = (e) => {
+      // Ignore clicks inside the drawer or inside any header element (so tab
+      // toggles + the hamburger reach their own handlers without double-firing).
+      const t = e.target;
+      if (ref.current && ref.current.contains(t)) return;
+      if (t.closest && t.closest('header')) return;
+      onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    // Defer one frame so the click that opened the drawer doesn't immediately close it.
+    const id = requestAnimationFrame(() => document.addEventListener('click', onClick));
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      cancelAnimationFrame(id);
+      document.removeEventListener('click', onClick);
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div ref={ref} className="drawer" role="dialog" aria-modal="false">
+      {isMobile && (
+        <button className="drawer-close" onClick={onClose} aria-label="close">×</button>
+      )}
+      {children}
+    </div>);
+}
+
+// ── BENCH DRAWER (tab 01) ────────────────────────────────────────────────────
+// Stats row + the full anonymized bench teaser table. Names blurred. Dossier
+// hover panel still bleeds to the right edge of the viewport.
+function BenchDrawer({ accent, setActiveDrawer }) {
+  const { bench, stats } = useBench();
+  const labelStyle = { fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', textTransform: 'uppercase' };
+  return (
+    <div style={{ background: C.cream, color: C.ink, paddingBottom: 80 }}>
+      {/* Stats strip */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderBottom: `1px solid ${C.rule}`, background: C.paper }}>
+        {[
+          { n: stats.total,       l: 'in the directory',       sub: 'admitted by referral' },
+          { n: stats.availableNow,l: 'open for projects',      sub: 'this week' },
+          { n: stats.medianExp + 'yr', l: 'median experience', sub: 'range: 2–15 years' },
+          { n: stats.pastClients, l: 'past clients represented', sub: 'apple to zara' },
+        ].map((s, i) => (
+          <div key={i} style={{ padding: '20px 24px', borderRight: i < 3 ? `1px solid ${C.rule}` : 'none' }}>
+            <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,40px)', letterSpacing: '-0.025em', lineHeight: 1 }}>{s.n}</div>
+            <div style={{ ...labelStyle, marginTop: 10 }}>{s.l}</div>
+            <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+      {/* Caption */}
+      <div style={{ padding: '24px 40px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12 }}>
+        <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(24px,3vw,36px)', letterSpacing: '-0.02em' }}>the bench, anonymized.</h2>
+        <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>discipline · availability · region · rate visible. names locked.</span>
+      </div>
+      {/* Full teaser table — rows scroll within the drawer */}
+      <BenchTeaser accent={accent} bench={bench} />
+      {/* Bottom CTA */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '40px 20px 0', textAlign: 'center' }}>
+        <p style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>{stats.total} more behind the blur.</p>
+        <button onClick={() => setActiveDrawer('look')}
+          style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: 'none', padding: '14px 24px', cursor: 'pointer', borderRadius: 6 }}>
+          get a look →
+        </button>
+      </div>
+    </div>);
+}
+
 // ── HEADER ────────────────────────────────────────────────────────────────────
+// Tabs 01–04 are drawer toggles (the bench / build a bench / concierge / apply).
+// Tab 05 is a full-page takeover (access, gated by token).
 const TABS = [
-  ['dashboard', 'the directory', '#a8c4b8'], // sage teal
-  ['pricing',   'a look',        '#e8c478'], // warm cream/yellow
-  ['concierge', 'concierge',     '#c89090'], // dusty rose
-  ['apply',     'apply',         '#b8a8c8'], // soft lilac
-  ['access',    'members',       '#b8b878'], // olive
+  ['bench',     'the bench',      '#a8c4b8'], // sage teal — drawer
+  ['look',      'build a bench',  '#e8c478'], // warm cream/yellow — drawer
+  ['concierge', 'concierge',      '#c89090'], // dusty rose — drawer
+  ['apply',     'join the bench', '#b8a8c8'], // soft lilac — drawer
+  ['access',    'access',         '#b8b878'], // olive — full page
 ];
+const DRAWER_KEYS = new Set(['bench', 'look', 'concierge', 'apply']);
 
 function FolderTab({ n, label, color, active, onClick, isMobile, id }) {
   const height = active ? 38 : 32;
@@ -3262,11 +3364,32 @@ function MobileBriefBar({ page, setPage }) {
     </div>);
 }
 
-function Header({ page, setPage, accent }) {
+function Header({ page, activeDrawer, setActiveDrawer, setPage, accent }) {
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
-  const activeTab = TABS.find(([k]) => k === page);
-  const activeColor = activeTab ? activeTab[2] : null;
+
+  // What "active" means for highlighting:
+  //   - Tab 05 (access) is "active" when page === 'access'
+  //   - Tabs 01–04 are "active" when their key === activeDrawer
+  const isActiveTab = (key) =>
+    key === 'access' ? (page === 'access') : (activeDrawer === key);
+
+  // When access is the live page, dim the drawer tabs (the access state replaces the home stack).
+  const accessActive = page === 'access';
+
+  // Tab click router:
+  //   - 'access' → full-page navigation
+  //   - drawer tabs → toggle (close if active, open otherwise; switching is automatic)
+  //   - clicking the same drawer tab again closes the drawer
+  const onTabClick = (key) => {
+    if (key === 'access') { setPage('access'); return; }
+    if (DRAWER_KEYS.has(key)) {
+      setActiveDrawer(activeDrawer === key ? null : key);
+    }
+  };
+
+  const activeTabMeta = TABS.find(([k]) => isActiveTab(k));
+  const activeColor = activeTabMeta ? activeTabMeta[2] : null;
 
   if (isMobile) {
     return (
@@ -3284,16 +3407,15 @@ function Header({ page, setPage, accent }) {
             <span style={{ letterSpacing: '0.08em' }}>{open ? 'close' : 'menu'}</span>
           </button>
         </div>
-        {/* active color spine */}
-        {activeColor &&
-          <div style={{ height: 4, background: activeColor }} />
-        }
+        {activeColor && <div style={{ height: 4, background: activeColor }} />}
         {open &&
           <div style={{ borderTop: `1px solid ${C.rule}`, background: C.cream, padding: '8px 0 12px' }}>
             {TABS.map(([key, label, color], i) => {
-              const active = page === key;
+              const active = isActiveTab(key);
+              const dimmed = accessActive && key !== 'access';
               return (
-                <button key={key} onClick={() => { setPage(key); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', background: active ? color : 'transparent', border: 'none', borderLeft: `4px solid ${color}`, padding: '14px 20px', fontFamily: GM, fontSize: 13, color: C.ink, cursor: 'pointer', textAlign: 'left' }}>
+                <button key={key} onClick={() => { onTabClick(key); setOpen(false); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', background: active ? color : 'transparent', border: 'none', borderLeft: `4px solid ${color}`, padding: '14px 20px', fontFamily: GM, fontSize: 13, color: C.ink, opacity: dimmed ? 0.4 : 1, cursor: 'pointer', textAlign: 'left' }}>
                   <span style={{ fontFamily: GM, fontSize: 10, color: active ? C.ink : C.soft, letterSpacing: '0.1em', minWidth: 24 }}>{String(i + 1).padStart(2, '0')}</span>
                   <span style={{ fontWeight: active ? 600 : 500, letterSpacing: '0.04em' }}>{label}</span>
                 </button>);
@@ -3310,104 +3432,165 @@ function Header({ page, setPage, accent }) {
           colo<span style={{ color: accent }}>phon</span>
         </button>
         <nav style={{ display: 'flex', alignItems: 'flex-end', position: 'relative' }}>
-          {TABS.map(([key, label, color], i) =>
-            <FolderTab
-              key={key}
-              id={`nav-tab-${key}`}
-              n={String(i + 1).padStart(2, '0')}
-              label={label}
-              color={color}
-              active={page === key}
-              onClick={() => setPage(key)}
-              isMobile={false}
-            />
-          )}
+          {TABS.map(([key, label, color], i) => {
+            const active = isActiveTab(key);
+            const dimmed = accessActive && key !== 'access';
+            return (
+              <div key={key} style={{ opacity: dimmed ? 0.4 : 1, transition: 'opacity 0.15s ease' }}>
+                <FolderTab
+                  id={`nav-tab-${key}`}
+                  n={String(i + 1).padStart(2, '0')}
+                  label={label}
+                  color={color}
+                  active={active}
+                  onClick={() => onTabClick(key)}
+                  isMobile={false}
+                />
+              </div>);
+          })}
         </nav>
       </div>
       {/* base rule + colored spine for active tab */}
       <div style={{ height: 1, background: C.rule }} />
-      {activeColor &&
-        <div style={{ height: 3, background: activeColor }} />
-      }
+      {activeColor && <div style={{ height: 3, background: activeColor }} />}
     </header>);
 }
 
 // ── APP ───────────────────────────────────────────────────────────────────────
+// Two state axes:
+//   page         — full-page route ('home' | 'access' | 'admin' | 'invite' | 'success')
+//   activeDrawer — overlay drawer above the home content ('bench' | 'look' | 'concierge' | 'apply' | null)
+// /bench /look /concierge /apply all map to page='home' + a drawer; the home
+// hero/sections stay mounted underneath.
 function App() {
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  // Route from URL path on first load: /access /apply /look → matching page
-  // (legacy /pricing still resolves to /look for backwards compatibility)
-  const pathToPage = (path) => {
+
+  const pathToState = (path) => {
     const p = (path || '').replace(/\/$/, '').toLowerCase();
-    if (p === '/access') return 'access';
-    if (p === '/apply')  return 'apply';
-    if (p === '/look' || p === '/pricing') return 'pricing';
-    if (p === '/dashboard' || p === '/bench') return 'dashboard';
-    if (p === '/concierge') return 'concierge';
-    if (p === '/invite')   return 'invite';
-    if (p === '/admin')    return 'admin';
-    if (p === '/success')  return 'success';
-    return 'home';
+    if (p === '/access')   return { page: 'access',  drawer: null };
+    if (p === '/admin')    return { page: 'admin',   drawer: null };
+    if (p === '/invite')   return { page: 'invite',  drawer: null };
+    if (p === '/success')  return { page: 'success', drawer: null };
+    if (p === '/bench' || p === '/dashboard') return { page: 'home', drawer: 'bench' };
+    if (p === '/look'  || p === '/pricing')   return { page: 'home', drawer: 'look' };
+    if (p === '/concierge') return { page: 'home', drawer: 'concierge' };
+    if (p === '/apply')     return { page: 'home', drawer: 'apply' };
+    return { page: 'home', drawer: null };
   };
-  const pageToPath = (page) => {
-    if (page === 'home') return '/';
-    if (page === 'pricing') return '/look';
-    return `/${page}`;
+  const stateToPath = (page, drawer) => {
+    if (page !== 'home') return `/${page}`;
+    return drawer ? `/${drawer}` : '/';
   };
 
-  const [page, setPageState] = useState(() => typeof window !== 'undefined' ? pathToPage(window.location.pathname) : 'home');
+  const init = typeof window !== 'undefined' ? pathToState(window.location.pathname) : { page: 'home', drawer: null };
+  const [page, setPageState] = useState(init.page);
+  const [activeDrawer, setActiveDrawerState] = useState(init.drawer);
 
-  // Wrap setPage so internal nav also updates the URL (preserves any query string)
-  const setPage = (p) => {
-    setPageState(p);
-    if (typeof window !== 'undefined') {
-      const newPath = pageToPath(p);
-      if (window.location.pathname !== newPath) {
-        window.history.pushState({}, '', newPath + window.location.search);
-      }
+  const pushUrl = (page, drawer) => {
+    if (typeof window === 'undefined') return;
+    const newPath = stateToPath(page, drawer);
+    if (window.location.pathname !== newPath) {
+      window.history.pushState({}, '', newPath + window.location.search);
     }
   };
 
-  // Sync state to back/forward navigation
+  const setActiveDrawer = (drawer) => {
+    setActiveDrawerState(drawer);
+    if (drawer && page !== 'home') setPageState('home');
+    pushUrl(drawer ? 'home' : page, drawer);
+  };
+
+  // setPage — for full-page navigation (closes any drawer).
+  const setPage = (p) => {
+    // Treat 'pricing' / 'dashboard' as legacy aliases pointing at the drawer system.
+    if (p === 'pricing' || p === 'look') return setActiveDrawer('look');
+    if (p === 'dashboard' || p === 'bench') return setActiveDrawer('bench');
+    if (p === 'concierge') return setActiveDrawer('concierge');
+    if (p === 'apply') return setActiveDrawer('apply');
+    if (p === 'home') {
+      setPageState('home');
+      setActiveDrawerState(null);
+      pushUrl('home', null);
+      return;
+    }
+    setPageState(p);
+    setActiveDrawerState(null);
+    pushUrl(p, null);
+  };
+
+  // Sync to back/forward
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const onPop = () => setPageState(pathToPage(window.location.pathname));
+    const onPop = () => {
+      const s = pathToState(window.location.pathname);
+      setPageState(s.page);
+      setActiveDrawerState(s.drawer);
+    };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   // Per-route document.title
   useEffect(() => {
-    const titles = {
-      home:      'Colophon — The right person. Right now.',
-      apply:     'Colophon — Join the bench',
-      pricing:   'Colophon — Get a look',
-      access:    'Colophon — Access',
-      dashboard: 'Colophon — The bench',
+    const drawerTitles = {
+      bench:     'Colophon — The bench',
+      look:      'Colophon — Get a look',
       concierge: 'Colophon — Concierge',
-      invite:    'Colophon — Confirm your details',
-      admin:     'Colophon — Admin',
-      success:   'Colophon — Payment received',
+      apply:     'Colophon — Join the bench',
     };
-    document.title = titles[page] || 'Colophon';
-  }, [page]);
+    const pageTitles = {
+      home:    'Colophon — The right person. Right now.',
+      access:  'Colophon — Access',
+      invite:  'Colophon — Confirm your details',
+      admin:   'Colophon — Admin',
+      success: 'Colophon — Payment received',
+    };
+    document.title = (activeDrawer && drawerTitles[activeDrawer]) || pageTitles[page] || 'Colophon';
+  }, [page, activeDrawer]);
 
   const { variant, accent } = tweaks;
   const isMobile = useIsMobile();
-  const showBriefBar = isMobile && page !== 'concierge' && page !== 'invite' && page !== 'admin' && page !== 'success';
+  // Hide the mobile brief bar whenever any drawer is open or on form/utility pages
+  const showBriefBar = isMobile
+    && page !== 'invite' && page !== 'admin' && page !== 'success'
+    && activeDrawer !== 'concierge' && activeDrawer !== 'apply';
+
+  // Apply page's setPage(home) is used to auto-close after submit; in drawer mode
+  // we want it to close the drawer instead. Provide a wrapper for that case.
+  const closeDrawer = () => setActiveDrawer(null);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', paddingBottom: showBriefBar ? 60 : 0 }}>
-      <Header page={page} setPage={setPage} accent={accent} />
+      <Header page={page} activeDrawer={activeDrawer} setActiveDrawer={setActiveDrawer} setPage={setPage} accent={accent} />
+      {/* Full-page routes */}
       {page === 'home' && <HomePage setPage={setPage} accent={accent} variant={variant} />}
-      {page === 'apply' && <ApplyPage accent={accent} />}
-      {page === 'pricing' && <PricingPage setPage={setPage} accent={accent} />}
       {page === 'access' && <AccessPage accent={accent} setPage={setPage} />}
-      {page === 'dashboard' && <DashboardPage accent={accent} setPage={setPage} />}
-      {page === 'concierge' && <ConciergePage accent={accent} setPage={setPage} />}
       {page === 'invite' && <InvitePage accent={accent} setPage={setPage} />}
       {page === 'admin' && <AdminPage accent={accent} setPage={setPage} />}
       {page === 'success' && <SuccessPage accent={accent} setPage={setPage} />}
+
+      {/* Drawer overlays — only on home */}
+      {page === 'home' && (
+        <Drawer open={activeDrawer === 'bench'} onClose={closeDrawer}>
+          <BenchDrawer accent={accent} setActiveDrawer={setActiveDrawer} />
+        </Drawer>
+      )}
+      {page === 'home' && (
+        <Drawer open={activeDrawer === 'look'} onClose={closeDrawer}>
+          <PricingPage setPage={setPage} accent={accent} />
+        </Drawer>
+      )}
+      {page === 'home' && (
+        <Drawer open={activeDrawer === 'concierge'} onClose={closeDrawer}>
+          <ConciergePage accent={accent} setPage={setPage} />
+        </Drawer>
+      )}
+      {page === 'home' && (
+        <Drawer open={activeDrawer === 'apply'} onClose={closeDrawer}>
+          <ApplyPage accent={accent} onDone={() => setTimeout(closeDrawer, 3000)} />
+        </Drawer>
+      )}
+
       <Footer accent={accent} setPage={setPage} />
       {showBriefBar && <MobileBriefBar page={page} setPage={setPage} />}
       <TweaksPanel title="Tweaks">

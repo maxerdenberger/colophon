@@ -7,7 +7,8 @@
     { "path": "/api/ping", "schedule": "0 9 */20 * *" }
   ],
   "redirects": [
-    { "source": "/pricing", "destination": "/look", "permanent": true }
+    { "source": "/pricing",   "destination": "/look",  "permanent": true },
+    { "source": "/dashboard", "destination": "/bench", "permanent": true }
   ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
