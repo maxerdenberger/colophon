@@ -63,7 +63,7 @@
   "serviceType": "Creative talent marketplace",
   "description": "A directory of senior creative directors, art directors, designers, copywriters, and strategists, available for direct engagement. Membership by application; inclusion by referral and editor review.",
   "offers": [
-    { "@type": "Offer", "name": "day pass",   "price": "40",  "priceCurrency": "USD", "description": "24 hours of bench access" },
+    { "@type": "Offer", "name": "day pass",   "price": "42",  "priceCurrency": "USD", "description": "24 hours of bench access" },
     { "@type": "Offer", "name": "week pass",  "price": "82",  "priceCurrency": "USD", "description": "7 days of bench access" },
     { "@type": "Offer", "name": "month pass", "price": "349", "priceCurrency": "USD", "description": "30 days of bench access" }
   ]
@@ -305,7 +305,7 @@
   </ul>
   <h2>Membership</h2>
   <ul>
-    <li>day — $40</li>
+    <li>day — $42</li>
     <li>week — $82</li>
     <li>month — $349</li>
   </ul>
@@ -1988,6 +1988,10 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
   const [buyerEmail, setBuyerEmail] = useState('');
   const [serverCount, setServerCount] = useState(null);
   const [checkoutErr, setCheckoutErr] = useState('');
+  // Year tier is a contact-for-pricing path, not Stripe checkout. Tracks
+  // submit lifecycle: 'idle' | 'sending' | 'sent'.
+  const [yearStage, setYearStage] = useState('idle');
+  const [yearErr, setYearErr] = useState('');
 
   // Emit filter changes upward (BenchTeaser live-filters behind the drawer).
   useEffect(() => {
@@ -2108,8 +2112,12 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
   const matched = bench.filter(personMatches);
   const matchedAvail = matched.filter((p) => p.availability !== 'booked').length;
 
-  // week base = $82 → 4 filters × 10% off = 40% off → $82 × 0.6 = $49.20 → rounds to $49.
-  const PRICES = { day: 40, week: 82, month: 349 };
+  // Bases tuned so the 4-filter floor lands on a clean number:
+  //   day  $42 × 0.6 = $25.20 → $25
+  //   week $82 × 0.6 = $49.20 → $49
+  //   month $349 × 0.6 = $209.40 → $209
+  // Year is intentionally absent — handled as a contact-for-pricing tier.
+  const PRICES = { day: 42, week: 82, month: 349 };
   const MAX_DISCOUNTED_FILTERS = 4;
   const rawFilterCount = Object.values(filters).filter((arr) => arr.length > 0).length;
   const filterCount = Math.min(MAX_DISCOUNTED_FILTERS, rawFilterCount);
@@ -2127,6 +2135,37 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
     }, 250);
     return () => { clearTimeout(id); ctrl.abort(); };
   }, [filters]);
+
+  // Year tier — contact us. Builds a friendly summary of what they're
+  // looking for from current filters, drops it into Formspree.
+  const requestYearPricing = async () => {
+    if (!buyerName.trim() || !buyerEmail.trim()) {
+      setYearErr('add your name and email so we can get back to you.');
+      return;
+    }
+    setYearErr('');
+    setYearStage('sending');
+    const summary = Object.entries(filters)
+      .filter(([, arr]) => arr && arr.length)
+      .map(([k, arr]) => `${k}: ${arr.join(', ')}`)
+      .join(' · ') || '(no filters applied)';
+    const r = await submitForm({
+      source: 'year-tier-inquiry',
+      _subject: 'year tier — pricing request',
+      tier: 'year',
+      name:  buyerName.trim(),
+      email: buyerEmail.trim(),
+      filters: summary,
+      matched: matched.length,
+      filtersAvail: matchedAvail,
+    });
+    if (r && r.ok) {
+      setYearStage('sent');
+    } else {
+      setYearStage('idle');
+      setYearErr('something went wrong. write to hello@colophon.contact instead.');
+    }
+  };
 
   const checkout = async () => {
     if (!buyerName.trim() || !buyerEmail.trim()) {
@@ -2291,11 +2330,14 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
             ['day',   '24 hours'],
             ['week',  '7 days  \u00b7  most popular'],
             ['month', '30 days'],
+            ['year',  '365 days  \u00b7  enterprise'],
           ].map(([val, label]) => {
             const on = duration === val;
+            // Year is a contact tier - show 'request pricing' instead of $.
+            const tail = val === 'year' ? 'request pricing' : `$${priceFor(val)}`;
             return (
               <button key={val} onClick={() => setDuration(val)} style={optBtn}>
-                [{on ? '●' : ' '}]&nbsp;&nbsp;{label} — ${priceFor(val)}
+                [{on ? '●' : ' '}]&nbsp;&nbsp;{label} — {tail}
               </button>
             );
           })}
@@ -2316,16 +2358,44 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
           style={FIELD}
         />
 
-        <button onClick={checkout}
-          style={{ ...BUTTON_PRIMARY, marginTop: 32, width: '100%', textAlign: 'center', padding: '18px 24px' }}>
-          mint your bench — ${priceFor(duration)} →
-        </button>
-        {checkoutErr && (
-          <p style={{ fontFamily: GM, fontSize: 12, color: '#b04040', marginTop: 12 }}>{checkoutErr}</p>
+        {duration === 'year' ? (
+          <>
+            {yearStage === 'sent' ? (
+              <div style={{ marginTop: 32, padding: '18px 22px', border: `1px solid ${C.rule}`, background: '#fff', borderRadius: 6 }}>
+                <p style={{ fontFamily: GS, fontWeight: 700, fontSize: 18, letterSpacing: '-0.015em', marginBottom: 6 }}>
+                  got it.
+                </p>
+                <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.7 }}>
+                  we'll be in touch within a business day with a bespoke yearly arrangement scoped to your filters.
+                </p>
+              </div>
+            ) : (
+              <button onClick={requestYearPricing} disabled={yearStage === 'sending'}
+                style={{ ...BUTTON_PRIMARY, marginTop: 32, width: '100%', textAlign: 'center', padding: '18px 24px', opacity: yearStage === 'sending' ? 0.65 : 1, cursor: yearStage === 'sending' ? 'wait' : 'pointer' }}>
+                {yearStage === 'sending' ? 'sending…' : 'request pricing →'}
+              </button>
+            )}
+            {yearErr && (
+              <p style={{ fontFamily: GM, fontSize: 12, color: '#b04040', marginTop: 12 }}>{yearErr}</p>
+            )}
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 14, lineHeight: 1.6 }}>
+              annual access for studios + in-house teams. seat pricing scoped to your filters and headcount. we reply within a business day.
+            </p>
+          </>
+        ) : (
+          <>
+            <button onClick={checkout}
+              style={{ ...BUTTON_PRIMARY, marginTop: 32, width: '100%', textAlign: 'center', padding: '18px 24px' }}>
+              mint your bench — ${priceFor(duration)} →
+            </button>
+            {checkoutErr && (
+              <p style={{ fontFamily: GM, fontSize: 12, color: '#b04040', marginTop: 12 }}>{checkoutErr}</p>
+            )}
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 14, lineHeight: 1.6 }}>
+              a private view of the directory will be issued in your name. no markup, no placement fee.
+            </p>
+          </>
         )}
-        <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 14, lineHeight: 1.6 }}>
-          a private view of the directory will be issued in your name. no markup, no placement fee.
-        </p>
       </div>
     </div>
   );
@@ -4516,7 +4586,7 @@ function LookDrawer({ accent, setPage }) {
           { n: stats.total,       l: 'in the directory',    sub: 'all senior, all referred' },
           { n: '5',               l: 'filters to narrow',   sub: 'discipline · avail · region · level · rate' },
           { n: 'up to 40%',       l: 'off all passes',      sub: '10% per filter, stacked' },
-          { n: '$40',             l: 'single-day pass',     sub: 'weekly + monthly available' },
+          { n: '$42',             l: 'single-day pass',     sub: 'weekly + monthly available' },
         ].map((s, i) => (
           <div key={i} style={{ padding: '20px 24px', borderRight: i < 3 ? `1px solid ${C.rule}` : 'none' }}>
             <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,40px)', letterSpacing: '-0.025em', lineHeight: 1 }}>{s.n}</div>
@@ -4749,43 +4819,53 @@ function AccessModal({ active, onClose, setActiveDrawer }) {
     window.location.href = `/access?token=${encodeURIComponent(v)}`;
   };
 
+  // Full-page blue flood. No drawer card, no backdrop blur — the access
+  // tab takes over the whole viewport with the entry input centered. Same
+  // copy, same submit logic, same close-on-ESC.
   return (
     <div
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className="drawer-tinted"
       style={{
         position: 'fixed',
         inset: 0,
         zIndex: 200,
-        background: 'rgba(13,13,11,0.45)',
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
+        background: TAB_ACCESS,
+        color: C.ink,
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 24,
+        padding: '40px 24px',
       }}>
-      <div className="drawer-tinted" style={{
-        background: TAB_ACCESS,
-        borderRadius: 14,
-        boxShadow: '0 30px 80px rgba(0,0,0,0.35)',
-        padding: '44px 52px',
-        width: '100%',
-        maxWidth: 520,
-        color: C.ink,
-      }}>
-        <h2 style={{ fontFamily: GS, fontStyle: 'italic', fontWeight: 500, fontSize: 'clamp(28px,3vw,42px)', letterSpacing: '-0.02em', marginBottom: 12, lineHeight: 1.05 }}>
+      {/* Top-right dismiss — replaces the missing backdrop click. */}
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="close"
+        style={{
+          position: 'absolute', top: 18, right: 22,
+          background: 'transparent', border: 'none',
+          cursor: 'pointer',
+          fontFamily: GM, fontSize: 16, lineHeight: 1,
+          color: 'rgba(0,0,0,0.55)',
+          padding: 8,
+        }}>
+        ×
+      </button>
+      <div style={{ width: '100%', maxWidth: 520, textAlign: 'center' }}>
+        <h2 style={{ fontFamily: GS, fontStyle: 'italic', fontWeight: 500, fontSize: 'clamp(32px,3.6vw,52px)', letterSpacing: '-0.02em', marginBottom: 14, lineHeight: 1.05 }}>
           the bench, unlocked.
         </h2>
-        <p style={{ fontFamily: GM, fontSize: 12, color: 'rgba(0,0,0,0.7)', marginBottom: 24, letterSpacing: '0.04em' }}>
+        <p style={{ fontFamily: GM, fontSize: 12, color: 'rgba(0,0,0,0.7)', marginBottom: 28, letterSpacing: '0.04em' }}>
           enter an access code to open the directory.
         </p>
-        <form onSubmit={submit} style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <form onSubmit={submit} style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap', justifyContent: 'center' }}>
           <input
             autoFocus
             value={code}
             onChange={(e) => setCode(e.target.value)}
             placeholder="access code"
-            style={{ ...FIELD, flex: '1 1 200px' }}
+            style={{ ...FIELD, flex: '1 1 220px', textAlign: 'center' }}
           />
           <button type="submit" disabled={submitting || !code.trim()} style={{ ...BUTTON_PRIMARY, opacity: (submitting || !code.trim()) ? 0.5 : 1 }}>
             {submitting ? '…' : 'open →'}
