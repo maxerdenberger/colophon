@@ -1173,6 +1173,10 @@ const INK_55 = 'rgba(13,13,11,0.55)';
 const INK_38 = 'rgba(13,13,11,0.38)';
 
 function BenchTeaser({ accent, bench: benchProp, activeFilters, onRowClick, onHoverChange }) {
+  // Matrix-style scramble across the whole bench every 40–90s when no
+  // filters are active. Bumping a tick that's wired into every row's
+  // Scramble runKey causes them all to re-animate at once.
+  const [matrixTick, setMatrixTick] = useState(0);
   const allRows = benchProp || BENCH;
   // STEP 2 — live filtering driven by the open drawer's filter state.
   // When activeFilters is null/empty → show every row. When any filter has
@@ -1209,6 +1213,24 @@ function BenchTeaser({ accent, bench: benchProp, activeFilters, onRowClick, onHo
   const [hovered, setHovered] = useState(null);
   const COLS = '36px 2fr 1.4fr 60px 90px 110px';
 
+  // Trigger a matrix scramble every 40–90s when bench is static.
+  const isFilterActive = !!(activeFilters && Object.values(activeFilters).some(
+    (v) => Array.isArray(v) && v.length > 0
+  ));
+  useEffect(() => {
+    if (isFilterActive) return;
+    let timer;
+    const tick = () => {
+      const wait = (40 + Math.random() * 50) * 1000;   // 40s–90s
+      timer = setTimeout(() => {
+        setMatrixTick((t) => t + 1);
+        tick();
+      }, wait);
+    };
+    tick();
+    return () => clearTimeout(timer);
+  }, [isFilterActive]);
+
   // Bubble hover changes upward — the bench drawer reads them to swap its
   // content between the "how we decide" criteria and the dossier card.
   const handleEnter = (p) => {
@@ -1230,7 +1252,7 @@ function BenchTeaser({ accent, bench: benchProp, activeFilters, onRowClick, onHo
         </div>
         {rows.map((p, i) => {
           const isH = hovered === p.id;
-          const rk = `${p.id}-${isH ? 1 : 0}`;
+          const rk = `${p.id}-${isH ? 1 : 0}-${matrixTick}`;
           const d = i * 80;
           return (
             <div
@@ -2975,6 +2997,167 @@ function SuccessPage({ accent, setPage }) {
 // Client-side admin gate. The same secret is also passed as Bearer to
 // /api/send-invites — keep ADMIN_SECRET on Vercel matched to this value.
 const ADMIN_PW = '590Rossmore';
+
+// Live numbers off the in-memory bench — total / available / median yoe /
+// past clients / discipline breakdown / region split.
+function AdminStatsPanel({ accent }) {
+  const { stats, bench } = useBench();
+  const REGIONS = [
+    { key: 'americas',     label: 'americas',       offsetMin: -12, offsetMax: -3 },
+    { key: 'europe-africa',label: 'europe / africa',offsetMin: -2,  offsetMax: 3  },
+    { key: 'asia-pacific', label: 'asia / pacific', offsetMin: 4,   offsetMax: 12 },
+  ];
+  const tzOffset = (tz) => parseInt((tz || '').replace(/UTC|−/g, (m) => m === 'UTC' ? '' : '-')) || 0;
+  const regionFor = (tz) => REGIONS.find((r) => { const o = tzOffset(tz); return o >= r.offsetMin && o <= r.offsetMax; });
+  const byRegion = REGIONS.map((r) => ({ ...r, count: bench.filter((p) => regionFor(p.tz)?.key === r.key).length }));
+  const tile = (n, label, sub) => (
+    <div style={{ padding: '18px 20px', borderRight: `1px solid ${C.rule}` }}>
+      <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 30, letterSpacing: '-0.045em', lineHeight: 1 }}>{n}</div>
+      <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 8 }}>{label}</div>
+      {sub && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+  return (
+    <div style={{ marginTop: 22, marginBottom: 32, border: `1px solid ${C.rule}`, background: C.paper }}>
+      <div style={{ padding: '10px 20px', borderBottom: `1px solid ${C.rule}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#5a8d5a' }} />
+        <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.ink }}>bench · live</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        {tile(stats.total, 'in directory', 'public total (post-holdback)')}
+        {tile(stats.availableNow, 'available now', 'this week')}
+        {tile(stats.medianExp + 'yr', 'median exp', 'range: 2–15 yrs')}
+        {tile(stats.pastClients, 'past clients', 'unique brands')}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: `1px solid ${C.rule}` }}>
+        {byRegion.map((r, i) => (
+          <div key={r.key} style={{ padding: '14px 20px', borderRight: i < 2 ? `1px solid ${C.rule}` : 'none' }}>
+            <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 6 }}>{r.label}</div>
+            <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em' }}>{r.count}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminQuickLinks() {
+  const Item = ({ href, label, sub }) => (
+    <a href={href} target="_blank" rel="noreferrer"
+      style={{ display: 'block', padding: '12px 16px', border: `1px solid ${C.rule}`, color: C.ink, fontFamily: GM, fontSize: 12, textDecoration: 'none', background: '#fff' }}>
+      <div style={{ fontWeight: 600 }}>{label} →</div>
+      {sub && <div style={{ fontSize: 10, color: C.soft, marginTop: 2 }}>{sub}</div>}
+    </a>
+  );
+  return (
+    <div style={{ marginBottom: 32 }}>
+      <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>quick links</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
+        <Item href="https://dashboard.stripe.com/payments" label="stripe payments" sub="checkouts + subs" />
+        <Item href="https://docs.google.com/spreadsheets/d/e/2PACX-1vTxk39b5nWFUyQ_1vU0JdVufD2xkyG-RJepoFzv8_P_OIm_3CM21FmZTOXGMuscST6_7kpXruKt1_Rt/pubhtml" label="bench sheet" sub="csv source of truth" />
+        <Item href="https://vercel.com" label="vercel" sub="deploys + logs + env" />
+        <Item href="https://formspree.io/forms" label="formspree" sub="all form submissions" />
+        <Item href="https://github.com/maxerdenberger/colophon" label="github" sub="main branch" />
+        <Item href="/access" label="access page" sub="token entry view" />
+      </div>
+    </div>
+  );
+}
+
+// Fires test submissions through every public form path so admin can verify
+// the wiring without walking the public flows.
+function AdminTestFlows({ secret }) {
+  const [log, setLog] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const TEST_EMAIL = 'merdenberger@gmail.com';
+  const append = (line) => setLog((l) => [...l, `${new Date().toLocaleTimeString()} · ${line}`]);
+
+  const run = async (label, fn) => {
+    setBusy(true);
+    append(`→ ${label} …`);
+    try { await fn(); append(`✓ ${label}`); }
+    catch (ex) { append(`✗ ${label} — ${ex.message || ex}`); }
+    finally { setBusy(false); }
+  };
+
+  const tests = [
+    ['talent application',
+      () => submitForm({
+        name: 'TEST · Max Erdenberger', email: TEST_EMAIL,
+        portfolio: 'https://example.com', linkedin: 'https://linkedin.com/in/test',
+        disciplines: 'art direction', categories: 'Brand Identity / Strategy',
+        availability: 'Immediate', hourlyRate: '$200/hr', minFee: '$10,000',
+        source: 'admin-test-apply-bench', _subject: 'TEST · bench application',
+      })],
+    ['concierge brief',
+      () => submitForm({
+        name: 'TEST · Max Erdenberger', email: TEST_EMAIL,
+        company: 'Test Studio', brief: 'admin self-test of the concierge brief flow.',
+        timing: 'this week', budget: '$25–50k',
+        source: 'admin-test-concierge-brief', _subject: 'TEST · concierge brief',
+      })],
+    ['concierge upsell (build wizard)',
+      () => fetch('/api/lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ what: 'admin self-test concierge upsell', email: TEST_EMAIL, source: 'admin-test-concierge-upsell' }),
+      }).then((r) => { if (!r.ok) throw new Error('lead ' + r.status); })],
+    ['founder intake',
+      () => submitForm({
+        name: 'TEST · Max Erdenberger', email: TEST_EMAIL,
+        company: 'Test Studio', role: 'Founder',
+        what: 'admin self-test of founder intake', frequency: 'monthly',
+        source: 'admin-test-founder-intake', _subject: 'TEST · founder intake',
+      })],
+    ['newsletter',
+      () => submitForm({
+        email: TEST_EMAIL,
+        source: 'admin-test-newsletter', _subject: 'TEST · newsletter signup',
+      })],
+    ['home / footer brief',
+      () => submitForm({
+        what: 'admin self-test of the home-page brief', email: TEST_EMAIL,
+        source: 'admin-test-home-brief', _subject: 'TEST · home brief',
+      })],
+    ['referral invite (existing person)',
+      () => fetch('/api/send-invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify([{ name: 'Maria Lopez', email: TEST_EMAIL, referrer: 'Max Erdenberger', discipline: 'art direction' }]),
+      }).then((r) => { if (!r.ok) throw new Error('invite ' + r.status); })],
+  ];
+
+  const runAll = async () => {
+    setLog([]);
+    for (const [label, fn] of tests) await run(label, fn);
+    append('— done —');
+  };
+
+  return (
+    <div style={{ marginBottom: 36, border: `1px solid ${C.rule}`, padding: 18, background: '#fff' }}>
+      <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 8 }}>test flows</p>
+      <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 14, lineHeight: 1.6 }}>
+        Sends a test submission down each public form path. All payloads tagged <code>admin-test-*</code> and addressed to <code>{TEST_EMAIL}</code>.
+      </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        <button onClick={runAll} disabled={busy}
+          style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: 'none', padding: '12px 22px', cursor: busy ? 'wait' : 'pointer', borderRadius: 6 }}>
+          {busy ? 'running…' : 'run all →'}
+        </button>
+        {tests.map(([label, fn]) => (
+          <button key={label} onClick={() => run(label, fn)} disabled={busy}
+            style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.04em', background: 'transparent', color: C.ink, border: `1px solid ${C.rule}`, padding: '11px 16px', cursor: busy ? 'wait' : 'pointer', borderRadius: 6 }}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {log.length > 0 && (
+        <pre style={{ fontFamily: GM, fontSize: 11, color: C.ink, background: C.paper, padding: 12, borderRadius: 4, lineHeight: 1.55, whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto' }}>{log.join('\\n')}</pre>
+      )}
+    </div>
+  );
+}
+
 function AdminPage({ accent, setPage }) {
   const [secret, setSecret] = useState('');
   const [authed, setAuthed] = useState(false);
@@ -3120,14 +3303,24 @@ function AdminPage({ accent, setPage }) {
 
   return (
     <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 60px)' }}>
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: '40px 32px 80px' }}>
+      <div style={{ maxWidth: 880, margin: '0 auto', padding: '40px 32px 80px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-          <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 28, letterSpacing: '-0.02em' }}>admin · invites</h2>
+          <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 28, letterSpacing: '-0.02em' }}>admin · console</h2>
           <button onClick={() => { try { sessionStorage.removeItem('colophon_admin_secret'); } catch {} setAuthed(false); setSecret(''); }}
             style={{ fontFamily: GM, fontSize: 10, color: C.soft, background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
             sign out
           </button>
         </div>
+
+        {/* ── Live stats — derived from the in-memory bench. ───────────── */}
+        <AdminStatsPanel accent={accent} />
+
+        {/* ── Quick links ──────────────────────────────────────────────── */}
+        <AdminQuickLinks />
+
+        {/* ── Test flows — fire test submissions to each public form. ──── */}
+        <AdminTestFlows secret={secret} />
+
         <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.7, marginBottom: 22 }}>
           Sends a referral email via <code>/api/send-invites</code>. The recipient gets a message from <code>bench@colophon.contact</code> with subject <em>“{'{referrer}'} recommended you to Colophon.”</em> and a link to /invite.
         </p>
@@ -3771,7 +3964,7 @@ function MobileBriefBar({ page, setPage }) {
     </div>);
 }
 
-function Header({ page, activeDrawer, setActiveDrawer, setPage, accent }) {
+function Header({ page, activeDrawer, setActiveDrawer, setPage, accent, onTabHover }) {
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
 
@@ -3838,7 +4031,9 @@ function Header({ page, activeDrawer, setActiveDrawer, setPage, accent }) {
             const active = isActiveTab(key);
             const dimmed = accessActive && key !== 'access';
             return (
-              <div key={key} style={{ opacity: dimmed ? 0.4 : 1, transition: 'opacity 0.15s ease' }}>
+              <div key={key}
+                onMouseEnter={() => onTabHover && onTabHover(key)}
+                style={{ opacity: dimmed ? 0.4 : 1, transition: 'opacity 0.15s ease' }}>
                 <FolderTab
                   id={`nav-tab-${key}`}
                   n={String(i + 1).padStart(2, '0')}
@@ -4006,9 +4201,26 @@ function App() {
   // we want it to close the drawer instead. Provide a wrapper for that case.
   const closeDrawer = () => setActiveDrawer(null);
 
+  // When the bench drawer (01) or build drawer (02) opens — or when their
+  // tabs are hovered — slide the page underneath to put the bench teaser
+  // in view, so the user always sees the live-filtering bench beside the
+  // drawer rather than empty space.
+  const scrollToBench = () => {
+    const el = document.getElementById('bench');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  useEffect(() => {
+    if (activeDrawer === 'bench' || activeDrawer === 'look') {
+      requestAnimationFrame(() => requestAnimationFrame(scrollToBench));
+    }
+  }, [activeDrawer]);
+  const onTabHover = (key) => {
+    if (key === 'bench' || key === 'look') scrollToBench();
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', paddingBottom: showBriefBar ? 60 : 0 }}>
-      <Header page={page} activeDrawer={activeDrawer} setActiveDrawer={setActiveDrawer} setPage={setPage} accent={accent} />
+      <Header page={page} activeDrawer={activeDrawer} setActiveDrawer={setActiveDrawer} setPage={setPage} accent={accent} onTabHover={onTabHover} />
 
       {/* Drawers float above the always-mounted bench. */}
       <Drawer id="bench" active={activeDrawer} color={TAB_SAGE} onClose={closeDrawer}>
