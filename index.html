@@ -1614,6 +1614,15 @@ function Footer({ accent, setPage }) {
 }
 
 // ── HOME PAGE ─────────────────────────────────────────────────────────────────
+// Hero label rotation. Picked once per page load, used everywhere the
+// hero pill renders. Avoids "CPH" (unclear) and "senior" (per direction).
+const HERO_LABELS = [
+  'the most creative freelancers, available now.',
+  'a living directory of the top freelance creatives.',
+  'the top 1% of freelance talent — reachable, by referral.',
+  'the best independent creatives, on one page.',
+];
+
 function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHoverChange }) {
   const { bench: liveBench, stats, loading } = useBench();
   // Live drop — bench numbers tick down a few times after the page
@@ -1622,6 +1631,8 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
   const drop = useLiveDrop({ max: 4 });
   const total = Math.max(0, stats.total - drop);
   const avail = Math.max(0, stats.availableNow - Math.ceil(drop * 0.66));
+  // Stable for the session — useMemo with [] so refresh = new pick.
+  const heroLabel = React.useMemo(() => HERO_LABELS[Math.floor(Math.random() * HERO_LABELS.length)], []);
   const isBold = variant === 'bold';
   // STEP 6 — when a drawer's filters are active, expand the teaser cap so
   // there's a useful population to filter against. Otherwise keep the static
@@ -1677,7 +1688,7 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
           {variant === 'wild' ?
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', alignItems: 'end' }}>
               <div>
-                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: C.soft, marginBottom: 18 }}>cph / 001</p>
+                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: C.soft, marginBottom: 18, textTransform: 'uppercase' }}>{heroLabel}</p>
                 <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(56px,9vw,128px)', lineHeight: 0.87, letterSpacing: '-0.045em', marginBottom: 32 }}>
                   the <span style={{ borderBottom: `4px solid ${accent}`, borderTopStyle: "none", borderRightStyle: "none", borderLeftStyle: "none" }}>right</span> person.<br />right now
                 </h1>
@@ -1698,7 +1709,7 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
           isBold ?
           <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
-                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: C.soft }}>CPH / 001 — a standing directory of independent senior creatives.</p>
+                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: C.soft, textTransform: 'uppercase' }}>{heroLabel}</p>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, border: `1px solid ${C.rule}`, background: C.paper, fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', color: C.ink }}>
                   <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#5a8d5a' }} />
                   est. {total} humans
@@ -1719,7 +1730,7 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'end' }}>
               <div>
-                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: C.soft, marginBottom: 20 }}>CPH / 001 — a standing directory of independent senior creatives.</p>
+                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: C.soft, marginBottom: 20, textTransform: 'uppercase' }}>{heroLabel}</p>
                 <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(44px,7vw,96px)', lineHeight: 0.92, letterSpacing: '-0.035em', marginBottom: 8 }}>
                   the <span style={{ color:'#ff5100' }}>right</span> person.
                 </h1>
