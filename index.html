@@ -1709,7 +1709,9 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
 
   const iS = { ...FIELD };
   const lS = { ...FIELD_LABEL };
-  const sH = { fontFamily: GS, fontWeight: 600, fontSize: 18, letterSpacing: '-0.01em', marginBottom: 18, marginTop: 40, paddingTop: 32, borderTop: `1px solid rgba(0,0,0,0.25)` };
+  // Section header — bold is enough; no borders, no padding-top. Vertical
+  // rhythm matches the build wizard's group headers (~32 top, ~12 bottom).
+  const sH = { fontFamily: GS, fontWeight: 700, fontSize: 18, letterSpacing: '-0.015em', marginBottom: 12, marginTop: 32 };
 
   if (done) return (
     <div style={{ background: isDrawer ? 'transparent' : C.cream, minHeight: isDrawer ? 'auto' : '80vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: isDrawer ? '60px 40px' : 40, textAlign: 'center' }}>
@@ -1743,8 +1745,8 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
           });
           setDone(true);
           if (typeof onDone === 'function') onDone();
-        }} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <h3 style={{ ...sH, marginTop: 0, paddingTop: 0, borderTop: 'none' }}>about you</h3>
+        }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <h3 style={{ ...sH, marginTop: 0 }}>about you</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
             <div><label style={lS}>full name</label><input style={iS} value={form.name} onChange={set('name')} required /></div>
             <div><label style={lS}>email</label><input type="email" style={iS} value={form.email} onChange={set('email')} required /></div>
