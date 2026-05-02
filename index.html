@@ -561,7 +561,8 @@ function parseSheetCSV(text) {
   return lines.slice(1).map((line, i) => {
     const row = parseRow(line);
     const rawAvail = (row[AVAIL_IDX] || '').toLowerCase();
-    const availability = rawAvail.includes('immediate') || rawAvail.includes('available now') ? 'available'
+    const availability = rawAvail.includes('right thing') || rawAvail.includes('selective') ? 'selective'
+                       : rawAvail.includes('immediate') || rawAvail.includes('available now') ? 'available'
                        : rawAvail.includes('waitlist')  ? 'booked'
                        : 'soon';
     const note = (row[NOTE_IDX] || '').toLowerCase().slice(0, 130);
@@ -615,6 +616,8 @@ function parseSheetCSV(text) {
     // Partners column (hypothetical idx 17). Comma/semicolon/newline-separated
     // emails; empty by default until the post-launch follow-up email runs.
     const partners = (row[17] || '').split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
+    const statusRaw = (row[18] || '').toLowerCase().trim();
+    const status = statusRaw === 'cold' ? 'cold' : 'active';
     return {
       id: i+1, name, realName, firstName, emailRaw, emailEnc, portfolio, linkedin, updatedAt,
       discipline: disc, disciplines: disciplinesFinal, rawDisciplines, availability, hourlyRate,
@@ -623,9 +626,10 @@ function parseSheetCSV(text) {
       clients: clients.length ? clients : ['portfolio available'],
       note,
       partners,
+      status,
       paused: false, legend: false,  // admin-toggleable; persisted via /api/bench-update
     };
-  }).filter(Boolean);
+  }).filter(Boolean).filter((p) => p.status !== 'cold');
 }
 
 // ── DERIVED COUNTS ────────────────────────────────────────────────────────────
@@ -724,8 +728,8 @@ function useBench() {
 }
 
 
-const AVAIL_DOT = { available: '#2a8a3a', soon: '#c87c18', booked: '#b04040' };
-const AVAIL_LBL = { available: 'now', soon: '1–2w', booked: '—' };
+const AVAIL_DOT = { available: '#2a8a3a', soon: '#c87c18', booked: '#b04040', selective: '#B8A8D4' };
+const AVAIL_LBL = { available: 'now', soon: '1–2w', booked: '—', selective: 'selective' };
 
 // ── OPPORTUNITIES ─────────────────────────────────────────────────────────────
 const OPPS = [
@@ -768,7 +772,7 @@ const OPPS = [
 // ── FORM OPTIONS ──────────────────────────────────────────────────────────────
 const DISCIPLINES = ['Art Direction', 'Creative Direction', 'Design Leadership', 'Copywriting', 'Brand Strategy', 'Motion Design', 'UX / Content Design', 'Strategy', 'Other (specify below)'];
 const EXP_LEVELS = ['Junior / Mid-level (1–3 years)', 'Senior (4–7 years)', 'Lead / Principal (8–12 years)', 'Executive / Veteran (12+ years)'];
-const AVAIL_OPTS = ['Immediate (ready to start within 1 week)', '2–4 Weeks Out', 'Waitlist Only (currently booked)'];
+const AVAIL_OPTS = ['Immediate (ready to start within 1 week)', '2–4 Weeks Out', 'Available for the right thing', 'Waitlist Only (currently booked)'];
 const CATEGORIES = ['Brand Identity / Strategy', 'Campaign / Advertising', 'Content Strategy & Copy', 'Motion Graphics / Animation', 'Website / Digital Product (UI/UX)', 'Experiential / Environmental', 'Film / Directing', 'Photography', 'Other'];
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -1912,6 +1916,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
     { key: 'avail', letter: 'B', label: 'availability', options: [
       ['available', 'available now'],
       ['soon',      'available in 1\u20132 weeks'],
+      ['selective', 'available for the right thing'],
       ['booked',    'available next quarter'],
     ] },
     { key: 'experience', letter: 'C', label: 'experience', options: [
@@ -4355,6 +4360,7 @@ function BenchDrawerContent({ hoveredCreative, seedAndOpenLook }) {
           ['02', 'REFERENCE',  'one unprompted "yes, hire them" from someone whose taste we trust.', null],
           ['03', 'SENIORITY',  'senior-band pricing. senior-band judgment. junior rates are a signal we read.', 'junior'],
           ['04', 'PRESENCE',   'current portfolio. responsive within 48 hours. shows up to the work.', null],
+          ['05', 'CURRENCY',   'every profile is confirmed within 100 days. stale availability goes to cold storage. what you see is current.', null],
         ].map(([n, t, d, egg]) => (
           <div key={n} style={{ padding: '14px 0', borderTop: '1px solid rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 6 }}>
