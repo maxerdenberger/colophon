@@ -316,6 +316,55 @@ const GM = "'IBM Plex Mono', monospace";
 const RAD = '8px';   // rounded rectangles — buttons, tiles, inputs
 const RAD_SM = '4px';
 
+// ── GLOBAL FIELD + BUTTON TOKENS ─────────────────────────────────────────────
+// One source of truth for inputs/textareas/selects/buttons across every
+// drawer + form. Local styles spread over these so a callsite can override
+// width or padding without diverging from the rest.
+const FIELD = {
+  width: '100%',
+  background: 'rgba(255,255,255,0.5)',
+  border: `1.5px solid rgba(0,0,0,0.55)`,
+  borderRadius: 8,
+  padding: '14px 16px',
+  fontFamily: GM,
+  fontSize: 14,
+  color: C.ink,
+  outline: 'none',
+  textTransform: 'none',
+};
+const FIELD_LABEL = {
+  display: 'block',
+  fontFamily: GM,
+  fontSize: 11,
+  letterSpacing: '0.08em',
+  color: C.ink,
+  marginBottom: 8,
+  textTransform: 'uppercase',
+  opacity: 0.78,
+};
+const BUTTON_PRIMARY = {
+  fontFamily: GM,
+  fontSize: 12,
+  letterSpacing: '0.08em',
+  background: C.ink,
+  color: C.cream,
+  border: `1px solid ${C.ink}`,
+  borderRadius: 8,
+  padding: '15px 24px',
+  cursor: 'pointer',
+};
+const BUTTON_SECONDARY = {
+  fontFamily: GM,
+  fontSize: 11,
+  letterSpacing: '0.08em',
+  background: 'transparent',
+  color: C.ink,
+  border: `1px solid rgba(0,0,0,0.55)`,
+  borderRadius: 8,
+  padding: '13px 22px',
+  cursor: 'pointer',
+};
+
 // Standardized page header — same eyebrow size, position, h1 size on every page.
 // `n` = section number (matches folder-tab number, e.g. "01"); `label` = eyebrow text.
 function PageHeader({ n, label, headline, sub, accent }) {
@@ -1497,9 +1546,9 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const toggle = (list, fn, v) => fn((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]);
 
-  const iS = { width: '100%', background: 'rgba(255,255,255,0.65)', border: `1px solid ${C.rule}`, padding: '11px 14px', fontFamily: GM, fontSize: 13, color: C.ink, outline: 'none', borderRadius: 0, textTransform: 'none' };
-  const lS = { display: 'block', fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', color: C.soft, marginBottom: 7 };
-  const sH = { fontFamily: GS, fontWeight: 600, fontSize: 18, letterSpacing: '-0.01em', marginBottom: 18, marginTop: 40, paddingTop: 32, borderTop: `1px solid ${C.rule}` };
+  const iS = { ...FIELD };
+  const lS = { ...FIELD_LABEL };
+  const sH = { fontFamily: GS, fontWeight: 600, fontSize: 18, letterSpacing: '-0.01em', marginBottom: 18, marginTop: 40, paddingTop: 32, borderTop: `1px solid rgba(0,0,0,0.25)` };
 
   if (done) return (
     <div style={{ background: isDrawer ? 'transparent' : C.cream, minHeight: isDrawer ? 'auto' : '80vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: isDrawer ? '60px 40px' : 40, textAlign: 'center' }}>
@@ -1533,9 +1582,9 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
           });
           setDone(true);
           if (typeof onDone === 'function') onDone();
-        }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        }} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <h3 style={{ ...sH, marginTop: 0, paddingTop: 0, borderTop: 'none' }}>about you</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
             <div><label style={lS}>full name</label><input style={iS} value={form.name} onChange={set('name')} required /></div>
             <div><label style={lS}>email</label><input type="email" style={iS} value={form.email} onChange={set('email')} required /></div>
           </div>
@@ -1545,9 +1594,9 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
           <h3 style={sH}>your work</h3>
           <div>
             <label style={lS}>primary creative discipline(s)</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {DISCIPLINES.map((d) =>
-              <label key={d} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: GM, fontSize: 11, color: C.ink, cursor: 'pointer', padding: '8px 12px', border: `1px solid ${disciplines.includes(d) ? C.ink : C.rule}`, background: disciplines.includes(d) ? C.paper : 'transparent' }}>
+              <label key={d} style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: GM, fontSize: 11, color: C.ink, cursor: 'pointer', padding: '12px 14px', borderRadius: 8, border: `1.5px solid ${disciplines.includes(d) ? C.ink : 'rgba(0,0,0,0.35)'}`, background: disciplines.includes(d) ? 'rgba(255,255,255,0.55)' : 'transparent' }}>
                   <input type="checkbox" checked={disciplines.includes(d)} onChange={() => toggle(disciplines, setDisciplines, d)} style={{ flexShrink: 0 }} /> {d}
                 </label>
               )}
@@ -1563,9 +1612,9 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
           </div>
           <div>
             <label style={lS}>project categories — strongest expertise</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {CATEGORIES.map((c) =>
-              <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: GM, fontSize: 11, color: C.ink, cursor: 'pointer', padding: '8px 12px', border: `1px solid ${categories.includes(c) ? C.ink : C.rule}`, background: categories.includes(c) ? C.paper : 'transparent' }}>
+              <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: GM, fontSize: 11, color: C.ink, cursor: 'pointer', padding: '12px 14px', borderRadius: 8, border: `1.5px solid ${categories.includes(c) ? C.ink : 'rgba(0,0,0,0.35)'}`, background: categories.includes(c) ? 'rgba(255,255,255,0.55)' : 'transparent' }}>
                   <input type="checkbox" checked={categories.includes(c)} onChange={() => toggle(categories, setCategories, c)} style={{ flexShrink: 0 }} /> {c}
                 </label>
               )}
@@ -1581,7 +1630,7 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
               {AVAIL_OPTS.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
             <div><label style={lS}>preferred hourly rate (usd)</label><input style={iS} value={form.hourlyRate} onChange={set('hourlyRate')} placeholder="e.g. $150/hr" /></div>
             <div><label style={lS}>minimum project fee (usd)</label><input style={iS} value={form.minFee} onChange={set('minFee')} placeholder="e.g. $5,000" /></div>
           </div>
@@ -1605,13 +1654,13 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
           <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.7, marginTop: -8, marginBottom: 8 }}>
             name one client, brand, or studio that should have access to the bench. we'll reach out.
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 18 }}>
             <div><label style={lS}>their name</label><input style={iS} value={form.buyerName} onChange={set('buyerName')} /></div>
             <div><label style={lS}>organisation</label><input style={iS} value={form.buyerOrg} onChange={set('buyerOrg')} /></div>
             <div><label style={lS}>email (optional)</label><input type="email" style={iS} value={form.buyerEmail} onChange={set('buyerEmail')} /></div>
           </div>
 
-          <button type="submit" style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '15px 24px', cursor: 'pointer', marginTop: 24 }}>
+          <button type="submit" style={{ ...BUTTON_PRIMARY, marginTop: 24 }}>
             submit application →
           </button>
         </form>
@@ -1911,7 +1960,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange }) {
                 value={buyerName}
                 onChange={(e) => setBuyerName(e.target.value)}
                 placeholder="your name"
-                style={{ background: C.cream, border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '18px 20px', fontFamily: GM, fontSize: 16, fontWeight: 500, color: C.ink, outline: 'none' }}
+                style={{ ...FIELD, padding: '18px 20px', fontSize: 16, fontWeight: 500 }}
                 onFocus={(e) => e.target.style.background = C.paper}
                 onBlur={(e) => e.target.style.background = C.cream}
               />
@@ -1920,7 +1969,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange }) {
                 onChange={(e) => setBuyerEmail(e.target.value)}
                 placeholder="work email"
                 type="email"
-                style={{ background: C.cream, border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '18px 20px', fontFamily: GM, fontSize: 16, fontWeight: 500, color: C.ink, outline: 'none' }}
+                style={{ ...FIELD, padding: '18px 20px', fontSize: 16, fontWeight: 500 }}
                 onFocus={(e) => e.target.style.background = C.paper}
                 onBlur={(e) => e.target.style.background = C.cream}
               />
@@ -2010,10 +2059,10 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange }) {
                   }
                 }} style={{ display:'flex', flexDirection:'column', gap: 10 }}>
                   <textarea name="what" required placeholder="what are you working on?" rows={3}
-                    style={{ background: C.cream, border: `1px solid ${C.rule}`, borderRadius: 6, padding:'12px 14px', fontFamily: GM, fontSize: 13, color: C.ink, outline:'none', resize:'none', textTransform:'none', lineHeight: 1.55 }}/>
+                    style={{ ...FIELD, fontSize: 13, padding: '12px 14px', resize: 'none', lineHeight: 1.55 }}/>
                   <div style={{ display:'flex', gap: 8 }}>
                     <input name="email" type="email" required placeholder="your email"
-                      style={{ flex: 1, background: C.cream, border: `1px solid ${C.rule}`, borderRadius: 6, padding:'12px 14px', fontFamily: GM, fontSize: 13, color: C.ink, outline:'none', textTransform:'none' }}/>
+                      style={{ ...FIELD, flex: 1, fontSize: 13, padding: '12px 14px' }}/>
                     <button type="submit"
                       style={{ background: C.ink, color: C.cream, border:'none', padding:'12px 20px', fontFamily: GM, fontSize: 11, letterSpacing:'0.07em', cursor:'pointer', whiteSpace:'nowrap' }}>
                       start match →
@@ -2673,19 +2722,19 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
         <form id="brief-intake" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14, scrollMarginTop: 80 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <input name="name" required placeholder="Your name"
-              style={{ background: C.cream, border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '16px 18px', fontFamily: GM, fontSize: 14, color: C.ink, outline: 'none' }} />
+              style={FIELD} />
             <input name="email" type="email" required placeholder="Work email"
-              style={{ background: C.cream, border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '16px 18px', fontFamily: GM, fontSize: 14, color: C.ink, outline: 'none' }} />
+              style={FIELD} />
           </div>
           <input name="company" placeholder="Company (optional)"
-            style={{ background: C.cream, border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '16px 18px', fontFamily: GM, fontSize: 14, color: C.ink, outline: 'none' }} />
+            style={FIELD} />
 
           <textarea name="brief" required rows={6} placeholder="What are you working on? What kind of creative do you need? Add any context that would help us match you well."
             style={{ background: C.cream, border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '16px 18px', fontFamily: GM, fontSize: 14, color: C.ink, outline: 'none', resize: 'vertical', lineHeight: 1.5 }} />
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <select name="timing" required defaultValue=""
-              style={{ background: C.cream, border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '16px 18px', fontFamily: GM, fontSize: 14, color: C.ink, outline: 'none' }}>
+              style={FIELD}>
               <option value="" disabled>When do you need to start?</option>
               <option value="this week">This week</option>
               <option value="next 2 weeks">Next 2 weeks</option>
@@ -2694,7 +2743,7 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
               <option value="exploring">Just exploring</option>
             </select>
             <select name="budget" required defaultValue=""
-              style={{ background: C.cream, border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '16px 18px', fontFamily: GM, fontSize: 14, color: C.ink, outline: 'none' }}>
+              style={FIELD}>
               <option value="" disabled>Budget range</option>
               <option value="<$10k">Under $10k</option>
               <option value="$10–25k">$10–25k</option>
@@ -3146,7 +3195,7 @@ function AdminPage({ accent, setPage }) {
 
         {mode === 'quick' && (
           <form onSubmit={sendQuick} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
               <div>
                 <label style={labelStyle}>recipient name</label>
                 <input value={form.name} onChange={setF('name')} placeholder="Jane Doe" style={inputStyle} />
@@ -3156,7 +3205,7 @@ function AdminPage({ accent, setPage }) {
                 <input type="email" value={form.email} onChange={setF('email')} placeholder="jane@studio.com" style={inputStyle} />
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
               <div>
                 <label style={labelStyle}>referrer</label>
                 <input value={form.referrer} onChange={setF('referrer')} placeholder="Maria Lopez" style={inputStyle} />
@@ -3222,7 +3271,7 @@ function AdminPage({ accent, setPage }) {
 // Right-side panel anchored to its own nav tab — left edge aligned to the
 // tab's left edge, right edge bleeds to the viewport. Position re-measures
 // on mount and on nav resize via ResizeObserver. ESC + outside-click → onClose.
-function Drawer({ id, active, color, onClose, children }) {
+function Drawer({ id, active, color, onClose, compact = false, children }) {
   const ref = useRef(null);
   const justOpened = useRef(false);
   const isMobile = useIsMobile();
@@ -3291,7 +3340,7 @@ function Drawer({ id, active, color, onClose, children }) {
         top: 'var(--nav-h)',
         left,
         right: 0,
-        bottom: 0,
+        bottom: compact ? 'auto' : 0,
         background: color || C.paper,
         borderTop: `3px solid ${color || 'transparent'}`,
         boxShadow: '-1px 0 0 rgba(13,13,11,0.08)',
@@ -3403,6 +3452,49 @@ function ConciergeDrawer({ accent, setPage }) {
     </div>);
 }
 
+// ── ACCESS DRAWER (tab 05) ────────────────────────────────────────────────
+// Compact drawer — code input that hands off to the existing /access page,
+// which already does the verify-session round trip.
+function AccessDrawerContent({ setActiveDrawer }) {
+  const [code, setCode] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const submit = (e) => {
+    e.preventDefault();
+    const v = code.trim();
+    if (!v) return;
+    setSubmitting(true);
+    window.location.href = `/access?token=${encodeURIComponent(v)}`;
+  };
+  return (
+    <div style={{ padding: '36px 44px 40px', maxWidth: 720 }}>
+      <h2 style={{ fontFamily: GS, fontStyle: 'italic', fontWeight: 500, fontSize: 'clamp(28px,3vw,42px)', letterSpacing: '-0.02em', color: C.ink, marginBottom: 10, lineHeight: 1.05 }}>
+        the bench, unlocked.
+      </h2>
+      <p style={{ fontFamily: GM, fontSize: 12, color: 'rgba(0,0,0,0.7)', marginBottom: 24, letterSpacing: '0.04em' }}>
+        enter an access code to open the directory.
+      </p>
+      <form onSubmit={submit} style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <input
+          autoFocus
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="access code"
+          style={{ ...FIELD, flex: '1 1 220px' }}
+        />
+        <button type="submit" disabled={submitting || !code.trim()} style={{ ...BUTTON_PRIMARY, opacity: (submitting || !code.trim()) ? 0.5 : 1 }}>
+          {submitting ? '…' : 'open →'}
+        </button>
+      </form>
+      <button
+        type="button"
+        onClick={() => setActiveDrawer('look')}
+        style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: GM, fontSize: 11, color: 'rgba(0,0,0,0.6)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+        don't have one? get a look →
+      </button>
+    </div>
+  );
+}
+
 // ── APPLY DRAWER (tab 04) ────────────────────────────────────────────────────
 function ApplyDrawer({ accent, onDone }) {
   return (
@@ -3439,9 +3531,9 @@ const TABS = [
   ['apply',     'join the bench', '#b8a8c8'], // soft lilac — drawer
   ['access',    'access',         '#b8b878'], // olive — full page
 ];
-// STEP 5 — tab 01 ('bench') no longer opens a drawer; it scrolls to the
-// always-mounted bench section in HomePage. Removed from the toggle set.
-const DRAWER_KEYS = new Set(['look', 'concierge', 'apply']);
+// Tab 01 'bench' scrolls to the bench section instead of opening a drawer.
+// Tabs 02–05 all toggle drawers. Tab 05 is compact (height-fits-content).
+const DRAWER_KEYS = new Set(['look', 'concierge', 'apply', 'access']);
 
 function FolderTab({ n, label, color, active, onClick, isMobile, id }) {
   const height = active ? 38 : 32;
@@ -3542,18 +3634,15 @@ function Header({ page, activeDrawer, setActiveDrawer, setPage, accent }) {
   // What "active" means for highlighting:
   //   - Tab 05 (access) is "active" when page === 'access'
   //   - Tabs 01–04 are "active" when their key === activeDrawer
-  const isActiveTab = (key) =>
-    key === 'access' ? (page === 'access') : (activeDrawer === key);
+  const isActiveTab = (key) => activeDrawer === key || (key === 'access' && page === 'access');
 
   // When access is the live page, dim the drawer tabs (the access state replaces the home stack).
   const accessActive = page === 'access';
 
-  // Tab click router (STEP 5):
-  //   - 'access'   → full-page navigation
+  // Tab click router:
   //   - 'bench'    → close any drawer, return to /, scroll the bench into view
-  //   - 02–04      → toggle their drawer (click the active tab again to close)
+  //   - 02–05      → toggle their drawer (click the active tab again to close)
   const onTabClick = (key) => {
-    if (key === 'access') { setPage('access'); return; }
     if (key === 'bench') {
       setActiveDrawer(null);
       if (page !== 'home') setPage('home');
@@ -3774,6 +3863,9 @@ function App() {
       </Drawer>
       <Drawer id="apply" active={activeDrawer} color="#b8a8c8" onClose={closeDrawer}>
         <ApplyPage accent={accent} isDrawer={true} />
+      </Drawer>
+      <Drawer id="access" active={activeDrawer} color="#b8b878" compact={true} onClose={closeDrawer}>
+        <AccessDrawerContent setActiveDrawer={setActiveDrawer} />
       </Drawer>
 
       {/* Full-page routes — bench lives inside HomePage and is always visible
