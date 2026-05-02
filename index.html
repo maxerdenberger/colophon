@@ -1897,10 +1897,10 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
               apply in 60 seconds.
             </h2>
             <p style={{ fontFamily: GM, fontSize: 13, color: 'rgba(13,13,11,0.78)', lineHeight: 1.7, maxWidth: '54ch', marginBottom: 12 }}>
-              the directory works because every name in it has been vouched for. most applications are declined — that's the point.
+              we read every application by hand and cross-reference each one with top industry accolades and agency brand tier.
             </p>
             <p style={{ fontFamily: GM, fontSize: 12, color: 'rgba(13,13,11,0.6)', lineHeight: 1.7, maxWidth: '54ch', marginBottom: 0 }}>
-              fill what you can. we read every submission by hand and respond inside a week if you're a fit.
+              fill what you can. we respond within a week.
             </p>
             <hr style={{ border: 'none', borderTop: '1px solid rgba(13,13,11,0.18)', margin: '24px 0 0' }} />
           </div>
@@ -3970,9 +3970,29 @@ function AdminBenchBrowser({ secret }) {
   return (
     <div style={{ marginBottom: 36, border: `1px solid ${C.rule}`, padding: 18, background: '#fff' }}>
       <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 8 }}>bench browser</p>
-      <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 14, lineHeight: 1.6 }}>
+      <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 10, lineHeight: 1.6 }}>
         Actions POST to <code>/api/bench-update</code> which writes back to the source CSV / Sheets. Filter, approve, deny, revoke, or add manually.
       </p>
+      {/* Three-state button legend — confirms what the colours mean.
+          Empty outline = never acted on. Tinted fill = acted in a
+          previous session (read from localStorage). Solid fill =
+          acted in this session. Past + session both persist; tint
+          stays after refresh, full only until reload. */}
+      <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14, fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.04em' }}>
+        <span style={{ letterSpacing: '0.14em', textTransform: 'uppercase' }}>states</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ ...adminIntentBtn('approve', 'empty'), padding: '3px 8px', cursor: 'default', fontSize: 9 }}>approve</span>
+          no past action
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ ...adminIntentBtn('approve', 'tint'), padding: '3px 8px', cursor: 'default', fontSize: 9 }}>approve</span>
+          prior session
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ ...adminIntentBtn('approve', 'full'), padding: '3px 8px', cursor: 'default', fontSize: 9 }}>approve</span>
+          this session
+        </span>
+      </div>
       <input
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
