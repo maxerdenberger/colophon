@@ -107,7 +107,7 @@ function emailShell(bodyHtml) {
     <tr><td align="center">
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="background:#FAFAF8;border:1px solid rgba(13,13,11,0.08);max-width:560px;">
         <tr><td style="padding:24px 28px;border-bottom:1px solid rgba(13,13,11,0.08);">
-          <span style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;letter-spacing:-0.02em;color:#0d0d0b;">colo<span style="color:#FF5100;">phon</span></span>
+          <span style="display:inline-block;width:18px;height:18px;background:#f4f1ec;border:1.5px solid #0d0d0b;border-radius:50%;text-align:center;line-height:14px;vertical-align:-3px;margin-right:8px;"><span style="display:inline-block;width:6px;height:6px;background:#FF5100;border-radius:50%;vertical-align:1px;"></span></span><span style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;letter-spacing:-0.02em;color:#0d0d0b;">colo<span style="color:#FF5100;">phon</span></span>
         </td></tr>
         <tr><td style="padding:28px 28px 24px;line-height:1.7;font-size:14px;color:#0d0d0b;">
           ${bodyHtml}
@@ -151,7 +151,7 @@ const coldStorageEmail = (name, email, rowNumber) => {
     <tr><td align="center">
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="background:#f4f1ec;max-width:560px;">
         <tr><td style="padding:24px 28px;">
-          <span style="font-family:Georgia,'Times New Roman',serif;font-weight:bold;font-size:18px;color:#0d0d0b;">colo<span style="color:#FF5100;">phon</span></span>
+          <span style="display:inline-block;width:18px;height:18px;background:#f4f1ec;border:1.5px solid #0d0d0b;border-radius:50%;text-align:center;line-height:14px;vertical-align:-3px;margin-right:8px;"><span style="display:inline-block;width:6px;height:6px;background:#FF5100;border-radius:50%;vertical-align:1px;"></span></span><span style="font-family:Georgia,'Times New Roman',serif;font-weight:bold;font-size:18px;color:#0d0d0b;">colo<span style="color:#FF5100;">phon</span></span>
         </td></tr>
         <tr><td style="padding:0 28px 8px;line-height:1.6;font-size:16px;color:#0d0d0b;">
           <p style="margin:0 0 18px;font-size:22px;line-height:1.25;font-style:italic;">you've gone cold on the bench.</p>

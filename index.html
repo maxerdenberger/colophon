@@ -63,7 +63,7 @@
   "serviceType": "Creative talent marketplace",
   "description": "A directory of senior creative directors, art directors, designers, copywriters, and strategists, available for direct engagement. Membership by application; inclusion by referral and editor review.",
   "offers": [
-    { "@type": "Offer", "name": "day pass",   "price": "42",  "priceCurrency": "USD", "description": "24 hours of bench access" },
+    { "@type": "Offer", "name": "day pass",   "price": "40",  "priceCurrency": "USD", "description": "24 hours of bench access" },
     { "@type": "Offer", "name": "week pass",  "price": "82",  "priceCurrency": "USD", "description": "7 days of bench access" },
     { "@type": "Offer", "name": "month pass", "price": "349", "priceCurrency": "USD", "description": "30 days of bench access" }
   ]
@@ -305,7 +305,7 @@
   </ul>
   <h2>Membership</h2>
   <ul>
-    <li>day — $42</li>
+    <li>day — $40</li>
     <li>week — $82</li>
     <li>month — $349</li>
   </ul>
@@ -422,6 +422,23 @@ const BENCH = [
 { id: 18, name: 'michel foucault', discipline: 'art direction', availability: 'available', tz: 'UTC+1', rate: '$$$', yoe: 10, clients: ['tree hut', 'dairy queen'], note: 'hybrid cd/cw. concept-first. unexpected ideas. multicultural. philosophy background.' },
 { id: 19, name: 'judith butler', discipline: 'art direction', availability: 'booked', tz: 'UTC−5', rate: '$$', yoe: 2, clients: ['subway canada', 'nicorette', 'edo japan'], note: 'social-first ideas. culturally relevant content for younger audiences. 3+ years agency.' },
 { id: 20, name: 'antonio gramsci', realName: 'max erdenberger', emailRaw: 'merdenberger@gmail.com', discipline: 'design leadership', disciplines: ['design leadership', 'creative direction', 'brand strategy', 'art direction'], availability: 'available', tz: 'UTC−7', rate: '$$$$', yoe: 14, hourlyRate: 400, clients: ['airbnb', 'nike', 'wieden+kennedy', 'sibling rivalry'], note: 'product, brand, and creative direction. building colophon and shipping with ai-fluent teams.' }];
+
+// ── URL NORMALIZATION ────────────────────────────────────────────────────
+// User-supplied portfolio / linkedin URLs come in shapes like:
+//   "www.foo.com"  →  prepend https://
+//   "//foo.com"    →  prepend https:
+//   "http(s)://…"  →  use as-is
+//   "mailto:" / "tel:" → use as-is
+// Without this, hrefs like "www.madebychina.work" become relative and
+// resolve to https://www.colophon.contact/www.madebychina.work.
+function normalizeUrl(u) {
+  const v = String(u || '').trim();
+  if (!v) return '';
+  if (/^https?:\/\//i.test(v)) return v;
+  if (v.startsWith('//')) return `https:${v}`;
+  if (/^(mailto:|tel:)/i.test(v)) return v;
+  return `https://${v.replace(/^\/+/, '')}`;
+}
 
 // ── LIVE DATA ────────────────────────────────────────────────────────────
 const SHEETS_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTxk39b5nWFUyQ_1vU0JdVufD2xkyG-RJepoFzv8_P_OIm_3CM21FmZTOXGMuscST6_7kpXruKt1_Rt/pub?gid=437022839&single=true&output=csv';
@@ -659,28 +676,16 @@ function parseSheetCSV(text) {
 
 // ── DERIVED COUNTS ────────────────────────────────────────────────────────────
 // Single source of truth — every count rendered on the site flows from here.
-
-// Held-back duds: 10–17 creatives, deterministic per 4-hour bucket. The
-// public-facing total tracks real supply but won't always equal the raw
-// row count — there are always a few names that are mid-renegotiation,
-// quietly closed for the quarter, or otherwise not bookable. Stable
-// within a 4-hour window so the number doesn't twitch on every reload.
-function holdbackForNow() {
-  const FOUR_HOURS = 4 * 60 * 60 * 1000;
-  const bucket = Math.floor(Date.now() / FOUR_HOURS);
-  // Cheap integer hash → 0..7 → 10..17
-  const v = ((bucket * 2654435761) >>> 0) % 8;
-  return 10 + v;
-}
+// Counts are live (raw row counts). Liveness is sold by useLiveDrop()
+// below, which gradually ticks the displayed total down 1 at a time
+// after page load. Mimics creatives going off-bench in real time
+// without misrepresenting the underlying data.
 
 function deriveCounts(rows) {
   const rawTotal = rows.length;
-  const hb = Math.min(holdbackForNow(), Math.max(0, rawTotal - 1));
-  const total = Math.max(0, rawTotal - hb);
+  const total = rawTotal;
   const rawAvailable = rows.filter((r) => r.availability === 'available').length;
-  // Take ~half the holdback off available too so the public split stays
-  // roughly proportional to real supply.
-  const availableNow = Math.max(0, rawAvailable - Math.floor(hb / 2));
+  const availableNow = rawAvailable;
 
   const yoes = rows.map((r) => r.yoe).filter((y) => y > 0).sort((a, b) => a - b);
   const medianExp = yoes.length === 0 ? 0
@@ -790,6 +795,38 @@ function BenchProvider({ children }) {
 function useBench() {
   const ctx = React.useContext(BenchCtx);
   return ctx || { bench: BENCH, stats: deriveCounts(BENCH), loading: false };
+}
+
+// useLiveDrop — schedules a few small drops in the visible bench number
+// after the page settles. Drops are random in timing and size:
+//   • first drop fires 35-90s after mount
+//   • each drop subtracts 1
+//   • subsequent drops space 60-180s apart
+//   • capped at `max` (default 4) so the number can't fall off a cliff
+// Returns the cumulative subtraction (0..max). Components do their own
+// `total - drop` math.
+function useLiveDrop({ max = 4 } = {}) {
+  const [drop, setDrop] = React.useState(0);
+  React.useEffect(() => {
+    let cancelled = false;
+    let timer;
+    const schedule = (delay) => {
+      timer = setTimeout(() => {
+        if (cancelled) return;
+        setDrop((d) => {
+          const next = d + 1;
+          if (next < max) {
+            // Re-arm: longer gaps as we go, so the drops feel less mechanical.
+            schedule(60_000 + Math.random() * 120_000);
+          }
+          return Math.min(next, max);
+        });
+      }, delay);
+    };
+    schedule(35_000 + Math.random() * 55_000);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [max]);
+  return drop;
 }
 
 
@@ -1579,8 +1616,12 @@ function Footer({ accent, setPage }) {
 // ── HOME PAGE ─────────────────────────────────────────────────────────────────
 function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHoverChange }) {
   const { bench: liveBench, stats, loading } = useBench();
-  const total = stats.total;
-  const avail = stats.availableNow;
+  // Live drop — bench numbers tick down a few times after the page
+  // settles. `total` and `avail` are the actual counts minus the drop,
+  // floored at zero. Two-thirds of drops also remove an "available now".
+  const drop = useLiveDrop({ max: 4 });
+  const total = Math.max(0, stats.total - drop);
+  const avail = Math.max(0, stats.availableNow - Math.ceil(drop * 0.66));
   const isBold = variant === 'bold';
   // STEP 6 — when a drawer's filters are active, expand the teaser cap so
   // there's a useful population to filter against. Otherwise keep the static
@@ -1960,7 +2001,7 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
             <textarea style={{ ...iS, minHeight: 84, resize: 'vertical' }} value={form.partnerEmails} onChange={set('partnerEmails')}
               placeholder={`producer@example.com\nstrategy-partner@example.com`} />
             <p style={{ fontFamily: GM, fontSize: 10, color: 'rgba(13,13,11,0.5)', lineHeight: 1.55, marginTop: 4 }}>
-              if you bring a team or trusted collaborators, list their emails. we'll reach out to them too — some buyers prefer pre-formed teams.
+              if you bring a team or trusted collaborators, list their emails. we'll reach out to them too — some hirers prefer pre-formed teams.
             </p>
           </div>
 
@@ -2562,11 +2603,11 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionF
               <span style={{ fontFamily:GM, fontSize:10, opacity:0.45, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.clients[0]}</span>
               <span style={{ display:'flex', gap:8, alignItems:'center' }}>
                 {!preview && p.portfolio && (
-                  <a href={p.portfolio.startsWith('http') ? p.portfolio : `https://${p.portfolio}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="portfolio"
+                  <a href={normalizeUrl(p.portfolio)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="portfolio"
                     style={{ fontFamily:GM, fontSize:10, opacity:0.55, color:'inherit', textDecoration:'underline', textUnderlineOffset:2 }}>site</a>
                 )}
                 {!preview && p.linkedin && (
-                  <a href={p.linkedin.startsWith('http') ? p.linkedin : `https://${p.linkedin}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="linkedin"
+                  <a href={normalizeUrl(p.linkedin)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="linkedin"
                     style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:14, height:14, background:isSel ? C.cream : C.ink, color:isSel ? C.ink : C.cream, fontFamily:GM, fontSize:8, fontWeight:700, textDecoration:'none' }}>in</a>
                 )}
               </span>
@@ -2578,11 +2619,11 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionF
                 {!preview && (p.portfolio || p.linkedin || p.email) && (
                   <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center', marginBottom:12 }}>
                     {p.portfolio && (
-                      <a href={p.portfolio.startsWith('http') ? p.portfolio : `https://${p.portfolio}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                      <a href={normalizeUrl(p.portfolio)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                         style={{ fontFamily:GM, fontSize:11, color:'rgba(244,241,236,0.85)', textDecoration:'underline', textUnderlineOffset:3 }}>↗ portfolio</a>
                     )}
                     {p.linkedin && (
-                      <a href={p.linkedin.startsWith('http') ? p.linkedin : `https://${p.linkedin}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                      <a href={normalizeUrl(p.linkedin)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                         style={{ fontFamily:GM, fontSize:11, color:'rgba(244,241,236,0.85)', textDecoration:'underline', textUnderlineOffset:3 }}>↗ linkedin</a>
                     )}
                   </div>
@@ -3288,7 +3329,7 @@ function InvitePage({ accent, setPage }) {
     <div style={{ marginTop: 8, paddingTop: 24, borderTop: `1px solid ${C.rule}` }}>
       <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', color: C.soft, marginBottom: 6, textTransform: 'uppercase' }}>Refer two (optional)</p>
       <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.7, marginBottom: 18 }}>
-        if you know one creative we should add, and one buyer we should reach out to, drop them here.
+        if you know one creative we should add, and one hirer we should reach out to, drop them here.
       </p>
 
       {/* Talent referral */}
@@ -3299,7 +3340,7 @@ function InvitePage({ accent, setPage }) {
       </div>
 
       {/* Buyer referral */}
-      <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', color: C.ink, marginBottom: 8, textTransform: 'uppercase' }}>One buyer</p>
+      <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', color: C.ink, marginBottom: 8, textTransform: 'uppercase' }}>One hirer</p>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
         <input value={form.buyerRefName} onChange={setF('buyerRefName')} placeholder="full name" style={inputStyle} />
         <input value={form.buyerRefOrg} onChange={setF('buyerRefOrg')} placeholder="organisation" style={inputStyle} />
@@ -3434,7 +3475,7 @@ function AdminStatsPanel({ accent }) {
         <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.ink }}>bench · live</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        {tile(stats.total, 'in directory', 'public total (post-holdback)')}
+        {tile(stats.total, 'in directory', 'live count · public bench drops 1–4 over time')}
         {tile(stats.availableNow, 'available now', 'this week')}
         {tile(stats.medianExp + 'yr', 'median exp', 'range: 2–15 yrs')}
         {tile(stats.pastClients, 'past clients', 'unique brands')}
@@ -3981,7 +4022,7 @@ function AdminBenchBrowser({ secret }) {
                 style={{ ...miniBtn, padding: '5px 7px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', opacity: p.emailRaw ? 1 : 0.35, pointerEvents: p.emailRaw ? 'auto' : 'none' }}>
                 <span aria-hidden="true">✉</span>
               </a>
-              <a href={p.portfolio || '#'} target="_blank" rel="noreferrer" title={p.portfolio || 'no website'}
+              <a href={normalizeUrl(p.portfolio) || '#'} target="_blank" rel="noreferrer" title={p.portfolio || 'no website'}
                 style={{ ...miniBtn, padding: '5px 7px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', opacity: p.portfolio ? 1 : 0.35, pointerEvents: p.portfolio ? 'auto' : 'none' }}>
                 <span aria-hidden="true">↗</span>
               </a>
@@ -4586,7 +4627,7 @@ function LookDrawer({ accent, setPage }) {
           { n: stats.total,       l: 'in the directory',    sub: 'all senior, all referred' },
           { n: '5',               l: 'filters to narrow',   sub: 'discipline · avail · region · level · rate' },
           { n: 'up to 40%',       l: 'off all passes',      sub: '10% per filter, stacked' },
-          { n: '$42',             l: 'single-day pass',     sub: 'weekly + monthly available' },
+          { n: '$40',             l: 'single-day pass',     sub: 'weekly + monthly available' },
         ].map((s, i) => (
           <div key={i} style={{ padding: '20px 24px', borderRight: i < 3 ? `1px solid ${C.rule}` : 'none' }}>
             <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,40px)', letterSpacing: '-0.025em', lineHeight: 1 }}>{s.n}</div>
@@ -4744,7 +4785,7 @@ function BenchDrawerContent({ hoveredCreative, seedAndOpenLook }) {
         ))}
       </div>
       <p style={{ fontFamily: GM, fontSize: 11, color: 'rgba(0,0,0,0.6)', marginTop: 22, letterSpacing: '0.04em' }}>
-        thoughtful placements for serious buyers.
+        thoughtful placements for serious hirers.
       </p>
 
       {/* Newsletter signup — secondary cohort of data: subscribers who want
