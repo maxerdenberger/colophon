@@ -1470,7 +1470,7 @@ function HomePage({ setPage, accent, variant }) {
 }
 
 // ── APPLY PAGE ────────────────────────────────────────────────────────────────
-function ApplyPage({ accent, onDone }) {
+function ApplyPage({ accent, onDone, isDrawer = false }) {
   const [done, setDone] = useState(false);
   const [disciplines, setDisciplines] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -1489,7 +1489,7 @@ function ApplyPage({ accent, onDone }) {
   const sH = { fontFamily: GS, fontWeight: 600, fontSize: 18, letterSpacing: '-0.01em', marginBottom: 18, marginTop: 40, paddingTop: 32, borderTop: `1px solid ${C.rule}` };
 
   if (done) return (
-    <div style={{ background: C.cream, minHeight: '80vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: 40, textAlign: 'center' }}>
+    <div style={{ background: C.cream, minHeight: isDrawer ? 'auto' : '80vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: isDrawer ? '60px 40px' : 40, textAlign: 'center' }}>
       <div style={{ width: 48, height: 48, border: `1.5px solid ${accent}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontSize: 18 }}>✓</div>
       <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em', lineHeight: 0.95 }}>you're in the queue.</h2>
       <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '44ch', lineHeight: 1.75 }}>
@@ -1499,16 +1499,16 @@ function ApplyPage({ accent, onDone }) {
 
 
   return (
-    <div style={{ background: C.cream, color: C.ink, minHeight: '100vh' }}>
-      <div style={{ maxWidth: 680, margin: '0 auto', padding: '52px 40px 80px' }}>
-        <PageHeader
+    <div style={{ background: C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : '100vh' }}>
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: isDrawer ? '24px 40px 60px' : '52px 40px 80px' }}>
+        {!isDrawer && <PageHeader
           n="04"
           label="Application — Join The Bench"
           headline="Apply for inclusion."
           sub="Most applications are declined. The directory functions because every name in it has been vouched for by an existing member or by the editors directly."
           accent="#b8a8c8"
-        />
-        <div style={{ height: 24 }} />
+        />}
+        {!isDrawer && <div style={{ height: 24 }} />}
         <form onSubmit={async (e) => {
           e.preventDefault();
           await submitForm({
@@ -1609,7 +1609,7 @@ function ApplyPage({ accent, onDone }) {
 
 // ── PRICING PAGE ──────────────────────────────────────────────────────────────
 // ── BENCH BUILDER (replaces fixed pricing) ─────────────────────────────────
-function PricingPage({ setPage, accent }) {
+function PricingPage({ setPage, accent, isDrawer = false }) {
   // Checkout is handled by /api/checkout — no static Payment Links.
 
   const { bench } = useBench();
@@ -1718,7 +1718,11 @@ function PricingPage({ setPage, accent }) {
   const totalSteps = STEPS.length + 1; // + tz baked into step 2 visually... actually keep tz as part of step 2
   const isReveal = step >= STEPS.length;
 
-  const stepHeader = (
+  const stepHeader = isDrawer ? (
+    <div style={{ display:'flex', justifyContent:'flex-end', alignItems:'center', marginBottom: 32, fontFamily: GM, fontSize: 10, letterSpacing:'0.14em', color: C.soft }}>
+      <span>{isReveal ? 'your bench' : `0${step+1} / 0${STEPS.length+1}`}</span>
+    </div>
+  ) : (
     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 56, fontFamily: GM, fontSize: 10, letterSpacing:'0.14em', color: C.soft }}>
       <span>build a bench</span>
       <span>{isReveal ? 'your bench' : `0${step+1} / 0${STEPS.length+1}`}</span>
@@ -1729,8 +1733,8 @@ function PricingPage({ setPage, accent }) {
     // RESULT + DURATION + CONCIERGE UPSELL
     const showConcierge = matched.length < 15;
     return (
-      <div style={{ background: C.cream, color: C.ink, minHeight: '100vh' }}>
-        <div style={{ maxWidth: 880, margin: '0 auto', padding: '60px 40px 80px' }}>
+      <div style={{ background: C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : '100vh' }}>
+        <div style={{ maxWidth: 880, margin: '0 auto', padding: isDrawer ? '24px 40px 60px' : '60px 40px 80px' }}>
           {stepHeader}
 
           {/* Result headline */}
@@ -2016,8 +2020,8 @@ function PricingPage({ setPage, accent }) {
   // For simplicity in this build, keep tz hidden; user can refine later. (Or expand into 5 steps later.)
 
   return (
-    <div style={{ background: C.cream, color: C.ink, minHeight: '100vh' }}>
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: '60px 40px 80px' }}>
+    <div style={{ background: C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : '100vh' }}>
+      <div style={{ maxWidth: 720, margin: '0 auto', padding: isDrawer ? '24px 40px 60px' : '60px 40px 80px' }}>
         {stepHeader}
 
         {/* Progress bar */}
@@ -2496,7 +2500,7 @@ function AccessPage({ accent, setPage }) {
 
 // ── CONCIERGE PAGE (pay-first → brief → confirmation) ─────────────────
 // Checkout is handled by /api/checkout — no static Payment Link needed.
-function ConciergePage({ accent, setPage }) {
+function ConciergePage({ accent, setPage, isDrawer = false }) {
   // stage: 'pay' | 'brief' | 'sent'
   const [stage, setStage] = useState(() => {
     try {
@@ -2534,7 +2538,7 @@ function ConciergePage({ accent, setPage }) {
   if (stage === 'sent') {
     try { localStorage.removeItem('concierge_paid'); } catch {}
     return (
-    <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 54px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: 40, textAlign: 'center' }}>
+    <div style={{ background: C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : 'calc(100vh - 54px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: isDrawer ? '60px 40px' : 40, textAlign: 'center' }}>
       <div style={{ width: 48, height: 48, border: `1.5px solid ${accent}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontSize: 18 }}>✓</div>
       <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em', lineHeight: 0.95 }}>Brief received.</h2>
       <p style={{ fontFamily: GM, fontSize: 13, color: C.soft, maxWidth: '46ch', lineHeight: 1.75 }}>
@@ -2564,19 +2568,19 @@ function ConciergePage({ accent, setPage }) {
 
   if (stage === 'pay') {
     return (
-      <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 54px)' }}>
-        <div style={{ maxWidth: 720, margin: '0 auto', padding: '52px 40px 80px' }}>
-          <PageHeader
+      <div style={{ background: C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : 'calc(100vh - 54px)' }}>
+        <div style={{ maxWidth: 720, margin: '0 auto', padding: isDrawer ? '24px 40px 60px' : '52px 40px 80px' }}>
+          {!isDrawer && <PageHeader
             n="03"
             label="Concierge — Handpicked"
             headline="Just send me the names."
             sub="Tell us what you're working on. We'll send you at least 5 top-tier names from the bench within 4 hours — handpicked, not algorithmic. You email them yourself."
             accent="#c89090"
-          />
-          <div style={{ height: 8 }} />
+          />}
+          {!isDrawer && <div style={{ height: 8 }} />}
 
           {/* what's included */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0, marginBottom: 40, border: `1px solid ${C.rule}` }}>
+          {!isDrawer && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0, marginBottom: 40, border: `1px solid ${C.rule}` }}>
             {[
               ['$199', 'Intro fee'],
               ['5+', 'Top-tier names'],
@@ -2587,7 +2591,7 @@ function ConciergePage({ accent, setPage }) {
                 <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 6, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{l}</div>
               </div>
             ))}
-          </div>
+          </div>}
 
           {/* how it works */}
           <div style={{ marginBottom: 36 }}>
@@ -2630,15 +2634,15 @@ function ConciergePage({ accent, setPage }) {
 
   // BRIEF STAGE
   return (
-    <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 54px)' }}>
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: '52px 40px 80px' }}>
-        <PageHeader
+    <div style={{ background: C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : 'calc(100vh - 54px)' }}>
+      <div style={{ maxWidth: 720, margin: '0 auto', padding: isDrawer ? '24px 40px 60px' : '52px 40px 80px' }}>
+        {!isDrawer && <PageHeader
           n="03"
           label="Concierge — Brief"
           headline="Tell us what you need."
           sub="You're paid up. Now share the brief. We'll match you with 5+ top-tier names within 4 hours."
           accent="#c89090"
-        />
+        />}
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: '#a8c4b833', borderRadius: 6, marginBottom: 32 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3a8f5a' }}></span>
           <span style={{ fontFamily: GM, fontSize: 11, color: C.ink, letterSpacing: '0.04em' }}>$199 received — your brief is next.</span>
@@ -3279,6 +3283,86 @@ function BenchDrawer({ accent, setActiveDrawer }) {
     </div>);
 }
 
+// ── LOOK DRAWER (tab 02) ─────────────────────────────────────────────────────
+// Stats strip + caption above the existing bench-builder flow.
+function LookDrawer({ accent, setPage }) {
+  const { stats } = useBench();
+  return (
+    <div style={{ background: C.cream, color: C.ink, paddingBottom: 80 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderBottom: `1px solid ${C.rule}`, background: C.paper }}>
+        {[
+          { n: stats.total,       l: 'in the directory',    sub: 'all senior, all referred' },
+          { n: '5',               l: 'filters to narrow',   sub: 'discipline · avail · region · level · rate' },
+          { n: 'up to 40%',       l: 'off all passes',      sub: '10% per filter, stacked' },
+          { n: '$29',             l: 'single-day pass',     sub: 'weekly + monthly available' },
+        ].map((s, i) => (
+          <div key={i} style={{ padding: '20px 24px', borderRight: i < 3 ? `1px solid ${C.rule}` : 'none' }}>
+            <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,40px)', letterSpacing: '-0.025em', lineHeight: 1 }}>{s.n}</div>
+            <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 10 }}>{s.l}</div>
+            <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ padding: '24px 40px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12 }}>
+        <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(24px,3vw,36px)', letterSpacing: '-0.02em' }}>build your custom bench.</h2>
+        <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>filter, then unlock real names + rates.</span>
+      </div>
+      <PricingPage setPage={setPage} accent={accent} isDrawer={true} />
+    </div>);
+}
+
+// ── CONCIERGE DRAWER (tab 03) ────────────────────────────────────────────────
+function ConciergeDrawer({ accent, setPage }) {
+  return (
+    <div style={{ background: C.cream, color: C.ink, paddingBottom: 80 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderBottom: `1px solid ${C.rule}`, background: C.paper }}>
+        {[
+          { n: '$199',  l: 'intro fee',          sub: 'refundable if no match' },
+          { n: '5+',    l: 'top-tier names',     sub: 'handpicked, not algorithmic' },
+          { n: '<4h',   l: 'turnaround',         sub: 'during business hours' },
+          { n: '0%',    l: 'markup on talent',   sub: 'you pay them direct' },
+        ].map((s, i) => (
+          <div key={i} style={{ padding: '20px 24px', borderRight: i < 3 ? `1px solid ${C.rule}` : 'none' }}>
+            <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,40px)', letterSpacing: '-0.025em', lineHeight: 1 }}>{s.n}</div>
+            <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 10 }}>{s.l}</div>
+            <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ padding: '24px 40px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12 }}>
+        <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(24px,3vw,36px)', letterSpacing: '-0.02em' }}>just send me the names.</h2>
+        <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>tell us what you need · 5+ names in 4 hours · you email them.</span>
+      </div>
+      <ConciergePage accent={accent} setPage={setPage} isDrawer={true} />
+    </div>);
+}
+
+// ── APPLY DRAWER (tab 04) ────────────────────────────────────────────────────
+function ApplyDrawer({ accent, onDone }) {
+  return (
+    <div style={{ background: C.cream, color: C.ink, paddingBottom: 80 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderBottom: `1px solid ${C.rule}`, background: C.paper }}>
+        {[
+          { n: '100%',  l: 'manually vouched',    sub: 'no algorithm' },
+          { n: '3',     l: 'referrals required',  sub: "creatives you'd vouch for" },
+          { n: '<7d',   l: 'review window',       sub: 'every app read by a person' },
+          { n: 'free',  l: 'to apply',            sub: 'most are politely declined' },
+        ].map((s, i) => (
+          <div key={i} style={{ padding: '20px 24px', borderRight: i < 3 ? `1px solid ${C.rule}` : 'none' }}>
+            <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,40px)', letterSpacing: '-0.025em', lineHeight: 1 }}>{s.n}</div>
+            <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 10 }}>{s.l}</div>
+            <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ padding: '24px 40px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12 }}>
+        <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(24px,3vw,36px)', letterSpacing: '-0.02em' }}>apply for inclusion.</h2>
+        <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>by referral or editor approval · about 7 minutes.</span>
+      </div>
+      <ApplyPage accent={accent} onDone={onDone} isDrawer={true} />
+    </div>);
+}
+
 // ── HEADER ────────────────────────────────────────────────────────────────────
 // Tabs 01–04 are drawer toggles (the bench / build a bench / concierge / apply).
 // Tab 05 is a full-page takeover (access, gated by token).
@@ -3593,13 +3677,13 @@ function App() {
             <BenchDrawer accent={accent} setActiveDrawer={setActiveDrawer} />
           </Drawer>
           <Drawer id="look" active={activeDrawer} onClose={closeDrawer}>
-            <PricingPage setPage={setPage} accent={accent} />
+            <LookDrawer setPage={setPage} accent={accent} />
           </Drawer>
           <Drawer id="concierge" active={activeDrawer} onClose={closeDrawer}>
-            <ConciergePage accent={accent} setPage={setPage} />
+            <ConciergeDrawer accent={accent} setPage={setPage} />
           </Drawer>
           <Drawer id="apply" active={activeDrawer} onClose={closeDrawer}>
-            <ApplyPage accent={accent} onDone={() => setTimeout(closeDrawer, 3000)} />
+            <ApplyDrawer accent={accent} onDone={() => setTimeout(closeDrawer, 3000)} />
           </Drawer>
         </>
       )}
