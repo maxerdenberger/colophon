@@ -3461,6 +3461,13 @@ function AdminStatsPanel({ accent }) {
   const tzOffset = (tz) => parseInt((tz || '').replace(/UTC|−/g, (m) => m === 'UTC' ? '' : '-')) || 0;
   const regionFor = (tz) => REGIONS.find((r) => { const o = tzOffset(tz); return o >= r.offsetMin && o <= r.offsetMax; });
   const byRegion = REGIONS.map((r) => ({ ...r, count: bench.filter((p) => regionFor(p.tz)?.key === r.key).length }));
+  // Engagement freshness — how many bench rows have a timestamp from
+  // the last 7 days (col 0 of the Sheet, parsed into updatedAt at ms).
+  // This is the cohort that has actively confirmed availability recently.
+  const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+  const sinceCutoff = Date.now() - SEVEN_DAYS;
+  const engagedThisWeek = bench.filter((p) => (p.updatedAt || 0) >= sinceCutoff).length;
+  const engagedPct = bench.length ? Math.round((engagedThisWeek / bench.length) * 100) : 0;
   const tile = (n, label, sub) => (
     <div style={{ padding: '18px 20px', borderRight: `1px solid ${C.rule}` }}>
       <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 30, letterSpacing: '-0.045em', lineHeight: 1 }}>{n}</div>
@@ -3478,7 +3485,7 @@ function AdminStatsPanel({ accent }) {
         {tile(stats.total, 'in directory', 'live count · public bench drops 1–4 over time')}
         {tile(stats.availableNow, 'available now', 'this week')}
         {tile(stats.medianExp + 'yr', 'median exp', 'range: 2–15 yrs')}
-        {tile(stats.pastClients, 'past clients', 'unique brands')}
+        {tile(engagedThisWeek, 'engaged this week', `${engagedPct}% of bench · updated avail in last 7d`)}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: `1px solid ${C.rule}` }}>
         {byRegion.map((r, i) => (
