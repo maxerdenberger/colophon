@@ -88,7 +88,9 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #FAFAF8; -webkit-font-smoothing: antialiased; text-transform: lowercase; color: #0d0d0b; }
   #root { min-height: 100vh; }
-  ::placeholder { opacity: 0.3; }
+  ::placeholder { opacity: 0.45; font-style: italic; }
+  /* Underline-only inputs: emphasize the bottom border on focus, no box. */
+  input:focus, textarea:focus, select:focus { caret-color: #0d0d0b; }
   ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); }
   input[type=checkbox] { accent-color: #0d0d0b; }
@@ -286,12 +288,15 @@ const RAD_SM = '4px';
 // One source of truth for inputs/textareas/selects/buttons across every
 // drawer + form. Local styles spread over these so a callsite can override
 // width or padding without diverging from the rest.
+// Global field aesthetic: underline-only. No boxes. Caret blinks via the
+// browser's native focus behavior; placeholder serves as the prefilled hint.
 const FIELD = {
   width: '100%',
-  background: 'rgba(255,255,255,0.5)',
-  border: `1.5px solid rgba(0,0,0,0.55)`,
-  borderRadius: 8,
-  padding: '14px 16px',
+  background: 'transparent',
+  border: 'none',
+  borderBottom: '1.5px solid rgba(13,13,11,0.4)',
+  borderRadius: 0,
+  padding: '10px 0',
   fontFamily: GM,
   fontSize: 14,
   color: C.ink,
@@ -1166,7 +1171,7 @@ function BenchDashboard({ bench, accent }) {
 const TAB_SAGE      = '#A8C4B8'; // 01 the bench
 const TAB_BUILD     = '#E8C478'; // 02 build a bench
 const TAB_CONCIERGE = '#E8A4A0'; // 03 concierge
-const TAB_JOIN      = '#B8A8D4'; // 04 join the bench
+const TAB_JOIN      = '#B5BD68'; // 04 join the bench (olive-green)
 const TAB_ACCESS    = '#A8B8C8'; // 05 access
 const INK_72 = 'rgba(13,13,11,0.72)';
 const INK_55 = 'rgba(13,13,11,0.55)';
@@ -1770,27 +1775,6 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
           <h3 style={sH}>background</h3>
           <div><label style={lS}>top 3 most relevant past clients / brands</label><input style={iS} value={form.topClients} onChange={set('topClients')} placeholder="apple, google, nike" /></div>
           <div><label style={lS}>referral context — who referred you or where have we crossed paths?</label><input style={iS} value={form.referralContext} onChange={set('referralContext')} /></div>
-
-          <h3 style={sH}>refer three people</h3>
-          <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.7, marginTop: -8, marginBottom: 8 }}>
-            the bench grows through referrals. name three creatives you'd personally vouch for — executive level or above.
-          </p>
-          {[1, 2, 3].map((n) =>
-          <div key={n} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div><label style={lS}>referral {n} — full name</label><input style={iS} value={form[`rec${n}Name`]} onChange={set(`rec${n}Name`)} /></div>
-              <div><label style={lS}>referral {n} — email or linkedin</label><input style={iS} value={form[`rec${n}Email`]} onChange={set(`rec${n}Email`)} /></div>
-            </div>
-          )}
-
-          <h3 style={sH}>refer a potential buyer</h3>
-          <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.7, marginTop: -8, marginBottom: 8 }}>
-            name one client, brand, or studio that should have access to the bench. we'll reach out.
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 18 }}>
-            <div><label style={lS}>their name</label><input style={iS} value={form.buyerName} onChange={set('buyerName')} /></div>
-            <div><label style={lS}>organisation</label><input style={iS} value={form.buyerOrg} onChange={set('buyerOrg')} /></div>
-            <div><label style={lS}>email (optional)</label><input type="email" style={iS} value={form.buyerEmail} onChange={set('buyerEmail')} /></div>
-          </div>
 
           <button type="submit" style={{ ...BUTTON_PRIMARY, marginTop: 24 }}>
             submit application →
@@ -3158,6 +3142,143 @@ function AdminTestFlows({ secret }) {
   );
 }
 
+// Read-only bench browser with per-row approve/deny/revoke + manual-add.
+// Action buttons POST to /api/bench-update (server-side endpoint must
+// implement the Sheets write-back). Failures surface in the inline log.
+function AdminBenchBrowser({ secret }) {
+  const { bench } = useBench();
+  const [filter, setFilter] = useState('');
+  const [log, setLog] = useState([]);
+  const [adding, setAdding] = useState(false);
+  const [newRow, setNewRow] = useState({ name: '', discipline: '', tz: 'UTC−5', rate: '$$$', availability: 'available', email: '' });
+  const append = (s) => setLog((l) => [...l, `${new Date().toLocaleTimeString()} · ${s}`]);
+
+  const filtered = bench.filter((p) =>
+    !filter ||
+    p.name.toLowerCase().includes(filter.toLowerCase()) ||
+    (p.discipline || '').toLowerCase().includes(filter.toLowerCase())
+  );
+
+  const post = async (payload) => {
+    const r = await fetch('/api/bench-update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) throw new Error('status ' + r.status);
+    return r.json().catch(() => ({}));
+  };
+  const act = async (row, op) => {
+    append(`→ ${op} · ${row.name}`);
+    try { await post({ action: op, id: row.id, name: row.name }); append(`✓ ${op} · ${row.name}`); }
+    catch (ex) { append(`✗ ${op} · ${row.name} — ${ex.message}`); }
+  };
+  const addManual = async (e) => {
+    e.preventDefault();
+    if (!newRow.name.trim()) return;
+    append(`→ add · ${newRow.name}`);
+    try { await post({ action: 'add', ...newRow }); append(`✓ add · ${newRow.name}`); setAdding(false); setNewRow({ name: '', discipline: '', tz: 'UTC−5', rate: '$$$', availability: 'available', email: '' }); }
+    catch (ex) { append(`✗ add · ${newRow.name} — ${ex.message}`); }
+  };
+
+  const miniBtn = { fontFamily: GM, fontSize: 10, letterSpacing: '0.04em', padding: '5px 9px', background: 'transparent', border: `1px solid ${C.rule}`, color: C.ink, cursor: 'pointer', borderRadius: 4 };
+
+  return (
+    <div style={{ marginBottom: 36, border: `1px solid ${C.rule}`, padding: 18, background: '#fff' }}>
+      <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 8 }}>bench browser</p>
+      <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 14, lineHeight: 1.6 }}>
+        Actions POST to <code>/api/bench-update</code> which writes back to the source CSV / Sheets. Filter, approve, deny, revoke, or add manually.
+      </p>
+      <input
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        placeholder="filter by name or discipline…"
+        style={{ ...FIELD, marginBottom: 14 }}
+      />
+      <div style={{ maxHeight: 360, overflowY: 'auto', border: `1px solid ${C.rule}`, marginBottom: 14 }}>
+        {filtered.map((p, i) => (
+          <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '36px 1.5fr 1fr 80px auto', gap: 10, padding: '8px 14px', borderBottom: i < filtered.length - 1 ? `1px solid ${C.rule}` : 'none', alignItems: 'center', fontFamily: GM, fontSize: 11 }}>
+            <span style={{ color: C.soft, fontSize: 10 }}>{String(i + 1).padStart(3, '0')}</span>
+            <span style={{ fontFamily: GS, fontWeight: 600 }}>{p.name}</span>
+            <span style={{ color: C.soft, fontSize: 10 }}>{p.discipline}</span>
+            <span style={{ color: C.soft, fontSize: 9, letterSpacing: '0.06em' }}>{p.availability}</span>
+            <span style={{ display: 'flex', gap: 4 }}>
+              <button onClick={() => act(p, 'approve')} style={miniBtn}>approve</button>
+              <button onClick={() => act(p, 'deny')}    style={miniBtn}>deny</button>
+              <button onClick={() => act(p, 'revoke')}  style={miniBtn}>revoke</button>
+            </span>
+          </div>
+        ))}
+        {filtered.length === 0 && (
+          <div style={{ padding: '14px 18px', fontFamily: GM, fontSize: 11, color: C.soft }}>no matches.</div>
+        )}
+      </div>
+      <p style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
+        showing {filtered.length} of {bench.length} (raw count, pre-holdback)
+      </p>
+
+      <div style={{ marginTop: 24 }}>
+        {!adding ? (
+          <button onClick={() => setAdding(true)} style={{ ...miniBtn, padding: '9px 14px' }}>+ add manual entry</button>
+        ) : (
+          <form onSubmit={addManual} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, paddingTop: 8, borderTop: `1px solid ${C.rule}` }}>
+            <input style={FIELD} placeholder="full name" required value={newRow.name} onChange={(e) => setNewRow({ ...newRow, name: e.target.value })} />
+            <input style={FIELD} placeholder="email" type="email" value={newRow.email} onChange={(e) => setNewRow({ ...newRow, email: e.target.value })} />
+            <input style={FIELD} placeholder="discipline" value={newRow.discipline} onChange={(e) => setNewRow({ ...newRow, discipline: e.target.value })} />
+            <input style={FIELD} placeholder="timezone (UTC−7)" value={newRow.tz} onChange={(e) => setNewRow({ ...newRow, tz: e.target.value })} />
+            <select style={FIELD} value={newRow.rate} onChange={(e) => setNewRow({ ...newRow, rate: e.target.value })}>
+              <option value="$">$ (under $150/hr)</option>
+              <option value="$$">$$ ($150–250/hr)</option>
+              <option value="$$$">$$$ ($250–400/hr)</option>
+              <option value="$$$$">$$$$ ($400+/hr)</option>
+            </select>
+            <select style={FIELD} value={newRow.availability} onChange={(e) => setNewRow({ ...newRow, availability: e.target.value })}>
+              <option value="available">available now</option>
+              <option value="soon">soon (1–2w)</option>
+              <option value="booked">booked</option>
+            </select>
+            <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
+              <button type="submit" style={{ ...miniBtn, padding: '9px 14px', background: C.ink, color: C.cream, border: 'none' }}>add →</button>
+              <button type="button" onClick={() => setAdding(false)} style={{ ...miniBtn, padding: '9px 14px' }}>cancel</button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {log.length > 0 && (
+        <pre style={{ fontFamily: GM, fontSize: 11, color: C.ink, background: C.paper, padding: 12, borderRadius: 4, lineHeight: 1.55, whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', marginTop: 14 }}>{log.join('\n')}</pre>
+      )}
+    </div>
+  );
+}
+
+// Top-bar admin actions: download handoff doc + flip site to maintenance.
+function AdminTopBar() {
+  const goDark = () => {
+    try {
+      const next = localStorage.getItem('colophon_dark') === '1' ? '0' : '1';
+      localStorage.setItem('colophon_dark', next);
+      alert(next === '1'
+        ? 'site is DARK on this browser. share ?dark=1 to test from another browser; set DARK_MODE=1 on Vercel for site-wide.'
+        : 'site is LIVE again on this browser.');
+      window.location.reload();
+    } catch {}
+  };
+  const dark = (typeof window !== 'undefined' && localStorage.getItem('colophon_dark') === '1');
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 24, marginTop: 6 }}>
+      <a href="/colophon-handoff.md" target="_blank" rel="noreferrer"
+        style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.06em', padding: '10px 16px', background: 'transparent', color: C.ink, border: `1px solid ${C.rule}`, cursor: 'pointer', borderRadius: 6, textDecoration: 'none' }}>
+        download handoff (.md) →
+      </a>
+      <button onClick={goDark}
+        style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.06em', padding: '10px 16px', background: dark ? '#0d0d0b' : 'transparent', color: dark ? C.cream : C.ink, border: `1px solid ${dark ? '#0d0d0b' : C.rule}`, cursor: 'pointer', borderRadius: 6 }}>
+        {dark ? '↑ bring site back live' : '↓ take site dark'}
+      </button>
+    </div>
+  );
+}
+
 function AdminPage({ accent, setPage }) {
   const [secret, setSecret] = useState('');
   const [authed, setAuthed] = useState(false);
@@ -3312,8 +3433,14 @@ function AdminPage({ accent, setPage }) {
           </button>
         </div>
 
+        {/* ── Top-bar actions — handoff doc download + site dark switch. ── */}
+        <AdminTopBar />
+
         {/* ── Live stats — derived from the in-memory bench. ───────────── */}
         <AdminStatsPanel accent={accent} />
+
+        {/* ── Bench browser — approve / deny / revoke / add. ───────────── */}
+        <AdminBenchBrowser secret={secret} />
 
         {/* ── Quick links ──────────────────────────────────────────────── */}
         <AdminQuickLinks />
@@ -4059,8 +4186,36 @@ function Header({ page, activeDrawer, setActiveDrawer, setPage, accent, onTabHov
 //   activeDrawer — overlay drawer above the home content ('bench' | 'look' | 'concierge' | 'apply' | null)
 // /bench /look /concierge /apply all map to page='home' + a drawer; the home
 // hero/sections stay mounted underneath.
+// Site-dark switch: admin can flip a localStorage flag (or share ?dark=1)
+// to render a maintenance splash instead of the normal app. For real
+// site-wide, set DARK_MODE=1 on Vercel and gate the entry server-side.
+function MaintenancePage() {
+  return (
+    <div style={{ background: '#0d0d0b', color: '#FAFAF8', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 40 }}>
+      <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(40px,7vw,96px)', letterSpacing: '-0.045em', lineHeight: 0.92, marginBottom: 18 }}>
+        the bench is closed for now.
+      </h1>
+      <p style={{ fontFamily: GM, fontSize: 13, color: 'rgba(244,241,236,0.6)', maxWidth: '40ch', lineHeight: 1.7 }}>
+        we'll be back. send a brief to <a href="mailto:hello@colophon.contact" style={{ color: '#ff5100' }}>hello@colophon.contact</a> in the meantime.
+      </p>
+    </div>
+  );
+}
+
 function App() {
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  // Site-dark short-circuit. Don't gate /admin so we can bring the site
+  // back. Honor ?dark=1 / ?dark=0 query for cross-browser testing.
+  if (typeof window !== 'undefined') {
+    const url = new URLSearchParams(window.location.search);
+    const q = url.get('dark');
+    if (q === '1') { try { localStorage.setItem('colophon_dark', '1'); } catch {} }
+    if (q === '0') { try { localStorage.setItem('colophon_dark', '0'); } catch {} }
+    const isDark = (() => { try { return localStorage.getItem('colophon_dark') === '1'; } catch { return false; } })();
+    const onAdmin = window.location.pathname.toLowerCase() === '/admin';
+    if (isDark && !onAdmin) return <MaintenancePage />;
+  }
 
   const pathToState = (path) => {
     const p = (path || '').replace(/\/$/, '').toLowerCase();
