@@ -2721,14 +2721,29 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
     return (
       <div style={{ background: isDrawer ? 'transparent' : C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : 'calc(100vh - 54px)' }}>
         <div style={{ maxWidth: 720, margin: '0 auto', padding: isDrawer ? '24px 40px 60px' : '52px 40px 80px' }}>
-          {!isDrawer && <PageHeader
-            n="03"
-            label="Concierge — Handpicked"
-            headline="Just send me the names."
-            sub="Tell us what you're working on. We'll send you at least 5 top-tier names from the bench within 4 hours — handpicked, not algorithmic. You email them yourself."
-            accent="#c89090"
-          />}
-          {!isDrawer && <div style={{ height: 8 }} />}
+          {!isDrawer && (
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 22, height: 18 }}>
+              <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: '#c89090', fontWeight: 600 }}>03</span>
+              <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: C.soft, textTransform: 'uppercase' }}>Concierge — Handpicked</span>
+            </div>
+          )}
+          <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(40px,5vw,72px)', letterSpacing: '-0.03em', lineHeight: 0.95, marginBottom: 18 }}>
+            rather skip the browsing?
+          </h1>
+          <p style={{ fontFamily: GM, fontSize: 13, color: C.soft, lineHeight: 1.7, marginBottom: 32, maxWidth: '54ch' }}>
+            tell us what you need. we'll come back with five names from the top 1% of the industry. you email them yourself.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 40 }}>
+            <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.8, margin: 0 }}>
+              these are the people behind the work you've been trying to reverse-engineer.
+            </p>
+            <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.8, margin: 0 }}>
+              effie winners. d&amp;ad pencils. cannes lions. one show gold. young guns. the ones your favorite agency bills out at four times what they charge direct.
+            </p>
+            <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.8, margin: 0 }}>
+              we know who they are. we know who's free.
+            </p>
+          </div>
 
           {/* what's included */}
           {!isDrawer && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0, marginBottom: 40, border: `1px solid ${C.rule}` }}>
@@ -2764,13 +2779,19 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
             </div>
           </div>
 
-          <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 24, lineHeight: 1.7 }}>
+          <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 4, lineHeight: 1.7 }}>
             $199. no markup, no placement fee. No markup on the creative — you pay them direct.
+          </p>
+          <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, fontStyle: 'italic', marginBottom: 24, lineHeight: 1.6 }}>
+            five names. you take it from there.
           </p>
 
           <button id="brief-intake" onClick={startCheckout} style={{ display: 'block', width: '100%', textAlign: 'center', fontFamily: GM, fontSize: 12, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: 'none', padding: '20px 24px', borderRadius: 6, scrollMarginTop: 80, cursor: 'pointer' }}>
             Pay $199 to start →
           </button>
+          <p style={{ fontFamily: GM, fontSize: 10, color: INK_38, fontStyle: 'italic', textAlign: 'center', marginTop: 10, lineHeight: 1.6 }}>
+            if none of them are right, we'll tell you that too.
+          </p>
           {payErr && (
             <div style={{ marginTop: 12, padding: '10px 14px', border: '1px solid #b04040', background: 'rgba(176,64,64,0.08)', color: '#b04040', fontFamily: GM, fontSize: 11, borderRadius: 4 }}>
               {payErr}
