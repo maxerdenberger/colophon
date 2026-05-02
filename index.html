@@ -3034,6 +3034,13 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
               <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: C.soft, textTransform: 'uppercase' }}>Concierge — Handpicked</span>
             </div>
           )}
+          {/* In-drawer eyebrow — orange-on-orange wouldn't read so we
+              use a darker ink tone like tab 01 + 04 do. */}
+          {isDrawer && (
+            <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: 'rgba(13,13,11,0.6)', textTransform: 'uppercase', marginBottom: 14 }}>
+              03 / concierge
+            </p>
+          )}
           <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(40px,5vw,72px)', letterSpacing: '-0.03em', lineHeight: 0.95, marginBottom: 18 }}>
             rather skip the browsing?
           </h1>
@@ -3122,6 +3129,11 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
           sub="You're paid up. Now share the brief. We'll match you with 5+ top-tier names within 4 hours."
           accent="#c89090"
         />}
+        {isDrawer && (
+          <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: 'rgba(13,13,11,0.6)', textTransform: 'uppercase', marginBottom: 14 }}>
+            03 / concierge — brief
+          </p>
+        )}
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: '#a8c4b833', borderRadius: 6, marginBottom: 32 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3a8f5a' }}></span>
           <span style={{ fontFamily: GM, fontSize: 11, color: C.ink, letterSpacing: '0.04em' }}>$199 received — your brief is next.</span>
@@ -4784,6 +4796,9 @@ function BenchDrawerContent({ hoveredCreative, seedAndOpenLook }) {
   // Default content: top-of-drawer manifesto + how-we-decide criteria.
   return (
     <div style={{ padding: '36px 36px 40px', color: C.ink }}>
+      <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: 'rgba(13,13,11,0.6)', textTransform: 'uppercase', marginBottom: 16 }}>
+        01 / the bench
+      </p>
       <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3.4vw,42px)', letterSpacing: '-0.025em', lineHeight: 1.05, marginBottom: 16 }}>
         the bench is the top 1% of the creative industry.
       </h3>
