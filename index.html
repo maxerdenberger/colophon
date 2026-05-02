@@ -161,6 +161,21 @@
   .drawer-tinted [style*="rgba(13, 13, 11, 0.6)"] {
     color: rgba(13,13,11,0.78) !important;
   }
+  /* Apply / join drawer (#B5BD68 olive-green) — push secondary text from
+     warm-grey to a dark olive so it reads well on green. */
+  .drawer-tinted[style*="#B5BD68"] [style*="#3D3C38"],
+  .drawer-tinted[style*="#B5BD68"] [style*="rgb(61, 60, 56)"],
+  .drawer-tinted[style*="#B5BD68"] [style*="rgb(61,60,56)"],
+  .drawer-tinted[style*="#B5BD68"] [style*="rgba(13,13,11,0.5)"],
+  .drawer-tinted[style*="#B5BD68"] [style*="rgba(13, 13, 11, 0.5)"],
+  .drawer-tinted[style*="#B5BD68"] [style*="rgba(13,13,11,0.55)"],
+  .drawer-tinted[style*="#B5BD68"] [style*="rgba(13, 13, 11, 0.55)"],
+  .drawer-tinted[style*="#B5BD68"] [style*="rgba(13,13,11,0.6)"],
+  .drawer-tinted[style*="#B5BD68"] [style*="rgba(13, 13, 11, 0.6)"],
+  .drawer-tinted[style*="#B5BD68"] [style*="rgba(13,13,11,0.78)"],
+  .drawer-tinted[style*="#B5BD68"] [style*="rgba(13, 13, 11, 0.78)"] {
+    color: #2c3a0e !important;
+  }
   .drawer-tinted [style*="rgba(13, 13, 11, 0.08)"],
   .drawer-tinted [style*="rgba(13,13,11,0.08)"] {
     border-color: rgba(13,13,11,0.25) !important;
@@ -629,7 +644,7 @@ function parseSheetCSV(text) {
       status,
       paused: false, legend: false,  // admin-toggleable; persisted via /api/bench-update
     };
-  }).filter(Boolean).filter((p) => p.status !== 'cold');
+  }).filter(Boolean).filter((p) => p.status !== 'cold').filter((p) => p.yoe >= 1);
 }
 
 // ── DERIVED COUNTS ────────────────────────────────────────────────────────────
@@ -709,17 +724,25 @@ function deriveCounts(rows) {
 const BenchCtx = React.createContext(null);
 
 function BenchProvider({ children }) {
-  const [bench, setBench] = useState(BENCH);
+  const [allBench, setAllBench] = useState(BENCH);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     fetch(SHEETS_CSV)
       .then((r) => r.text())
-      .then((t) => { const p = parseSheetCSV(t); if (p.length > 5) setBench(p); })
+      .then((t) => { const p = parseSheetCSV(t); if (p.length > 5) setAllBench(p); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+  // Split by years of experience: 4+ on the paid public bench;
+  // 1–3 quietly available on the free emerging-talent path
+  // (/access?jr=1). Anyone with 0 years or no input is filtered
+  // out upstream by parseSheetCSV.
+  const { bench, emergingBench } = useMemo(() => ({
+    bench:         allBench.filter((p) => (p.yoe || 0) >= 4),
+    emergingBench: allBench.filter((p) => (p.yoe || 0) >= 1 && (p.yoe || 0) < 4),
+  }), [allBench]);
   const stats = useMemo(() => deriveCounts(bench), [bench]);
-  return <BenchCtx.Provider value={{ bench, stats, loading }}>{children}</BenchCtx.Provider>;
+  return <BenchCtx.Provider value={{ bench, allBench, emergingBench, stats, loading }}>{children}</BenchCtx.Provider>;
 }
 
 function useBench() {
@@ -2205,8 +2228,11 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
 }
 
 // ── UNLOCKED BENCH TABLE ──────────────────────────────────────────────────────
-function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionFilters = null }) {
-  const { bench: liveBench } = useBench();
+function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionFilters = null, benchOverride = null }) {
+  const { bench: liveBenchPaid, emergingBench } = useBench();
+  // jr access path: feed in the emerging-talent bench instead of the paid
+  // one. Caller (AccessPage) decides which to pass.
+  const liveBench = benchOverride || liveBenchPaid;
   const [sel, setSel] = useState(null);
   const [filter, setFilter] = useState('all');
   const [hovered, setHovered] = useState(null);
@@ -2375,6 +2401,18 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionF
             {isSel && (
               <div style={{ padding:'18px 40px 22px', background:'#111110', borderBottom:`1px solid rgba(255,255,255,0.05)` }}>
                 <p style={{ fontFamily:GS, fontSize:13, fontStyle:'italic', color:'rgba(244,241,236,0.68)', lineHeight:1.55, marginBottom:14, textTransform:'none', maxWidth:'72ch' }}>"{p.note}"</p>
+                {!preview && (p.portfolio || p.linkedin || p.email) && (
+                  <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center', marginBottom:12 }}>
+                    {p.portfolio && (
+                      <a href={p.portfolio.startsWith('http') ? p.portfolio : `https://${p.portfolio}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                        style={{ fontFamily:GM, fontSize:11, color:'rgba(244,241,236,0.85)', textDecoration:'underline', textUnderlineOffset:3 }}>↗ portfolio</a>
+                    )}
+                    {p.linkedin && (
+                      <a href={p.linkedin.startsWith('http') ? p.linkedin : `https://${p.linkedin}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                        style={{ fontFamily:GM, fontSize:11, color:'rgba(244,241,236,0.85)', textDecoration:'underline', textUnderlineOffset:3 }}>↗ linkedin</a>
+                    )}
+                  </div>
+                )}
                 <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
                   {p.clients.map(c => <span key={c} style={{ border:'1px solid rgba(255,255,255,0.12)', padding:'2px 9px', fontFamily:GM, fontSize:10, color:'rgba(244,241,236,0.4)' }}>{c}</span>)}
                   <span style={{ fontFamily:GM, fontSize:10, color:'rgba(244,241,236,0.3)', marginLeft:'auto' }}>{p.yoe} yrs exp · {p.tz}</span>
@@ -2411,6 +2449,7 @@ function humanizeMs(ms) {
 }
 
 function AccessPage({ accent, setPage }) {
+  const { emergingBench } = useBench();
   const [unlocked, setUnlocked] = useState(false);
   const [expired, setExpired]   = useState(false);
   const [tier, setTier]         = useState(null);
@@ -2620,7 +2659,7 @@ function AccessPage({ accent, setPage }) {
           </div>
           </div>
         </div>
-        <div style={{ paddingTop: 24 }}><UnlockedBenchTable accent={accent} preview={preview} setPage={setPage} buyerTags={buyerTags} sessionFilters={sessionFilters} /></div>
+        <div style={{ paddingTop: 24 }}><UnlockedBenchTable accent={accent} preview={preview} setPage={setPage} buyerTags={buyerTags} sessionFilters={sessionFilters} benchOverride={tier === 'jr' ? emergingBench : null} /></div>
       </div>
     </div>);
 
@@ -4527,7 +4566,7 @@ function FolderTab({ n, label, color, active, onClick, isMobile, id }) {
   // Active or hovered tab: full opacity. Inactive resting: 0.7 on the fill
   // only — text stays at its own opacity. Active state is also conveyed by
   // height (38 vs 32) and font weight.
-  const fillOpacity = (active || hover) ? 1 : 0.7;
+  const fillOpacity = 1;
 
   // SVG path: square left edge, convex top-right (radius 3), slanted right edge,
   // concave bottom-right (radius 5), straight bottom back to start.
