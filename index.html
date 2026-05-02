@@ -400,7 +400,7 @@ const BENCH = [
 { id: 17, name: 'marshall mcluhan', discipline: 'copywriting', availability: 'available', tz: 'UTC−5', rate: '$$$', yoe: 10, clients: ['ford', 'pepsi', 'milkpep'], note: "doesn't see products, sees people who need them. 30 countries. cultural depth." },
 { id: 18, name: 'michel foucault', discipline: 'art direction', availability: 'available', tz: 'UTC+1', rate: '$$$', yoe: 10, clients: ['tree hut', 'dairy queen'], note: 'hybrid cd/cw. concept-first. unexpected ideas. multicultural. philosophy background.' },
 { id: 19, name: 'judith butler', discipline: 'art direction', availability: 'booked', tz: 'UTC−5', rate: '$$', yoe: 2, clients: ['subway canada', 'nicorette', 'edo japan'], note: 'social-first ideas. culturally relevant content for younger audiences. 3+ years agency.' },
-{ id: 20, name: 'antonio gramsci', realName: 'max erdenberger', emailRaw: 'merdenberger@gmail.com', discipline: 'design leadership', availability: 'available', tz: 'UTC−7', rate: '$$$$', yoe: 14, hourlyRate: 400, clients: ['colophon', 'wieden+kennedy', 'sibling rivalry'], note: 'product, brand, and creative direction. building colophon and shipping with ai-fluent teams.' }];
+{ id: 20, name: 'antonio gramsci', realName: 'max erdenberger', emailRaw: 'merdenberger@gmail.com', discipline: 'design leadership', disciplines: ['design leadership', 'creative direction', 'brand strategy', 'art direction'], availability: 'available', tz: 'UTC−7', rate: '$$$$', yoe: 14, hourlyRate: 400, clients: ['airbnb', 'nike', 'wieden+kennedy', 'sibling rivalry'], note: 'product, brand, and creative direction. building colophon and shipping with ai-fluent teams.' }];
 
 // ── LIVE DATA ────────────────────────────────────────────────────────────
 const SHEETS_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTxk39b5nWFUyQ_1vU0JdVufD2xkyG-RJepoFzv8_P_OIm_3CM21FmZTOXGMuscST6_7kpXruKt1_Rt/pub?gid=437022839&single=true&output=csv';
@@ -581,6 +581,11 @@ function parseSheetCSV(text) {
                           : s.includes('creative dir') ? 'creative direction'
                           : 'creative direction';
     const disc = canonDisc(rawDiscFull);
+    // Multi-discipline support: canonicalize every entry from the CSV column
+    // and dedupe. Filtering checks any-match across this array, so a single
+    // creative can sit under several discipline buckets simultaneously.
+    const disciplinesArr = [...new Set(rawDisciplines.map((d) => canonDisc((d || '').toLowerCase())).filter(Boolean))];
+    const disciplinesFinal = disciplinesArr.length ? disciplinesArr : [disc];
     const realName  = (row[1] || '').trim();
     const firstName = realName.split(' ')[0].toLowerCase() || name;
     const emailRaw  = (row[2] || '').trim();
@@ -612,7 +617,7 @@ function parseSheetCSV(text) {
     const partners = (row[17] || '').split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
     return {
       id: i+1, name, realName, firstName, emailRaw, emailEnc, portfolio, linkedin, updatedAt,
-      discipline: disc, rawDisciplines, availability, hourlyRate,
+      discipline: disc, disciplines: disciplinesFinal, rawDisciplines, availability, hourlyRate,
       tz: TZS[i % TZS.length], // tz still synthesized — no city/tz column in form
       rate, yoe,
       clients: clients.length ? clients : ['portfolio available'],
@@ -1224,7 +1229,10 @@ function BenchTeaser({ accent, bench: benchProp, activeFilters, onRowClick, onHo
                 || (f.rate        && f.rate.length);
     if (!hasAny) return allRows;
     return allRows.filter((p) => {
-      if (f.disciplines && f.disciplines.length && !f.disciplines.includes(p.discipline)) return false;
+      if (f.disciplines && f.disciplines.length) {
+        const personDiscs = (p.disciplines && p.disciplines.length) ? p.disciplines : [p.discipline];
+        if (!f.disciplines.some((fd) => personDiscs.includes(fd))) return false;
+      }
       if (f.avail       && f.avail.length       && !f.avail.includes(p.availability))    return false;
       if (f.experience  && f.experience.length) {
         const lvl = p.yoe < 4 ? 'junior' : p.yoe < 8 ? 'mid' : p.yoe < 15 ? 'senior' : 'lead';
@@ -1938,7 +1946,10 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
   // Match logic. Note: tz strings use the unicode minus (U+2212), so we
   // normalise before testing prefixes.
   const personMatches = (p) => {
-    if (filters.disciplines.length && !filters.disciplines.includes(p.discipline)) return false;
+    if (filters.disciplines.length) {
+      const personDiscs = (p.disciplines && p.disciplines.length) ? p.disciplines : [p.discipline];
+      if (!filters.disciplines.some((fd) => personDiscs.includes(fd))) return false;
+    }
     if (filters.avail.length && !filters.avail.includes(p.availability)) return false;
     if (filters.experience.length) {
       const lvl = p.yoe < 4 ? 'junior' : p.yoe < 8 ? 'mid' : p.yoe < 15 ? 'senior' : 'lead';
