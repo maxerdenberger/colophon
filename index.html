@@ -86,7 +86,7 @@
 <script defer src="/_vercel/insights/script.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #f4f1ec; -webkit-font-smoothing: antialiased; text-transform: lowercase; color: #0d0d0b; }
+  body { background: #FAFAF8; -webkit-font-smoothing: antialiased; text-transform: lowercase; color: #0d0d0b; }
   #root { min-height: 100vh; }
   ::placeholder { opacity: 0.3; }
   ::-webkit-scrollbar { width: 5px; }
@@ -122,24 +122,26 @@
   /* Prevent the rounding from breaking the dense bench-table grid rows */
   .bench-row, .bench-row * { border-radius: 0 !important; }
 
-  /* ── NAV HEIGHT ──────────────────────────────────────────────────────── */
-  /* Used by the new Drawer's inline-style top + height. Mobile nav is shorter. */
-  :root { --nav-h: 60px; }
+  /* ── ROOT TOKENS ─────────────────────────────────────────────────────── */
+  /* --nav-h: nav height (mobile shorter). --drawer-bg: legacy sage panel.
+     --page-bg: matches new C.cream so body and tokens stay aligned. */
+  :root { --nav-h: 60px; --drawer-bg: #a8c4b8; --page-bg: #FAFAF8; }
   @media (max-width: 760px) { :root { --nav-h: 52px; } }
 
   /* ── DRAWER TINT CONTRAST ────────────────────────────────────────────── */
-  /* Inside a tinted drawer, muted helper text and rule borders need to read
-     against the colored fill. Map them to ink + 50%-black respectively.
-     React serializes our color tokens with predictable spacing, so attribute
-     selectors against the inline style attribute do the work without
-     touching every JSX call site. */
-  .drawer-tinted [style*="rgb(90, 88, 84)"],
-  .drawer-tinted [style*="rgb(90,88,84)"] {
-    color: #0d0d0b !important;
+  /* Inside a tinted drawer, secondary helper text and rule borders take
+     drawer-specific values per the design tokens — secondary text is
+     rgba(13,13,11,0.55), input/divider borders are rgba(13,13,11,0.25).
+     Attribute selectors target React's serialized inline-style strings for
+     C.soft (#3D3C38) and C.rule (rgba 0.08) without touching call sites. */
+  .drawer-tinted [style*="#3D3C38"],
+  .drawer-tinted [style*="rgb(61, 60, 56)"],
+  .drawer-tinted [style*="rgb(61,60,56)"] {
+    color: rgba(13,13,11,0.55) !important;
   }
-  .drawer-tinted [style*="rgba(13, 13, 11, 0.14)"],
-  .drawer-tinted [style*="rgba(13,13,11,0.14)"] {
-    border-color: rgba(0,0,0,0.5) !important;
+  .drawer-tinted [style*="rgba(13, 13, 11, 0.08)"],
+  .drawer-tinted [style*="rgba(13,13,11,0.08)"] {
+    border-color: rgba(13,13,11,0.25) !important;
   }
 
   /* ── MOBILE PASS ─────────────────────────────────────────────────────── */
@@ -274,7 +276,7 @@
 
 const { useState, useEffect, useRef, useMemo } = React;
 
-const C = { cream: '#f4f1ec', paper: '#edeae3', ink: '#0d0d0b', soft: '#5a5854', rule: 'rgba(13,13,11,0.14)' };
+const C = { cream: '#FAFAF8', paper: '#F2EDE4', ink: '#0d0d0b', soft: '#3D3C38', rule: 'rgba(13,13,11,0.08)' };
 const GS = "'Space Grotesk', sans-serif";
 const GM = "'IBM Plex Mono', monospace";
 const RAD = '8px';   // rounded rectangles — buttons, tiles, inputs
@@ -1124,7 +1126,11 @@ function BenchDashboard({ bench, accent }) {
 }
 
 // ── BENCH TABLE (public teaser) ───────────────────────────────────────────────
-const TAB_SAGE = '#a8c4b8'; // sage from "01 the bench" tab
+const TAB_SAGE      = '#A8C4B8'; // 01 the bench
+const TAB_BUILD     = '#E8C478'; // 02 build a bench
+const TAB_CONCIERGE = '#E8A4A0'; // 03 concierge
+const TAB_JOIN      = '#B8A8D4'; // 04 join the bench
+const TAB_ACCESS    = '#A8B8C8'; // 05 access
 const INK_72 = 'rgba(13,13,11,0.72)';
 const INK_55 = 'rgba(13,13,11,0.55)';
 const INK_38 = 'rgba(13,13,11,0.38)';
@@ -1205,14 +1211,14 @@ function BenchTeaser({ accent, bench: benchProp, activeFilters, onRowClick, onHo
               style={{ display: 'grid', gridTemplateColumns: COLS, padding: '11px 40px', borderBottom: `1px solid ${C.rule}`, background: isH ? C.paper : C.cream, cursor: onRowClick ? 'pointer' : 'default', transition: 'background 0.12s', alignItems: 'center', borderLeft: isH ? `3px solid ${TAB_SAGE}` : '3px solid transparent' }}>
 
               <span style={{ fontFamily: GM, fontSize: 10, color: isH ? C.soft : 'rgba(13,13,11,0.28)' }}><Scramble text={String(i + 1).padStart(3, '0')} delay={d} runKey={rk} /></span>
-              <span style={{ fontWeight: isH ? 600 : 400, fontSize: 13, color: C.ink, transition: 'font-weight 0.12s' }}><Scramble text={p.name} delay={d} runKey={rk} /></span>
-              <span style={{ color: C.soft, fontSize: 11 }}><Scramble text={p.discipline} delay={d} runKey={rk} /></span>
+              <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 15, letterSpacing: '-0.01em', color: C.ink, transition: 'font-weight 0.12s' }}><Scramble text={p.name} delay={d} runKey={rk} /></span>
+              <span style={{ color: C.soft, fontSize: 12 }}><Scramble text={p.discipline} delay={d} runKey={rk} /></span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <Dot status={p.availability} />
-                <span style={{ fontSize: 10, color: C.soft }}><Scramble text={AVAIL_LBL[p.availability]} delay={d} runKey={rk} /></span>
+                <span style={{ fontSize: 12, color: C.soft }}><Scramble text={AVAIL_LBL[p.availability]} delay={d} runKey={rk} /></span>
               </span>
-              <span style={{ color: C.soft, fontSize: 10, letterSpacing: '0.04em' }}><Scramble text={p.tz} delay={d} runKey={rk} /></span>
-              <span style={{ fontSize: 10, color: C.soft, opacity: 0.55, letterSpacing: '0.05em' }}><Scramble text={p.rate} delay={d} runKey={rk} /></span>
+              <span style={{ color: C.soft, fontSize: 12, letterSpacing: '0.04em' }}><Scramble text={p.tz} delay={d} runKey={rk} /></span>
+              <span style={{ fontSize: 12, color: C.soft, opacity: 0.55, letterSpacing: '0.05em' }}><Scramble text={p.rate} delay={d} runKey={rk} /></span>
             </div>);
 
         })}
@@ -1479,10 +1485,10 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
                   est. {total} humans
                 </span>
               </div>
-              <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(72px,12vw,156px)', lineHeight: 0.87, letterSpacing: '-0.045em', marginBottom: 16 }}>
+              <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(72px,12vw,156px)', lineHeight: 0.90, letterSpacing: '-0.045em', marginBottom: 16 }}>
                 the <span style={{ color:'#ff5100' }}>right</span> person.
               </h1>
-              <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(72px,12vw,156px)', lineHeight: 0.87, letterSpacing: '-0.045em', color: C.soft, marginBottom: 36 }}>right now.</h2>
+              <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(72px,12vw,156px)', lineHeight: 0.90, letterSpacing: '-0.045em', color: C.soft, marginBottom: 36 }}>right now.</h2>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'end', maxWidth: 900 }}>
                 <div>
                   <p style={{ fontFamily: GM, fontSize: 13, color: C.ink, lineHeight: 1.7, marginBottom: 12 }}>a real network is narrow. the best freelance creatives in advertising aren’t on marketplaces. they’re on group texts. colophon is the group text, made legible.</p>
@@ -1579,20 +1585,20 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
         </div>
       </section>
 
-      {/* concierge sidecar */}
-      <section style={{ borderTop: `1px solid ${C.rule}`, padding: '64px 40px' }}>
+      {/* concierge sidecar — orange take-action card */}
+      <section style={{ background: '#FF5100', padding: '64px 40px', border: 'none' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'center' }}>
           <div>
-            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.14em', marginBottom: 16 }}>05 / also available — concierge</p>
-            <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,44px)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 16 }}>rather skip the browsing?</h3>
-            <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.78, marginBottom: 8 }}>tell us what you need. we'll send you five names that fit. you take it from there.</p>
-            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, opacity: 0.6, lineHeight: 1.7 }}>$199. no markup, no placement fee.</p>
+            <p style={{ fontFamily: GM, fontSize: 10, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.14em', marginBottom: 16 }}>05 / also available — concierge</p>
+            <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,44px)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 16, color: '#ffffff' }}>rather skip the browsing?</h3>
+            <p style={{ fontFamily: GM, fontSize: 12, color: '#ffffff', lineHeight: 1.78, marginBottom: 8 }}>tell us what you need. we'll send you five names that fit. you take it from there.</p>
+            <p style={{ fontFamily: GM, fontSize: 10, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7 }}>$199. no markup, no placement fee.</p>
           </div>
           <div>
-            <button onClick={() => gotoBrief(setPage)} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.06em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '13px 22px', cursor: 'pointer' }}>
+            <button onClick={() => gotoBrief(setPage)} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.06em', background: '#ffffff', color: '#FF5100', border: '1px solid #ffffff', padding: '13px 22px', cursor: 'pointer' }}>
               send a brief →
             </button>
-            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 12, lineHeight: 1.6 }}>$199. no markup, no placement fee.</p>
+            <p style={{ fontFamily: GM, fontSize: 10, color: 'rgba(255,255,255,0.6)', marginTop: 12, lineHeight: 1.6 }}>$199. no markup, no placement fee.</p>
           </div>
         </div>
       </section>
@@ -2022,7 +2028,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
 
                 {/* Selected price + caption */}
                 <div style={{ marginTop: 36, display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: GS, fontWeight: 300, fontSize: 88, letterSpacing: '-0.03em', lineHeight: 1, color: C.ink }}>${priceFor(duration)}</span>
+                  <span style={{ fontFamily: GS, fontWeight: 700, fontSize: 88, letterSpacing: '-0.045em', lineHeight: 1, color: C.ink }}>${priceFor(duration)}</span>
                   {filterCount > 0 && (
                     <span style={{ fontFamily: GM, fontSize: 16, color: C.soft, opacity: 0.55, textDecoration: 'line-through' }}>${PRICES[duration]}</span>
                   )}
@@ -2107,7 +2113,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
                 that's a tight bench. skip the search — send a brief and we'll come back with 5+ top-tier names within 4 hours.
               </p>
               <div style={{ display:'flex', alignItems:'baseline', gap: 10, marginBottom: 18 }}>
-                <span style={{ fontFamily: GS, fontWeight: 300, fontSize: 40, letterSpacing:'-0.025em' }}>$199</span>
+                <span style={{ fontFamily: GS, fontWeight: 700, fontSize: 40, letterSpacing:'-0.045em' }}>$199</span>
                 <span style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>to open the bench.</span>
               </div>
               {conciergeSent ? (
@@ -2215,7 +2221,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
         {/* Footer: live count + continue */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap: 24, flexWrap:'wrap' }}>
           <div style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>
-            <span style={{ fontFamily: GS, fontSize: 32, color: C.ink, fontWeight: 300, letterSpacing:'-0.02em' }}>{matchedAvail}</span>
+            <span style={{ fontFamily: GS, fontSize: 32, color: C.ink, fontWeight: 700, letterSpacing:'-0.045em' }}>{matchedAvail}</span>
             <span style={{ marginLeft: 10 }}>available now</span>
           </div>
           <div style={{ display:'flex', gap: 12 }}>
@@ -2723,7 +2729,7 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
         <div style={{ maxWidth: 720, margin: '0 auto', padding: isDrawer ? '24px 40px 60px' : '52px 40px 80px' }}>
           {!isDrawer && (
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 22, height: 18 }}>
-              <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: '#c89090', fontWeight: 600 }}>03</span>
+              <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: TAB_CONCIERGE, fontWeight: 600 }}>03</span>
               <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: C.soft, textTransform: 'uppercase' }}>Concierge — Handpicked</span>
             </div>
           )}
@@ -3739,7 +3745,7 @@ function AccessModal({ active, onClose, setActiveDrawer }) {
         padding: 24,
       }}>
       <div className="drawer-tinted" style={{
-        background: '#b8b878',
+        background: TAB_ACCESS,
         borderRadius: 14,
         boxShadow: '0 30px 80px rgba(0,0,0,0.35)',
         padding: '44px 52px',
@@ -3806,11 +3812,11 @@ function ApplyDrawer({ accent, onDone }) {
 // Tabs 01–04 are drawer toggles (the bench / build a bench / concierge / apply).
 // Tab 05 is a full-page takeover (access, gated by token).
 const TABS = [
-  ['bench',     'the bench',      '#a8c4b8'], // sage teal — drawer
-  ['look',      'build a bench',  '#e8c478'], // warm cream/yellow — drawer
-  ['concierge', 'concierge',      '#c89090'], // dusty rose — drawer
-  ['apply',     'join the bench', '#b8a8c8'], // soft lilac — drawer
-  ['access',    'access',         '#b8b878'], // olive — full page
+  ['bench',     'the bench',      TAB_SAGE],      // 01 sage
+  ['look',      'build a bench',  TAB_BUILD],     // 02 gold
+  ['concierge', 'concierge',      TAB_CONCIERGE], // 03 muted coral
+  ['apply',     'join the bench', TAB_JOIN],      // 04 violet
+  ['access',    'access',         TAB_ACCESS],    // 05 cool grey-blue
 ];
 // Tabs 01–05 all toggle drawers. Tab 01 dual-purposes: shows 'how we decide'
 // when clicked, swaps to a dossier when a bench row is hovered.
@@ -3818,9 +3824,12 @@ const DRAWER_KEYS = new Set(['bench', 'look', 'concierge', 'apply', 'access']);
 
 function FolderTab({ n, label, color, active, onClick, isMobile, id }) {
   const height = active ? 38 : 32;
-  // Tabs always use their full hex (= their drawer's fill). Active state is
-  // conveyed by height (38 vs 32) and font weight, not color shift.
   const tabColor = color;
+  const [hover, setHover] = useState(false);
+  // Active or hovered tab: full opacity. Inactive resting: 0.7 on the fill
+  // only — text stays at its own opacity. Active state is also conveyed by
+  // height (38 vs 32) and font weight.
+  const fillOpacity = (active || hover) ? 1 : 0.7;
 
   // SVG path: square left edge, convex top-right (radius 3), slanted right edge,
   // concave bottom-right (radius 5), straight bottom back to start.
@@ -3831,6 +3840,8 @@ function FolderTab({ n, label, color, active, onClick, isMobile, id }) {
     <button
       id={id}
       onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
         position: 'relative',
         background: 'transparent',
@@ -3863,7 +3874,7 @@ function FolderTab({ n, label, color, active, onClick, isMobile, id }) {
           zIndex: -1,
           display: 'block',
         }}>
-        <path d={path} fill={tabColor} />
+        <path d={path} fill={tabColor} fillOpacity={fillOpacity} style={{ transition: 'fill-opacity 0.12s ease' }} />
       </svg>
       <span style={{ position: 'relative', fontWeight: 600, opacity: active ? 0.6 : 0.5, fontSize: isMobile ? 9 : 10, letterSpacing: '0.1em' }}>{n}</span>
       <span style={{ position: 'relative', fontWeight: active ? 600 : 500 }}>{label}</span>
@@ -4144,16 +4155,16 @@ function App() {
       <Header page={page} activeDrawer={activeDrawer} setActiveDrawer={setActiveDrawer} setPage={setPage} accent={accent} />
 
       {/* Drawers float above the always-mounted bench. */}
-      <Drawer id="bench" active={activeDrawer} color="#a8c4b8" onClose={closeDrawer}>
+      <Drawer id="bench" active={activeDrawer} color={TAB_SAGE} onClose={closeDrawer}>
         <BenchDrawerContent hoveredCreative={hoveredCreative} />
       </Drawer>
-      <Drawer id="look" active={activeDrawer} color="#e8c478" onClose={closeDrawer}>
+      <Drawer id="look" active={activeDrawer} color={TAB_BUILD} onClose={closeDrawer}>
         <PricingPage setPage={setPage} accent={accent} isDrawer={true} onFiltersChange={(f) => setDrawerFilters(f)} seedFilters={drawerFilters} seedKey={seedKey} />
       </Drawer>
-      <Drawer id="concierge" active={activeDrawer} color="#c89090" onClose={closeDrawer}>
+      <Drawer id="concierge" active={activeDrawer} color={TAB_CONCIERGE} onClose={closeDrawer}>
         <ConciergePage accent={accent} setPage={setPage} isDrawer={true} />
       </Drawer>
-      <Drawer id="apply" active={activeDrawer} color="#b8a8c8" onClose={closeDrawer}>
+      <Drawer id="apply" active={activeDrawer} color={TAB_JOIN} onClose={closeDrawer}>
         <ApplyPage accent={accent} isDrawer={true} />
       </Drawer>
       <AccessModal active={activeDrawer === 'access'} onClose={closeDrawer} setActiveDrawer={setActiveDrawer} />
