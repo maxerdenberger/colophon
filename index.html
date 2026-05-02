@@ -3204,11 +3204,9 @@ function AdminPage({ accent, setPage }) {
 }
 
 // ── DRAWER WRAPPER ───────────────────────────────────────────────────────────
-// Right-side panel that drops down from its corresponding nav tab — same
-// visual language as the sage dossier on tab 01. Background is the tab color
-// (so the open drawer is visibly "orange" / "gold" / "rose" / "lilac"), left
-// edge is anchored to the tab's left edge with a sane minimum width so later
-// tabs don't produce a cramped panel. ESC + outside-click → onClose.
+// Right-side panel anchored to its own nav tab — left edge aligned to the
+// tab's left edge, right edge bleeds to the viewport. Position re-measures
+// on mount and on nav resize via ResizeObserver. ESC + outside-click → onClose.
 function Drawer({ id, active, color, onClose, children }) {
   const ref = useRef(null);
   const justOpened = useRef(false);
@@ -3216,23 +3214,29 @@ function Drawer({ id, active, color, onClose, children }) {
   const isOpen = active === id;
   const [drawerLeft, setDrawerLeft] = useState(null);
 
-  // Anchor the drawer's left edge to its tab. On mobile, take the full width.
+  // Track the corresponding tab's left edge. Mobile takes full width.
   useEffect(() => {
     if (isMobile) { setDrawerLeft(0); return; }
     const update = () => {
       const tab = document.getElementById(`nav-tab-${id}`);
       if (!tab) { setDrawerLeft(null); return; }
       const r = tab.getBoundingClientRect();
-      const minWidth = 600;                       // keep the panel usable
-      const desiredLeft = Math.min(r.left, window.innerWidth - minWidth);
-      setDrawerLeft(Math.max(0, desiredLeft));
+      setDrawerLeft(r.left);
     };
     update();
-    window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true);
+    // ResizeObserver on the nav element — fires on viewport / nav-layout
+    // changes so left edges stay aligned to their tabs.
+    const nav = document.querySelector('header nav');
+    let ro;
+    if (typeof ResizeObserver !== 'undefined' && nav) {
+      ro = new ResizeObserver(update);
+      ro.observe(nav);
+    } else {
+      window.addEventListener('resize', update);
+    }
     return () => {
-      window.removeEventListener('resize', update);
-      window.removeEventListener('scroll', update, true);
+      if (ro) ro.disconnect();
+      else    window.removeEventListener('resize', update);
     };
   }, [id, isMobile, isOpen]);
 
