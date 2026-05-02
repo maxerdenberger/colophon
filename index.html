@@ -3718,6 +3718,40 @@ const saveAdminActions = (m) => {
   try { localStorage.setItem(ACTIONS_KEY, JSON.stringify(m)); } catch {}
 };
 
+// Mutually-exclusive action groups. Clicking any op in a group clears
+// the other ops in the same group (across past + session actions). So
+// approve clears deny/revoke; deny clears approve/revoke; etc. Pause
+// and legend are their own groups so a row can be approved + paused +
+// legend simultaneously without those states stomping each other.
+const ACTION_GROUPS = {
+  moderation: ['approve', 'deny', 'revoke', 'reject', 'skip'],
+  pause:      ['pause', 'unpause', 'resume'],
+  legend:     ['legend', 'unlegend'],
+};
+const groupFor = (op) => {
+  for (const [name, ops] of Object.entries(ACTION_GROUPS)) {
+    if (ops.includes(op)) return ops;
+  }
+  return null;
+};
+// Strip every sibling op (in the same group as `op`) from `actions[k]`,
+// for each k in keys. Used by recordAction to enforce group exclusivity
+// before stamping the new op.
+const clearSiblingOps = (actions, keys, op) => {
+  const siblings = groupFor(op);
+  if (!siblings) return actions;
+  const next = { ...actions };
+  for (const k of keys) {
+    if (!next[k]) continue;
+    const cleaned = {};
+    for (const [opName, ts] of Object.entries(next[k])) {
+      if (opName === op || !siblings.includes(opName)) cleaned[opName] = ts;
+    }
+    next[k] = cleaned;
+  }
+  return next;
+};
+
 // Pulls submissions from Formspree via a server-side proxy at
 // /api/submissions (proxy because the Formspree API token shouldn't
 // ride in client JS). Each row gets approve / skip / reject; approve
@@ -3742,9 +3776,16 @@ function AdminFormspreeApproval({ secret }) {
   };
   const recordAction = (rowId, op) => {
     const k = 's:' + String(rowId);
-    setSessionActions((s) => ({ ...s, [k]: { ...(s[k] || {}), [op]: Date.now() } }));
+    const stamp = Date.now();
+    // Same exclusive-group logic as the bench browser. Approve clears
+    // deny/reject; reject clears approve; etc.
+    setSessionActions((s) => {
+      const cleared = clearSiblingOps(s, [k], op);
+      return { ...cleared, [k]: { ...(cleared[k] || {}), [op]: stamp } };
+    });
     setPastActions((p) => {
-      const next = { ...p, [k]: { ...(p[k] || {}), [op]: Date.now() } };
+      const cleared = clearSiblingOps(p, [k], op);
+      const next = { ...cleared, [k]: { ...(cleared[k] || {}), [op]: stamp } };
       saveAdminActions(next);
       return next;
     });
@@ -3957,13 +3998,18 @@ function AdminBenchBrowser({ secret }) {
   const recordAction = (row, op) => {
     const keys = keysForRow(row);
     const stamp = Date.now();
+    // Group exclusivity — clicking deny clears prior approve/revoke for
+    // the same row; clicking approve clears deny/revoke; etc. Pause and
+    // legend are separate groups, so they coexist with moderation.
     setSessionActions((s) => {
-      const next = { ...s };
+      let next = clearSiblingOps(s, keys, op);
+      next = { ...next };
       for (const k of keys) next[k] = { ...(next[k] || {}), [op]: stamp };
       return next;
     });
     setPastActions((p) => {
-      const next = { ...p };
+      let next = clearSiblingOps(p, keys, op);
+      next = { ...next };
       for (const k of keys) next[k] = { ...(next[k] || {}), [op]: stamp };
       saveAdminActions(next);
       return next;
