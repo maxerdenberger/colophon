@@ -3633,6 +3633,13 @@ function AdminBenchBrowser({ secret }) {
   const { allBench, noDataBench } = useBench();
   const bench = allBench;
   const [filter, setFilter] = useState('');
+  // 'all' | 'unapproved' | 'approved' — filters the row list by past+session
+  // approval state. Default 'unapproved' so the queue is in front of you on
+  // every load.
+  const [statusFilter, setStatusFilter] = useState('unapproved');
+  // 'newest' = by Sheet-row timestamp desc (col 0 of the source CSV).
+  // 'rate'   = original behavior: hourly desc, then yoe desc.
+  const [sortBy, setSortBy] = useState('newest');
   const [log, setLog] = useState([]);
   const [adding, setAdding] = useState(false);
   const [newRow, setNewRow] = useState({ name: '', discipline: '', tz: 'UTC−5', rate: '$$$', availability: 'available', email: '', aiSavvy: '' });
@@ -3671,19 +3678,43 @@ function AdminBenchBrowser({ secret }) {
     });
   };
 
-  // Sort by hourlyRate desc, then yoe desc — top-of-the-top first.
-  // Search hits on real name, code name, discipline.
+  // Convenience: has this row been approved in any session (past or current)?
+  // Used for the unapproved/approved status filter below. Mirrors stateFor()
+  // logic but collapsed to a boolean.
+  const wasApproved = (row) => stateFor(row, 'approve') !== 'empty';
+
+  // Counts for the status pills (calculated against the search-filtered list
+  // so the numbers reflect what the user is actually narrowing through).
+  const searchHit = (p) =>
+    !filter ||
+    (p.realName || '').toLowerCase().includes(filter.toLowerCase()) ||
+    p.name.toLowerCase().includes(filter.toLowerCase()) ||
+    (p.discipline || '').toLowerCase().includes(filter.toLowerCase()) ||
+    (p.emailRaw || '').toLowerCase().includes(filter.toLowerCase());
+  const counts = {
+    all:        bench.filter(searchHit).length,
+    unapproved: bench.filter((p) => searchHit(p) && !wasApproved(p)).length,
+    approved:   bench.filter((p) => searchHit(p) &&  wasApproved(p)).length,
+  };
+
   const filtered = bench
-    .filter((p) =>
-      !filter ||
-      (p.realName || '').toLowerCase().includes(filter.toLowerCase()) ||
-      p.name.toLowerCase().includes(filter.toLowerCase()) ||
-      (p.discipline || '').toLowerCase().includes(filter.toLowerCase())
-    )
+    .filter(searchHit)
+    .filter((p) => {
+      if (statusFilter === 'unapproved') return !wasApproved(p);
+      if (statusFilter === 'approved')   return  wasApproved(p);
+      return true;
+    })
     .slice()
     .sort((a, b) => {
       // Legends always at the very top.
       if (!!a.legend !== !!b.legend) return a.legend ? -1 : 1;
+      if (sortBy === 'newest') {
+        const at = a.updatedAt || 0, bt = b.updatedAt || 0;
+        if (bt !== at) return bt - at;
+        // Tiebreaker: row id desc (later rows ~ later additions).
+        return (b.id || 0) - (a.id || 0);
+      }
+      // Default: rate desc, then yoe desc.
       const ah = a.hourlyRate || 0, bh = b.hourlyRate || 0;
       if (bh !== ah) return bh - ah;
       return (b.yoe || 0) - (a.yoe || 0);
@@ -3724,9 +3755,59 @@ function AdminBenchBrowser({ secret }) {
       <input
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        placeholder="filter by name or discipline…"
-        style={{ ...FIELD, marginBottom: 14 }}
+        placeholder="filter by name, email, or discipline…"
+        style={{ ...FIELD, marginBottom: 10 }}
       />
+      {/* Status + sort segmented controls. Defaults: unapproved + newest so
+          the queue lands on every load with the most recent applicants on
+          top. Counts in parens reflect the current search filter. */}
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <span style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.14em', color: C.soft, textTransform: 'uppercase', marginRight: 6 }}>status</span>
+          {[
+            ['unapproved', `not yet approved (${counts.unapproved})`],
+            ['approved',   `approved (${counts.approved})`],
+            ['all',        `all (${counts.all})`],
+          ].map(([key, label]) => {
+            const active = statusFilter === key;
+            return (
+              <button key={key} onClick={() => setStatusFilter(key)}
+                style={{
+                  fontFamily: GM, fontSize: 10, letterSpacing: '0.05em',
+                  padding: '6px 11px', cursor: 'pointer', borderRadius: 4,
+                  background: active ? C.ink : 'transparent',
+                  color:      active ? C.cream : C.ink,
+                  border: `1px solid ${active ? C.ink : 'rgba(13,13,11,0.18)'}`,
+                  transition: 'background 0.12s ease, color 0.12s ease',
+                }}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <span style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.14em', color: C.soft, textTransform: 'uppercase', marginRight: 6 }}>sort</span>
+          {[
+            ['newest', 'newest first'],
+            ['rate',   'top rate first'],
+          ].map(([key, label]) => {
+            const active = sortBy === key;
+            return (
+              <button key={key} onClick={() => setSortBy(key)}
+                style={{
+                  fontFamily: GM, fontSize: 10, letterSpacing: '0.05em',
+                  padding: '6px 11px', cursor: 'pointer', borderRadius: 4,
+                  background: active ? C.ink : 'transparent',
+                  color:      active ? C.cream : C.ink,
+                  border: `1px solid ${active ? C.ink : 'rgba(13,13,11,0.18)'}`,
+                  transition: 'background 0.12s ease, color 0.12s ease',
+                }}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <div style={{ maxHeight: 480, overflowY: 'auto', border: `1px solid ${C.rule}`, marginBottom: 14 }}>
         {filtered.map((p, i) => (
           <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '34px 1.4fr 1fr 60px 60px auto auto', gap: 10, padding: '8px 14px', borderBottom: i < filtered.length - 1 ? `1px solid ${C.rule}` : 'none', alignItems: 'center', fontFamily: GM, fontSize: 11, background: p.paused ? 'rgba(176,64,64,0.05)' : (p.legend ? 'rgba(255,81,0,0.06)' : 'transparent') }}>
@@ -3737,6 +3818,22 @@ function AdminBenchBrowser({ secret }) {
                 <span style={{ marginLeft: 8, fontFamily: GM, fontSize: 9, color: C.soft, opacity: 0.7 }}>aka {p.name}</span>
               )}
               {p.paused && <span style={{ marginLeft: 8, fontFamily: GM, fontSize: 9, color: '#b04040', textTransform: 'uppercase', letterSpacing: '0.1em' }}>paused</span>}
+              {wasApproved(p)
+                ? <span style={{ marginLeft: 8, fontFamily: GM, fontSize: 9, color: '#3F7F4A', textTransform: 'uppercase', letterSpacing: '0.1em' }}>● approved</span>
+                : <span style={{ marginLeft: 8, fontFamily: GM, fontSize: 9, color: '#C87C18', textTransform: 'uppercase', letterSpacing: '0.1em' }}>○ pending</span>
+              }
+              {p.updatedAt > 0 && (
+                <span style={{ marginLeft: 8, fontFamily: GM, fontSize: 9, color: C.soft, opacity: 0.6 }}>
+                  {(() => {
+                    const days = Math.floor((Date.now() - p.updatedAt) / 86400000);
+                    if (days < 1) return 'today';
+                    if (days < 2) return 'yesterday';
+                    if (days < 30) return `${days}d ago`;
+                    if (days < 365) return `${Math.floor(days/30)}mo ago`;
+                    return `${Math.floor(days/365)}y ago`;
+                  })()}
+                </span>
+              )}
             </span>
             <span style={{ color: C.soft, fontSize: 10 }}>{p.discipline}</span>
             <span style={{ color: C.ink, fontSize: 11, fontFamily: GS, fontWeight: 600 }}>{p.hourlyRate ? `$${p.hourlyRate}` : p.rate}</span>
@@ -3771,7 +3868,7 @@ function AdminBenchBrowser({ secret }) {
         )}
       </div>
       <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
-        <span>showing {filtered.length} of {bench.length} (raw count, pre-holdback)</span>
+        <span>showing {filtered.length} of {bench.length} · {statusFilter} · sorted by {sortBy === 'newest' ? 'newest' : 'rate'}</span>
         <span style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
           <span>{Object.keys(pastActions).length} past-action keys in storage</span>
           <button onClick={() => {
