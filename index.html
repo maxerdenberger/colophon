@@ -438,12 +438,108 @@ async function submitForm(payload) {
   return { ok: true, viaMailto: true };
 }
 
+// Code-name pool: philosophers, design / tech creative legends, distance
+// runners. Long enough to cover the full bench; parseSheetCSV walks it in
+// order, never reusing a name within the same parse.
 const PHIL_POOL = [
-'simone weil', 'walter benjamin', 'hannah arendt', 'dieter rams', 'susan sontag', 'john berger',
-'el lissitzky', 'theodor adorno', 'bell hooks', 'adrienne rich', 'roland barthes', 'italo calvino',
-'james baldwin', 'virginia woolf', 'lászló moholy-nagy', 'donna haraway', 'marshall mcluhan',
-'michel foucault', 'judith butler', 'antonio gramsci', 'jean baudrillard', 'pierre bourdieu',
-'sun tzu', 'hélène cixous', 'gaston bachelard'];
+  // ── philosophers + critical theorists ──
+  'simone weil','walter benjamin','hannah arendt','susan sontag','john berger',
+  'theodor adorno','bell hooks','adrienne rich','roland barthes','italo calvino',
+  'james baldwin','virginia woolf','donna haraway','marshall mcluhan','michel foucault',
+  'judith butler','antonio gramsci','jean baudrillard','pierre bourdieu','sun tzu',
+  'hélène cixous','gaston bachelard','friedrich nietzsche','søren kierkegaard',
+  'immanuel kant','ludwig wittgenstein','simone de beauvoir','jean-paul sartre',
+  'albert camus','martin heidegger','edmund husserl','maurice merleau-ponty',
+  'gilles deleuze','félix guattari','jacques derrida','jacques lacan','paul ricoeur',
+  'isaiah berlin','charles taylor','martha nussbaum','catharine mackinnon',
+  'frantz fanon','w.e.b. du bois','audre lorde','gloria anzaldúa','kimberlé crenshaw',
+  'paul gilroy','stuart hall','raymond williams','edward said','gayatri spivak',
+  'homi bhabha','achille mbembe','byung-chul han','slavoj žižek','peter sloterdijk',
+  'jürgen habermas','john dewey','william james','richard rorty','willard quine',
+  'alfred north whitehead','bertrand russell','noam chomsky','cornel west',
+  'angela davis','clifford geertz','georg simmel','niklas luhmann','michel de certeau',
+  'paul virilio','jean-françois lyotard','julia kristeva','luce irigaray','vandana shiva',
+  'karen barad','rosi braidotti','sara ahmed','lauren berlant','sianne ngai',
+  'fred moten','saidiya hartman','tina campt','christina sharpe','denise ferreira da silva',
+  'mark fisher','wendy brown','silvia federici','nancy fraser','seyla benhabib',
+  'iris marion young','arendt hartz','glenn loury','paul taylor','linda alcoff',
+  // ── design / type / graphic legends ──
+  'susan kare','tibor kalman','paul rand','saul bass','massimo vignelli','milton glaser',
+  'stefan sagmeister','paula scher','michael bierut','david carson','jessica walsh',
+  'wim crouwel','bruno munari','otl aicher','jan tschichold','herb lubalin','lou dorfsman',
+  'eric gill','edward johnston','frederic goudy','adrian frutiger','max miedinger',
+  'hermann zapf','edward tufte','ellen lupton','jessica hische','dieter rams',
+  'el lissitzky','lászló moholy-nagy','charles eames','ray eames','jonathan ive',
+  'marc newson','naoto fukasawa','konstantin grcic','ross lovegrove','yves béhar',
+  'karim rashid','philippe starck','ettore sottsass','achille castiglioni','gaetano pesce',
+  'eero saarinen','isamu noguchi','alvar aalto','hans wegner','finn juhl','arne jacobsen',
+  'verner panton','george nelson','irving harper','florence knoll','mariska karasz',
+  'cipe pineles','lillian bassman','lella vignelli','muriel cooper','alvin lustig',
+  'ladislav sutnar','herbert bayer','herbert matter','alexey brodovitch','lester beall',
+  'paul renner','adolphe mouron cassandre','a.m. cassandre','wolfgang weingart',
+  'april greiman','rudy vanderlans','zuzana licko','neville brody','vaughan oliver',
+  'peter saville','m/m paris','irma boom','karel martens','experimental jetset',
+  'paula scher','marian bantjes','louise fili','seymour chwast','edward fella',
+  'massimo dolcini','giovanni pintori','franco grignani','aldo novarese','franco maria ricci',
+  'shigeo fukuda','tadanori yokoo','ikko tanaka','yusaku kamekura','kenya hara',
+  'kashiwa sato','sori yanagi','isamu kenmochi','toyoko kenzo','enzo mari',
+  // ── advertising creatives ──
+  'bill bernbach','david ogilvy','lee clow','dan wieden','david droga','bob greenberg',
+  'john hegarty','trevor beattie','mary wells lawrence','helen lansdowne resor',
+  'ed mccabe','jay chiat','hal riney','phil dusenberry','leo burnett','claude hopkins',
+  'james webb young','charles saatchi','maurice saatchi','david abbott','alex bogusky',
+  'neil french','george lois','rosser reeves','william esty','rosser reeves',
+  'harry mccann','helmut krone','julian koenig','george gribbin','phyllis robinson',
+  'jim durfee','mickey hart','stan freberg','howard gossage','roy grace',
+  // ── ux / hci / digital ──
+  'don norman','jakob nielsen','john maeda','bret victor','alan kay','doug engelbart',
+  'vannevar bush','ted nelson','bill moggridge','jeff raskin','andy hertzfeld','bill atkinson',
+  'tim berners-lee','grace hopper','ada lovelace','radia perlman','frances allen',
+  'sophie wilson','karen sparck jones','margaret hamilton','barbara liskov','dorothy vaughan',
+  'katherine johnson','mary jackson','annie easley','evelyn boyd granville','kathleen booth',
+  'fei-fei li','timnit gebru','joy buolamwini','hadi partovi','linus torvalds',
+  // ── photographers / image makers ──
+  'henri cartier-bresson','robert capa','annie leibovitz','helmut newton','richard avedon',
+  'irving penn','ansel adams','diane arbus','cindy sherman','dorothea lange','walker evans',
+  'gordon parks','garry winogrand','william eggleston','eugène atget','alfred stieglitz',
+  'edward weston','paul strand','lee miller','vivian maier','sebastião salgado','steve mccurry',
+  'mary ellen mark','nan goldin','wolfgang tillmans','andreas gursky','hiroshi sugimoto',
+  'sally mann','joel meyerowitz','fred herzog','saul leiter','robert frank','bill brandt',
+  'brassaï','man ray','tina modotti','julia margaret cameron','daido moriyama',
+  'shōji ueda','rinko kawauchi','francesca woodman','imogen cunningham','lisette model',
+  'helen levitt','consuelo kanaga','viviane sassen','rineke dijkstra','catherine opie',
+  'carrie mae weems','kerry james marshall','dawoud bey','lorna simpson','deana lawson',
+  // ── filmmakers / image storytellers ──
+  'agnès varda','chris marker','errol morris','frederick wiseman','jean rouch','robert bresson',
+  'andrei tarkovsky','ingmar bergman','akira kurosawa','yasujirō ozu','kenji mizoguchi',
+  'satyajit ray','abbas kiarostami','hou hsiao-hsien','edward yang','ousmane sembène',
+  'djibril diop mambéty','souleymane cissé','abderrahmane sissako','wong kar-wai','tsai ming-liang',
+  'apichatpong weerasethakul','lucrecia martel','claire denis','chantal akerman','harun farocki',
+  'jean-luc godard','françois truffaut','jacques tati','agnes godard','vilmos zsigmond',
+  'gregg toland','sven nykvist','roger deakins','vittorio storaro','emmanuel lubezki',
+  'rachel morrison','reed morano','autumn durald','natasha braier','ellen kuras',
+  // ── distance runners ──
+  'steve prefontaine','roger bannister','emil zátopek','paavo nurmi','haile gebrselassie',
+  'eliud kipchoge','mo farah','kenenisa bekele','tirunesh dibaba','paula radcliffe',
+  'joan benoit samuelson','bill rodgers','frank shorter','alberto salazar','kathrine switzer',
+  'peter snell','lasse virén','kip keino','abebe bikila','sebastian coe','steve cram',
+  'steve ovett','said aouita','hicham el guerrouj','noah ngeny','john walker','filbert bayi',
+  'jim ryun','glenn cunningham','dave bedford','brendan foster','steve jones','grete waitz',
+  'ingrid kristiansen','tegla loroupe','catherine ndereba','mary keitany','naoko takahashi',
+  'mary decker','suzy hamilton','lornah kiplagat','constantina diță','zola budd',
+  'derartu tulu','fatuma roba','fernanda ribeiro','sonia o\'sullivan','maria mutola',
+  'ron clarke','herb elliott','jim peters','vladimir kuts','murray halberg',
+  'kelvin kiptum','faith kipyegon','sifan hassan','gudaf tsegay','agnes tirop',
+  'beatrice chebet','geoffrey mutai','dennis kimetto','wilson kipsang','abel kirui',
+  'samuel wanjiru','paul tergat','noureddine morceli','jakob ingebrigtsen','cole hocker',
+  'grant fisher','clayton young','galen rupp','meb keflezighi','shalane flanagan',
+  'desiree linden','molly seidel','sally kipyego','aliphine tuliamuk','alexi pappas',
+  'ryan hall','matt centrowitz','nick willis','asbel kiprop','genzebe dibaba',
+  'almaz ayana','meseret defar','vivian cheruiyot','helen obiri','letesenbet gidey',
+  'edna kiplagat','brigid kosgei','peres jepchirchir','hellen obiri','rojé stona',
+  'tigist assefa','ruth chepngetich','deena kastor','catherine debrunner','tatyana mcfadden',
+  'evan jager','donavan brazier','clayton murphy','craig engels','aleia hobbs',
+];
 
 
 const RATES = ['$$', '$$$', '$$$', '$$$$'];
@@ -1050,7 +1146,7 @@ const INK_72 = 'rgba(13,13,11,0.72)';
 const INK_55 = 'rgba(13,13,11,0.55)';
 const INK_38 = 'rgba(13,13,11,0.38)';
 
-function BenchTeaser({ accent, bench: benchProp, activeFilters }) {
+function BenchTeaser({ accent, bench: benchProp, activeFilters, onRowClick }) {
   const allRows = benchProp || BENCH;
   // STEP 2 — live filtering driven by the open drawer's filter state.
   // When activeFilters is null/empty → show every row. When any filter has
@@ -1166,7 +1262,14 @@ function BenchTeaser({ accent, bench: benchProp, activeFilters }) {
               className="bench-row"
               onMouseEnter={() => setHovered(p.id)}
               onMouseLeave={() => setHovered(null)}
-              style={{ display: 'grid', gridTemplateColumns: COLS, padding: '11px 40px', borderBottom: `1px solid ${C.rule}`, background: isH ? C.paper : C.cream, cursor: 'default', transition: 'background 0.12s', alignItems: 'center', borderLeft: isH ? `3px solid ${TAB_SAGE}` : '3px solid transparent' }}>
+              onClick={(e) => {
+                if (!onRowClick) return;
+                // Stop propagation so the open-drawer's outside-click handler
+                // doesn't immediately close the drawer we just opened.
+                e.stopPropagation();
+                onRowClick(p);
+              }}
+              style={{ display: 'grid', gridTemplateColumns: COLS, padding: '11px 40px', borderBottom: `1px solid ${C.rule}`, background: isH ? C.paper : C.cream, cursor: onRowClick ? 'pointer' : 'default', transition: 'background 0.12s', alignItems: 'center', borderLeft: isH ? `3px solid ${TAB_SAGE}` : '3px solid transparent' }}>
 
               <span style={{ fontFamily: GM, fontSize: 10, color: isH ? C.soft : 'rgba(13,13,11,0.28)' }}><Scramble text={String(i + 1).padStart(3, '0')} delay={d} runKey={rk} /></span>
               <span style={{ fontWeight: isH ? 600 : 400, fontSize: 13, color: C.ink, transition: 'font-weight 0.12s' }}><Scramble text={p.name} delay={d} runKey={rk} /></span>
@@ -1360,7 +1463,7 @@ function Footer({ accent, setPage }) {
 }
 
 // ── HOME PAGE ─────────────────────────────────────────────────────────────────
-function HomePage({ setPage, accent, variant, activeFilters }) {
+function HomePage({ setPage, accent, variant, activeFilters, onRowClick }) {
   const { bench: liveBench, stats, loading } = useBench();
   const total = stats.total;
   const avail = stats.availableNow;
@@ -1400,7 +1503,7 @@ function HomePage({ setPage, accent, variant, activeFilters }) {
                   <span style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.1em', marginLeft: 10, color: AVAIL_DOT.available, opacity: 1 }}>available</span>
                 </div>
                 <div style={{ maxWidth: '54ch' }}>
-                  <p style={{ fontFamily: GM, fontSize: 12, color: C.ink, lineHeight: 1.7, marginBottom: 10 }}>a real network is narrow. the best freelance creatives in advertising aren\u2019t on marketplaces. they\u2019re on group texts. colophon is the group text, made legible.</p>
+                  <p style={{ fontFamily: GM, fontSize: 12, color: C.ink, lineHeight: 1.7, marginBottom: 10 }}>a real network is narrow. the best freelance creatives in advertising aren’t on marketplaces. they’re on group texts. colophon is the group text, made legible.</p>
                   <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.7 }}>real availability. no emails, no ghosting. senior-band talent, maintained by referral.</p>
                 </div>
               </div>
@@ -1420,7 +1523,7 @@ function HomePage({ setPage, accent, variant, activeFilters }) {
               <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(72px,12vw,156px)', lineHeight: 0.87, letterSpacing: '-0.045em', color: C.soft, marginBottom: 36 }}>right now.</h2>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'end', maxWidth: 900 }}>
                 <div>
-                  <p style={{ fontFamily: GM, fontSize: 13, color: C.ink, lineHeight: 1.7, marginBottom: 12 }}>a real network is narrow. the best freelance creatives in advertising aren\u2019t on marketplaces. they\u2019re on group texts. colophon is the group text, made legible.</p>
+                  <p style={{ fontFamily: GM, fontSize: 13, color: C.ink, lineHeight: 1.7, marginBottom: 12 }}>a real network is narrow. the best freelance creatives in advertising aren’t on marketplaces. they’re on group texts. colophon is the group text, made legible.</p>
                   <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.7 }}>real availability. no emails, no ghosting. senior-band talent, maintained by referral.</p>
                 </div>
                 <CTAs />
@@ -1476,7 +1579,7 @@ function HomePage({ setPage, accent, variant, activeFilters }) {
             </p>
           </div>
           <div style={{ position: 'relative' }}>
-            <BenchTeaser accent={accent} bench={teaserBench} activeFilters={activeFilters} />
+            <BenchTeaser accent={accent} bench={teaserBench} activeFilters={activeFilters} onRowClick={onRowClick} />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 240, background: `linear-gradient(to bottom, transparent, ${C.cream})`, pointerEvents: 'none' }} />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingBottom: 32 }}>
               <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '11px 22px', cursor: 'pointer', position: 'relative', zIndex: 2 }}>
@@ -1698,7 +1801,7 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
 
 // ── PRICING PAGE ──────────────────────────────────────────────────────────────
 // ── BENCH BUILDER (replaces fixed pricing) ─────────────────────────────────
-function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange }) {
+function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedFilters, seedKey }) {
   // Checkout is handled by /api/checkout — no static Payment Links.
 
   const { bench } = useBench();
@@ -1720,6 +1823,19 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange }) {
     // closure on every parent render; we only care about filter changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
+
+  // External seed (e.g. clicking a bench row). seedKey is bumped by App on
+  // every seed; we re-sync internal filters and jump to the reveal step so
+  // the user immediately sees the count of matching creatives.
+  const lastSeedRef = useRef(0);
+  useEffect(() => {
+    if (seedKey == null || seedKey === lastSeedRef.current) return;
+    if (!seedFilters) return;
+    lastSeedRef.current = seedKey;
+    setFilters((prev) => ({ ...prev, ...seedFilters }));
+    setStep(STEPS.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedKey]);
   const [duration, setDuration] = useState('week'); // 'day' | 'week' | 'month' — default to most popular
   const [buyerName, setBuyerName] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
@@ -3823,6 +3939,28 @@ function App() {
   // STEP 4 / 6 — filters set by the open drawer (PricingPage in 'look') flow
   // through here and into the always-mounted BenchTeaser as activeFilters.
   const [drawerFilters, setDrawerFilters] = useState({});
+  // seedKey bumps every time filters are seeded externally (e.g. by clicking
+  // a bench row). PricingPage watches it and re-syncs its internal filters
+  // without looping with its own onFiltersChange emissions.
+  const [seedKey, setSeedKey] = useState(0);
+
+  // Click on a bench row → open the build drawer prefilled with that
+  // creative's discipline / availability / experience / rate.
+  const openLookSeededFromCreative = (creative) => {
+    const lvl = creative.yoe < 4 ? 'junior' : creative.yoe < 8 ? 'mid' : creative.yoe < 15 ? 'senior' : 'lead';
+    const seeded = {
+      disciplines: [creative.discipline],
+      avail:       [creative.availability],
+      experience:  [lvl],
+      timezone:    [],
+      rate:        [creative.rate],
+    };
+    setDrawerFilters(seeded);
+    setSeedKey((k) => k + 1);
+    setActiveDrawerState('look');
+    if (page !== 'home') setPageState('home');
+    pushUrl('home', 'look');
+  };
 
   const pushUrl = (page, drawer) => {
     if (typeof window === 'undefined') return;
@@ -3918,7 +4056,7 @@ function App() {
           drawer (the bench itself is the page). Always mounted; height 0 when
           closed. */}
       <Drawer id="look" active={activeDrawer} color="#e8c478" onClose={closeDrawer}>
-        <PricingPage setPage={setPage} accent={accent} isDrawer={true} onFiltersChange={(f) => setDrawerFilters(f)} />
+        <PricingPage setPage={setPage} accent={accent} isDrawer={true} onFiltersChange={(f) => setDrawerFilters(f)} seedFilters={drawerFilters} seedKey={seedKey} />
       </Drawer>
       <Drawer id="concierge" active={activeDrawer} color="#c89090" onClose={closeDrawer}>
         <ConciergePage accent={accent} setPage={setPage} isDrawer={true} />
@@ -3931,7 +4069,7 @@ function App() {
       {/* Full-page routes — bench lives inside HomePage and is always visible
           on the 'home' route, including underneath an open drawer.
           STEP 6 — drawerFilters flows through HomePage into BenchTeaser. */}
-      {page === 'home' && <HomePage setPage={setPage} accent={accent} variant={variant} activeFilters={drawerFilters} />}
+      {page === 'home' && <HomePage setPage={setPage} accent={accent} variant={variant} activeFilters={drawerFilters} onRowClick={openLookSeededFromCreative} />}
       {page === 'access' && <AccessPage accent={accent} setPage={setPage} />}
       {page === 'invite' && <InvitePage accent={accent} setPage={setPage} />}
       {page === 'admin' && <AdminPage accent={accent} setPage={setPage} />}
