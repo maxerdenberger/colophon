@@ -27,10 +27,12 @@ export default async function handler(req, res) {
   }
 
   // ── Auth: Bearer ADMIN_KEY (or legacy ADMIN_SECRET) ──────────────────────
+  // Falls back to the public client password '590Rossmore' when no env
+  // is set, so the admin panel works without Vercel env-var configuration.
+  // Set ADMIN_KEY for stronger security and update ADMIN_PW in the client.
   const auth = req.headers.authorization || '';
-  const secret = process.env.ADMIN_KEY || process.env.ADMIN_SECRET;
-  const expected = `Bearer ${secret}`;
-  if (!secret || auth !== expected) {
+  const secret = process.env.ADMIN_KEY || process.env.ADMIN_SECRET || '590Rossmore';
+  if (auth !== `Bearer ${secret}`) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 

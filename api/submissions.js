@@ -21,10 +21,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'method not allowed' });
   }
 
-  // Bearer auth — same key as /api/send-invites.
+  // Bearer auth — same key as /api/send-invites. Falls back to the
+  // public admin password baked into the client (ADMIN_PW = '590Rossmore')
+  // when no env var is set, so the panel works without needing to
+  // configure ADMIN_KEY on Vercel. Set ADMIN_KEY for a stronger value
+  // and update ADMIN_PW in the client to match.
   const auth = req.headers.authorization || '';
-  const adminKey = process.env.ADMIN_KEY || process.env.ADMIN_SECRET;
-  if (!adminKey || auth !== `Bearer ${adminKey}`) {
+  const adminKey = process.env.ADMIN_KEY || process.env.ADMIN_SECRET || '590Rossmore';
+  if (auth !== `Bearer ${adminKey}`) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 
