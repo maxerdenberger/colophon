@@ -3445,7 +3445,9 @@ const DRAWER_KEYS = new Set(['look', 'concierge', 'apply']);
 
 function FolderTab({ n, label, color, active, onClick, isMobile, id }) {
   const height = active ? 38 : 32;
-  const tabColor = active ? color : `color-mix(in srgb, ${color} 70%, #2a2a26 30%)`;
+  // Tabs always use their full hex (= their drawer's fill). Active state is
+  // conveyed by height (38 vs 32) and font weight, not color shift.
+  const tabColor = color;
 
   // SVG path: square left edge, convex top-right (radius 3), slanted right edge,
   // concave bottom-right (radius 5), straight bottom back to start.
