@@ -130,6 +130,15 @@
   :root { --nav-h: 60px; --drawer-bg: #a8c4b8; --page-bg: #FAFAF8; }
   @media (max-width: 760px) { :root { --nav-h: 52px; } }
 
+  /* ── ACCESS PAGE — all mono ──────────────────────────────────────────── */
+  /* The unlocked /access view reads as a record. Force IBM Plex Mono on
+     every descendant so headlines, table cells, buyer name etc. share the
+     typewriter aesthetic. Inline font-family wins by default, so this is
+     scoped !important. */
+  .access-page, .access-page * {
+    font-family: 'IBM Plex Mono', monospace !important;
+  }
+
   /* ── DRAWER TINT CONTRAST ────────────────────────────────────────────── */
   /* Inside a tinted drawer, secondary helper text and rule borders take
      drawer-specific values per the design tokens — secondary text is
@@ -1152,7 +1161,7 @@ function BenchDashboard({ bench, accent }) {
       {/* footer note */}
       <div style={{ padding: '14px 24px', borderTop: `1px solid ${C.rule}`, background: C.paper, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
-          this is everything except the names. <span style={{ color: C.ink }}>a look turns the names on.</span>
+          this is everything except the names. <span style={{ color: C.ink }}>a pass turns the names on.</span>
         </span>
         <span style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.12em' }}>{total} humans · 0 algorithms · $199. no markup, no placement fee.</span>
       </div>
@@ -2014,17 +2023,17 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
         </p>
         {(serverCount != null && serverCount <= 2 && rawFilterCount > 0) && (
           <p style={{ fontFamily: GM, fontSize: 12, color: '#7a4a0e', marginTop: 8 }}>
-            narrow filters \u2014 only {serverCount} match. broaden to see more.
+            narrow filters — only {serverCount} match. broaden to see more.
           </p>
         )}
         {filterCount > 0 && (
           <p style={{ fontFamily: GM, fontSize: 12, color: C.ink, marginTop: 8, lineHeight: 1.55 }}>
-            {rawFilterCount} filter{rawFilterCount > 1 ? 's' : ''} applied \u00b7 <span style={{ color: accent, fontWeight: 600 }}>{Math.round(discount*100)}% off</span> all passes.
+            {rawFilterCount} filter{rawFilterCount > 1 ? 's' : ''} applied · <span style={{ color: accent, fontWeight: 600 }}>{Math.round(discount*100)}% off</span> all passes.
           </p>
         )}
         {rawFilterCount > 0 && (
           <button onClick={resetAll} style={{ ...optBtn, marginTop: 4, color: C.soft, textDecoration: 'underline', textUnderlineOffset: 3 }}>
-            [\u00d7]&nbsp;&nbsp;clear all filters
+            [×]  clear all filters
           </button>
         )}
 
@@ -2038,7 +2047,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
             const on = duration === val;
             return (
               <button key={val} onClick={() => setDuration(val)} style={optBtn}>
-                [{on ? '\u25cf' : ' '}]&nbsp;&nbsp;{label} \u2014 ${priceFor(val)}
+                [{on ? '●' : ' '}]&nbsp;&nbsp;{label} — ${priceFor(val)}
               </button>
             );
           })}
@@ -2061,7 +2070,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
 
         <button onClick={checkout}
           style={{ ...BUTTON_PRIMARY, marginTop: 32, width: '100%', textAlign: 'center', padding: '18px 24px' }}>
-          mint your bench \u2014 ${priceFor(duration)} \u2192
+          mint your bench — ${priceFor(duration)} →
         </button>
         {checkoutErr && (
           <p style={{ fontFamily: GM, fontSize: 12, color: '#b04040', marginTop: 12 }}>{checkoutErr}</p>
@@ -3686,7 +3695,7 @@ function BenchDrawer({ accent, setActiveDrawer }) {
         <p style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>{stats.total} more behind the blur.</p>
         <button onClick={() => setActiveDrawer('look')}
           style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: 'none', padding: '14px 24px', cursor: 'pointer', borderRadius: 6 }}>
-          get a look →
+          get a pass →
         </button>
       </div>
     </div>);
@@ -3961,7 +3970,7 @@ function AccessModal({ active, onClose, setActiveDrawer }) {
           type="button"
           onClick={() => { onClose(); setActiveDrawer('look'); }}
           style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: GM, fontSize: 11, color: 'rgba(0,0,0,0.6)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
-          don't have one? get a look →
+          don't have one? get a pass →
         </button>
       </div>
     </div>
@@ -4345,7 +4354,7 @@ function App() {
   useEffect(() => {
     const drawerTitles = {
       bench:     'Colophon — The bench',
-      look:      'Colophon — Get a look',
+      look:      'Colophon — Get a pass',
       concierge: 'Colophon — Concierge',
       apply:     'Colophon — Join the bench',
     };
