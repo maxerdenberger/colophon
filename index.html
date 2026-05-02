@@ -590,9 +590,28 @@ function parseSheetCSV(text) {
 
 // ── DERIVED COUNTS ────────────────────────────────────────────────────────────
 // Single source of truth — every count rendered on the site flows from here.
+
+// Held-back duds: 10–17 creatives, deterministic per 4-hour bucket. The
+// public-facing total tracks real supply but won't always equal the raw
+// row count — there are always a few names that are mid-renegotiation,
+// quietly closed for the quarter, or otherwise not bookable. Stable
+// within a 4-hour window so the number doesn't twitch on every reload.
+function holdbackForNow() {
+  const FOUR_HOURS = 4 * 60 * 60 * 1000;
+  const bucket = Math.floor(Date.now() / FOUR_HOURS);
+  // Cheap integer hash → 0..7 → 10..17
+  const v = ((bucket * 2654435761) >>> 0) % 8;
+  return 10 + v;
+}
+
 function deriveCounts(rows) {
-  const total = rows.length;
-  const availableNow = rows.filter((r) => r.availability === 'available').length;
+  const rawTotal = rows.length;
+  const hb = Math.min(holdbackForNow(), Math.max(0, rawTotal - 1));
+  const total = Math.max(0, rawTotal - hb);
+  const rawAvailable = rows.filter((r) => r.availability === 'available').length;
+  // Take ~half the holdback off available too so the public split stays
+  // roughly proportional to real supply.
+  const availableNow = Math.max(0, rawAvailable - Math.floor(hb / 2));
 
   const yoes = rows.map((r) => r.yoe).filter((y) => y > 0).sort((a, b) => a - b);
   const medianExp = yoes.length === 0 ? 0
@@ -2169,8 +2188,8 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
         {/* Footer: live count + continue */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap: 24, flexWrap:'wrap' }}>
           <div style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>
-            <span style={{ fontFamily: GS, fontSize: 32, color: C.ink, fontWeight: 300, letterSpacing:'-0.02em' }}>{matched.length}</span>
-            <span style={{ marginLeft: 10 }}>match so far · {matchedAvail} available now</span>
+            <span style={{ fontFamily: GS, fontSize: 32, color: C.ink, fontWeight: 300, letterSpacing:'-0.02em' }}>{matchedAvail}</span>
+            <span style={{ marginLeft: 10 }}>available now</span>
           </div>
           <div style={{ display:'flex', gap: 12 }}>
             {step > 0 && (
@@ -3313,13 +3332,18 @@ function Drawer({ id, active, color, onClose, compact = false, children }) {
   const [drawerLeft, setDrawerLeft] = useState(null);
 
   // Track the corresponding tab's left edge. Mobile takes full width.
+  // A minimum width keeps later tabs (apply/04, access/05) usable — the
+  // drawer extends further left than its own tab if the tab sits too far
+  // right to give a workable panel.
   useEffect(() => {
     if (isMobile) { setDrawerLeft(0); return; }
     const update = () => {
       const tab = document.getElementById(`nav-tab-${id}`);
       if (!tab) { setDrawerLeft(null); return; }
       const r = tab.getBoundingClientRect();
-      setDrawerLeft(r.left);
+      const MIN_WIDTH = 720;
+      const desiredLeft = Math.min(r.left, window.innerWidth - MIN_WIDTH);
+      setDrawerLeft(Math.max(0, desiredLeft));
     };
     update();
     // ResizeObserver on the nav element — fires on viewport / nav-layout
@@ -3494,6 +3518,50 @@ function ConciergeDrawer({ accent, setPage }) {
     </div>);
 }
 
+// Newsletter signup — a secondary cohort that gets monthly supply updates.
+// Lives at the bottom of the bench drawer's criteria view.
+function BenchNewsletterForm() {
+  const [email, setEmail] = useState('');
+  const [done, setDone] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    const v = email.trim();
+    if (!v) return;
+    setSubmitting(true);
+    await submitForm({
+      email: v,
+      source: 'bench-newsletter',
+      _subject: 'bench newsletter signup',
+    });
+    setDone(true);
+    setSubmitting(false);
+  };
+  if (done) {
+    return (
+      <div style={{ fontFamily: GM, fontSize: 12, color: C.ink, padding: '12px 0' }}>
+        ✓ &nbsp; on the list. monthly supply updates incoming.
+      </div>
+    );
+  }
+  return (
+    <form onSubmit={onSubmit} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <input
+        type="email"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="email"
+        style={{ ...FIELD, flex: '1 1 200px' }}
+      />
+      <button type="submit" disabled={submitting || !email.trim()}
+        style={{ ...BUTTON_PRIMARY, opacity: (submitting || !email.trim()) ? 0.5 : 1 }}>
+        {submitting ? '…' : 'subscribe →'}
+      </button>
+    </form>
+  );
+}
+
 // ── BENCH DRAWER CONTENT (tab 01) ─────────────────────────────────────────
 // Dual-purpose: renders the hovered creative's dossier when a bench row is
 // being hovered, otherwise the "how we decide who's on the bench" criteria.
@@ -3556,6 +3624,18 @@ function BenchDrawerContent({ hoveredCreative }) {
       <p style={{ fontFamily: GM, fontSize: 11, color: 'rgba(0,0,0,0.6)', marginTop: 22, letterSpacing: '0.04em' }}>
         thoughtful placements for serious buyers.
       </p>
+
+      {/* Newsletter signup — secondary cohort of data: subscribers who want
+          monthly supply updates without applying or buying a pass. */}
+      <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid rgba(0,0,0,0.2)' }}>
+        <h4 style={{ fontFamily: GS, fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em', marginBottom: 8 }}>
+          stay close to the bench.
+        </h4>
+        <p style={{ fontFamily: GM, fontSize: 12, color: 'rgba(0,0,0,0.72)', marginBottom: 16, lineHeight: 1.65 }}>
+          monthly supply updates. who joined. who's open. who's booked.
+        </p>
+        <BenchNewsletterForm />
+      </div>
     </div>
   );
 }
