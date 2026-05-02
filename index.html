@@ -639,6 +639,8 @@ function parseSheetCSV(text) {
     const partners = (row[17] || '').split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
     const statusRaw = (row[18] || '').toLowerCase().trim();
     const status = statusRaw === 'cold' ? 'cold' : 'active';
+    const confRaw = (row[20] || '').toLowerCase().trim();
+    const confirmed = confRaw === 'yes' || confRaw === 'true' || confRaw === '1';
     return {
       id: i+1, name, realName, firstName, emailRaw, emailEnc, portfolio, linkedin, updatedAt,
       discipline: disc, disciplines: disciplinesFinal, rawDisciplines, availability, hourlyRate,
@@ -647,10 +649,10 @@ function parseSheetCSV(text) {
       clients: clients.length ? clients : ['portfolio available'],
       note,
       partners,
-      status,
+      status, confirmed,
       paused: false, legend: false,  // admin-toggleable; persisted via /api/bench-update
     };
-  }).filter(Boolean).filter((p) => p.status !== 'cold').filter((p) => p.yoe >= 1)
+  }).filter(Boolean).filter((p) => p.status !== 'cold')
     .filter((p) => p.realName && p.realName.replace(/\s+/g,'').length > 1)
     .filter((p) => (p.emailRaw && p.emailRaw.includes('@')) || (p.portfolio && p.portfolio.length > 4));
 }
@@ -771,12 +773,18 @@ function BenchProvider({ children }) {
   // 1–3 quietly available on the free emerging-talent path
   // (/access?jr=1). Anyone with 0 years or no input is filtered
   // out upstream by parseSheetCSV.
-  const { bench, emergingBench } = useMemo(() => ({
+  const { bench, emergingBench, noDataBench } = useMemo(() => ({
+    // Paid public bench — 4+ yrs experience, admin-approved.
     bench:         allBench.filter((p) => (p.yoe || 0) >= 4 && isApproved(p)),
-    emergingBench: allBench.filter((p) => (p.yoe || 0) >= 1 && (p.yoe || 0) < 4 && isApproved(p)),
+    // Emerging — 1-3 yrs, must have explicitly confirmed (col 20 of the
+    // Sheet flips this true after they engage with the referral email).
+    // Empty until confirmations roll in.
+    emergingBench: allBench.filter((p) => (p.yoe || 0) >= 1 && (p.yoe || 0) < 4 && p.confirmed && isApproved(p)),
+    // Admin-only — 0-yoe rows that need a data-update follow-up email.
+    noDataBench:   allBench.filter((p) => (p.yoe || 0) === 0),
   }), [allBench, approvedKeys]);
   const stats = useMemo(() => deriveCounts(bench), [bench]);
-  return <BenchCtx.Provider value={{ bench, allBench, emergingBench, stats, loading }}>{children}</BenchCtx.Provider>;
+  return <BenchCtx.Provider value={{ bench, allBench, emergingBench, noDataBench, stats, loading }}>{children}</BenchCtx.Provider>;
 }
 
 function useBench() {
@@ -1695,16 +1703,23 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
           </div>
           <div style={{ position: 'relative' }}>
             <BenchTeaser accent={accent} bench={teaserBench} activeFilters={activeFilters} onRowClick={onRowClick} onHoverChange={onHoverChange} />
-            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 240, background: `linear-gradient(to bottom, transparent, ${C.cream})`, pointerEvents: 'none' }} />
-            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingBottom: 32 }}>
-              <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '11px 22px', cursor: 'pointer', position: 'relative', zIndex: 2 }}>
-                get a pass →
-              </button>
-              <span style={{ fontFamily: GM, fontSize: 10, color: C.soft, zIndex: 2 }}>see all {total} names — day, month, or year</span>
-              <button onClick={() => setPage('dashboard')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.06em', background: 'transparent', color: C.ink, border: 'none', padding: '6px 0', marginTop: 4, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 4, zIndex: 2 }}>
-                or survey the directory by the numbers →
-              </button>
-            </div>
+            {/* Fade-out gradient: only when no filters are applied. With
+                filters active the user has narrowed deliberately and the
+                gradient was covering the result rows. */}
+            {!filterActive && (
+              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 240, background: `linear-gradient(to bottom, transparent, ${C.cream})`, pointerEvents: 'none' }} />
+            )}
+          </div>
+          {/* CTA stack: always below the bench, never overlapping rows.
+              Stacked padding adds breathing room either way. */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '32px 20px 0', textAlign: 'center' }}>
+            <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '11px 22px', cursor: 'pointer', position: 'relative', zIndex: 2 }}>
+              get a pass →
+            </button>
+            <span style={{ fontFamily: GM, fontSize: 10, color: C.soft, zIndex: 2 }}>see all {total} names — day, month, or year</span>
+            <button onClick={() => setPage('dashboard')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.06em', background: 'transparent', color: C.ink, border: 'none', padding: '6px 0', marginTop: 4, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 4, zIndex: 2 }}>
+              or survey the directory by the numbers →
+            </button>
           </div>
         </div>
       </section>
@@ -1858,7 +1873,7 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
           <div>
             <label style={lS}>professional level</label>
             <select style={iS} value={form.expLevel} onChange={set('expLevel')}>
-              <option value="">—</option>
+              <option value="" disabled>select your professional level</option>
               {EXP_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
           </div>
@@ -1900,14 +1915,14 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
           <div>
             <label style={lS}>current availability</label>
             <select style={iS} value={form.availability} onChange={set('availability')} required>
-              <option value="">—</option>
+              <option value="" disabled>select your availability</option>
               {AVAIL_OPTS.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
           <div>
             <label style={lS}>working timezone</label>
             <select style={iS} value={form.timezone} onChange={set('timezone')} required>
-              <option value="">—</option>
+              <option value="" disabled>select your working timezone</option>
               <option value="americas">Americas (UTC−3 to UTC−8)</option>
               <option value="europe">Europe / Africa (UTC+0 to UTC+2)</option>
               <option value="asia">Asia / Pacific (UTC+5 to UTC+12)</option>
@@ -2477,6 +2492,43 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionF
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ── EMERGING TALENT PAGE ──────────────────────────────────────────────────────
+// /emerging — free, separate space. Under-4-yrs bench. Empty until each
+// listed creative confirms via the referral-email link the admin fires.
+// Unique route that bypasses the /access token gate so a cached paid
+// session token doesn't stop the admin from viewing it.
+function EmergingPage({ accent, setPage }) {
+  const { emergingBench, allBench } = useBench();
+  const candidates = allBench.filter((p) => (p.yoe || 0) >= 1 && (p.yoe || 0) < 4).length;
+  return (
+    <div className="access-page" style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 60px)' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 32px 16px' }}>
+        <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 14 }}>
+          emerging talent · under 4 years
+        </p>
+        <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(36px,5vw,68px)', letterSpacing: '-0.045em', lineHeight: 0.92, marginBottom: 14 }}>
+          a separate, free bench.
+        </h1>
+        <p style={{ fontFamily: GM, fontSize: 13, color: C.soft, lineHeight: 1.7, maxWidth: '60ch', marginBottom: 12 }}>
+          one to three years of recognized work. by referral only. each name confirms they're available and updates their profile before they appear here — no auto-include, no resume mining.
+        </p>
+        <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.7, maxWidth: '60ch', marginBottom: 28 }}>
+          <strong>{emergingBench.length}</strong> active right now · <strong>{candidates}</strong> invited and pending. nothing to pay; reach out direct.
+        </p>
+      </div>
+      {emergingBench.length > 0 ? (
+        <UnlockedBenchTable accent={accent} setPage={setPage} benchOverride={emergingBench} />
+      ) : (
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 32px 80px', textAlign: 'center' }}>
+          <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.7 }}>
+            empty by design — confirmations land here as people respond. check back.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -3578,7 +3630,8 @@ function AdminFormspreeApproval({ secret }) {
 // Action buttons POST to /api/bench-update (server-side endpoint must
 // implement the Sheets write-back). Failures surface in the inline log.
 function AdminBenchBrowser({ secret }) {
-  const { bench } = useBench();
+  const { allBench, noDataBench } = useBench();
+  const bench = allBench;
   const [filter, setFilter] = useState('');
   const [log, setLog] = useState([]);
   const [adding, setAdding] = useState(false);
@@ -4457,7 +4510,7 @@ function BenchDrawerContent({ hoveredCreative, seedAndOpenLook }) {
                 <>
                   {' '}
                   <button
-                    onClick={() => { window.location.href = '/access?jr=1'; }}
+                    onClick={() => { window.location.href = '/emerging'; }}
                     style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: GM, fontSize: 11, color: 'rgba(0,0,0,0.55)', fontStyle: 'italic', textDecoration: 'underline', textUnderlineOffset: 3 }}>
                     (free under-4-yrs bench →)
                   </button>
@@ -4830,6 +4883,7 @@ function App() {
   const pathToState = (path) => {
     const p = (path || '').replace(/\/$/, '').toLowerCase();
     if (p === '/access')   return { page: 'access',  drawer: null };
+    if (p === '/emerging') return { page: 'emerging',drawer: null };
     if (p === '/admin')    return { page: 'admin',   drawer: null };
     if (p === '/invite')   return { page: 'invite',  drawer: null };
     if (p === '/success')  return { page: 'success', drawer: null };
@@ -5007,6 +5061,7 @@ function App() {
           STEP 6 — drawerFilters flows through HomePage into BenchTeaser. */}
       {page === 'home' && <HomePage setPage={setPage} accent={accent} variant={variant} activeFilters={drawerFilters} onRowClick={openLookSeededFromCreative} onHoverChange={setHoveredCreative} />}
       {page === 'access' && <AccessPage accent={accent} setPage={setPage} />}
+      {page === 'emerging' && <EmergingPage accent={accent} setPage={setPage} />}
       {page === 'invite' && <InvitePage accent={accent} setPage={setPage} />}
       {page === 'admin' && <AdminPage accent={accent} setPage={setPage} />}
       {page === 'success' && <SuccessPage accent={accent} setPage={setPage} />}
