@@ -1311,7 +1311,7 @@ function HomePage({ setPage, accent, variant, activeFilters }) {
 
   const CTAs = () =>
   <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-      <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '12px 22px', cursor: 'pointer' }}>request membership →</button>
+      <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '12px 22px', cursor: 'pointer' }}>get a pass →</button>
     </div>;
 
 
@@ -1389,7 +1389,7 @@ function HomePage({ setPage, accent, variant, activeFilters }) {
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 240, background: `linear-gradient(to bottom, transparent, ${C.cream})`, pointerEvents: 'none' }} />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingBottom: 32 }}>
               <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '11px 22px', cursor: 'pointer', position: 'relative', zIndex: 2 }}>
-                request membership →
+                get a pass →
               </button>
               <span style={{ fontFamily: GM, fontSize: 10, color: C.soft, zIndex: 2 }}>see all {total} names — day, month, or year</span>
               <button onClick={() => setPage('dashboard')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.06em', background: 'transparent', color: C.ink, border: 'none', padding: '6px 0', marginTop: 4, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 4, zIndex: 2 }}>
@@ -2275,7 +2275,7 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionF
                   )}
                   {preview && (
                     <button onClick={(e) => { e.stopPropagation(); setPage && setPage('pricing'); }} style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.08em', background: accent, border:`1px solid ${accent}`, color:'#fff', padding:'7px 14px', cursor:'pointer', flexShrink:0 }}>
-                      request membership to inquire →
+                      get a pass to inquire →
                     </button>
                   )}
                 </div>
