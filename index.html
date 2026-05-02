@@ -2034,7 +2034,7 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
 
           <h3 style={sH}>background</h3>
           <div><label style={lS}>top 3 most relevant past clients / brands</label><input style={iS} value={form.topClients} onChange={set('topClients')} placeholder="apple, google, nike" /></div>
-          <div><label style={lS}>referral context — who referred you or where have we crossed paths?</label><input style={iS} value={form.referralContext} onChange={set('referralContext')} /></div>
+          <div><label style={lS}>referral context — who referred you</label><input style={iS} value={form.referralContext} onChange={set('referralContext')} /></div>
           <div>
             <label style={lS}>partners you team up with — emails, one per line</label>
             <textarea style={{ ...iS, minHeight: 84, resize: 'vertical' }} value={form.partnerEmails} onChange={set('partnerEmails')}
