@@ -15,7 +15,7 @@
 </script>
 
 <!-- ── primary SEO ─────────────────────────────────────────── -->
-<title>Colophon — Get a look</title>
+<title>Colophon — the group text, made legible.</title>
 <meta name="description" content="A directory of senior creative directors, designers, copywriters, and strategists, available for direct engagement. Membership by application."/>
 <meta name="keywords" content="hire creative director, freelance design, creative bench, on-demand creative, vetted designers, hire art director, creative talent marketplace, freelance art direction, brand strategy, design leadership"/>
 <meta name="author" content="colophon"/>
@@ -25,8 +25,8 @@
 <!-- ── Open Graph (LinkedIn, Slack, Discord, FB) ─────────────── -->
 <meta property="og:type" content="website"/>
 <meta property="og:site_name" content="colophon"/>
-<meta property="og:title" content="Colophon — A directory of independent senior creatives."/>
-<meta property="og:description" content="A directory of senior creative directors, designers, copywriters, and strategists, available for direct engagement. Membership by application."/>
+<meta property="og:title" content="Colophon — the group text, made legible."/>
+<meta property="og:description" content="real availability. senior-band talent. no markup, no ghosting. the bench is private. the work is public."/>
 <meta property="og:url" content="https://colophon.contact/"/>
 <meta property="og:image" content="https://colophon.contact/og.png"/>
 <meta property="og:image:width" content="1200"/>
@@ -34,8 +34,8 @@
 
 <!-- ── Twitter / X ─────────────────────────────────────────── -->
 <meta name="twitter:card" content="summary_large_image"/>
-<meta name="twitter:title" content="Colophon — A directory of independent senior creatives."/>
-<meta name="twitter:description" content="A directory of senior creative directors, designers, copywriters, and strategists, available for direct engagement. Membership by application."/>
+<meta name="twitter:title" content="Colophon — the group text, made legible."/>
+<meta name="twitter:description" content="real availability. senior-band talent. no markup, no ghosting. the bench is private. the work is public."/>
 <meta name="twitter:image" content="https://colophon.contact/og.png"/>
 
 <!-- ── Favicon: dot in a dot ───────────────────────────────── -->
@@ -863,7 +863,7 @@ function BenchDashboard({ bench, accent }) {
 
   // ── live ticker
   const TICKER_FEED = useMemo(() => {
-    const acts = ['open for projects', 'admitted to the directory', 'rate revised', 'closed through Q2', 'engaged with a client'];
+    const acts = ['open for projects', 'joined the bench', 'rate revised', 'closed through Q2', 'engaged with a client'];
     const adjs = ['senior', 'principal', 'lead', 'staff', ''];
     const cities = ['brooklyn', 'london', 'lisbon', 'berlin', 'la', 'tokyo', 'amsterdam', 'mexico city', 'oslo', 'sf'];
     const out = [];
@@ -903,7 +903,7 @@ function BenchDashboard({ bench, accent }) {
       {/* TOP STAT ROW */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderBottom: `1px solid ${C.rule}` }}>
         {[
-          { n: total, l: 'members of the directory', sub: 'admitted by referral' },
+          { n: total, l: 'on the bench', sub: 'each personally vetted' },
           { n: avail, l: 'available right now', sub: `${soon} more in 2–4 weeks` },
           { n: medYoe + 'yr', l: 'median experience', sub: 'range: 5–28 years' },
           { n: uniqClients, l: 'past clients represented', sub: 'apple to zara' },
@@ -1031,7 +1031,7 @@ function BenchDashboard({ bench, accent }) {
         <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
           this is everything except the names. <span style={{ color: C.ink }}>a look turns the names on.</span>
         </span>
-        <span style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.12em' }}>{total} humans · 0 algorithms · $199 to open the bench.</span>
+        <span style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.12em' }}>{total} humans · 0 algorithms · $199. no markup, no placement fee.</span>
       </div>
 
       <style>{`
@@ -1264,7 +1264,7 @@ function Footer({ accent, setPage }) {
       <div style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '40px 40px 36px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.14em', color: 'rgba(244,241,236,0.3)', marginBottom: 28 }}>
-            the directory spans seventeen cities. a representative selection follows.
+            the bench spans seventeen cities.
           </p>
           <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap' }}>
             {CLOCKS.map((c) => <AnalogClock key={c.city} tz={c.tz} city={c.city} accent={accent} />)}
@@ -1281,7 +1281,7 @@ function Footer({ accent, setPage }) {
               got a project?
             </h3>
             <p style={{ fontFamily: GM, fontSize: 12, color: 'rgba(244,241,236,0.65)', lineHeight: 1.75, marginBottom: 24, maxWidth: '44ch' }}>
-              tell us what you're working on. we'll match it to someone on the bench. no commitment, no markup.
+              tell us the brief. we'll find the right person.
             </p>
             {sent ?
             <div style={{ fontFamily: GM, fontSize: 12, color: 'rgba(244,241,236,0.55)', lineHeight: 1.75 }}>
@@ -1399,9 +1399,10 @@ function HomePage({ setPage, accent, variant, activeFilters }) {
                   {loading ? '—' : String(avail).padStart(3, '0')}
                   <span style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.1em', marginLeft: 10, color: AVAIL_DOT.available, opacity: 1 }}>available</span>
                 </div>
-                <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.75, maxWidth: '44ch' }}>
-                  {total} senior creatives, listed by name. correspond with members directly. membership by application.
-                </p>
+                <div style={{ maxWidth: '54ch' }}>
+                  <p style={{ fontFamily: GM, fontSize: 12, color: C.ink, lineHeight: 1.7, marginBottom: 10 }}>a real network is narrow. the best freelance creatives in advertising aren\u2019t on marketplaces. they\u2019re on group texts. colophon is the group text, made legible.</p>
+                  <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.7 }}>real availability. no emails, no ghosting. senior-band talent, maintained by referral.</p>
+                </div>
               </div>
             </div> :
           isBold ?
@@ -1418,7 +1419,10 @@ function HomePage({ setPage, accent, variant, activeFilters }) {
               </h1>
               <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(72px,12vw,156px)', lineHeight: 0.87, letterSpacing: '-0.045em', color: C.soft, marginBottom: 36 }}>right now.</h2>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'end', maxWidth: 900 }}>
-                <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.75 }}>{total} senior creatives, listed by name. correspond with members directly. membership by application.</p>
+                <div>
+                  <p style={{ fontFamily: GM, fontSize: 13, color: C.ink, lineHeight: 1.7, marginBottom: 12 }}>a real network is narrow. the best freelance creatives in advertising aren\u2019t on marketplaces. they\u2019re on group texts. colophon is the group text, made legible.</p>
+                  <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.7 }}>real availability. no emails, no ghosting. senior-band talent, maintained by referral.</p>
+                </div>
                 <CTAs />
               </div>
             </div> :
@@ -1447,6 +1451,29 @@ function HomePage({ setPage, accent, variant, activeFilters }) {
               <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 16, letterSpacing: '-0.01em' }}>{total} listed · {avail} open for projects</span>
             </div>
             <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>{Math.max(0, total - liveBench.slice(0, 19).length)} more creatives sit behind the blur.</span>
+          </div>
+          {/* how we decide — header block above the bench table */}
+          <div style={{ padding: '40px 40px 24px', borderBottom: `1px solid ${C.rule}` }}>
+            <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3.4vw,44px)', letterSpacing: '-0.025em', lineHeight: 1.05, marginBottom: 28 }}>
+              how we decide who's on the bench.
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {[
+                ['01', 'PORTFOLIO',  'has led — not just supported — nationally recognizable work.'],
+                ['02', 'REFERENCE',  'one unprompted "yes, hire them" from someone whose taste we trust.'],
+                ['03', 'SENIORITY',  'senior-band pricing. senior-band judgment. junior rates are a signal we read.'],
+                ['04', 'PRESENCE',   'current portfolio. responsive within 48 hours. shows up to the work.'],
+              ].map(([n, t, d]) => (
+                <div key={n} style={{ display: 'grid', gridTemplateColumns: '36px 120px 1fr', gap: 16, padding: '14px 0', borderTop: `1px solid ${C.rule}`, alignItems: 'baseline' }}>
+                  <span style={{ fontFamily: GM, fontSize: 11, color: C.soft, letterSpacing: '0.06em' }}>{n}</span>
+                  <span style={{ fontFamily: GM, fontSize: 11, color: C.ink, letterSpacing: '0.14em', fontWeight: 600 }}>{t}</span>
+                  <span style={{ fontFamily: GM, fontSize: 12, color: C.ink, lineHeight: 1.6 }}>{d}</span>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginTop: 18, letterSpacing: '0.04em' }}>
+              thoughtful placements for serious buyers.
+            </p>
           </div>
           <div style={{ position: 'relative' }}>
             <BenchTeaser accent={accent} bench={teaserBench} activeFilters={activeFilters} />
@@ -1487,16 +1514,16 @@ function HomePage({ setPage, accent, variant, activeFilters }) {
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80 }}>
           <div>
             <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.14em', marginBottom: 16 }}>03 / on access</p>
-            <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,4vw,52px)', lineHeight: 1, letterSpacing: '-0.03em', marginBottom: 20 }}>the directory is straightforward.</h2>
+            <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,4vw,52px)', lineHeight: 1, letterSpacing: '-0.03em', marginBottom: 20 }}>these are creatives' creatives.</h2>
             <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.8, maxWidth: '44ch' }}>
-              membership is requested. the directory is opened. members are corresponded with directly.<br />nothing sits between the inquiry and the work.
+              real availability. no emails, no ghosting. you reach out direct.<br />nothing sits between the inquiry and the work.
             </p>
           </div>
           <div>
             {[
-            ['01', 'request membership.', 'a day, a month, or a year. issued on receipt of payment.'],
-            ['02', 'the directory is opened.', `all ${total} entries, viewable by discipline, region, availability, and rate.`],
-            ['03', 'correspond directly.', 'each entry lists the member, their portfolio, their rate, and their address. no intermediary.']].
+            ['01', 'the bench opens.', 'every name, their rate, their availability. filter by what you need.'],
+            ['02', 'reach out yourself.', 'portfolio, rate, contact. yours to use however you want.'],
+            ['03', 'no markup.', 'no placement fee. no middleman. what they charge is what you pay.']].
             map(([n, t, d]) =>
             <div key={n} style={{ display: 'grid', gridTemplateColumns: '36px 1fr', gap: 16, padding: '18px 0', borderBottom: `1px solid ${C.rule}` }}>
                 <span style={{ fontFamily: GM, fontSize: 10, color: accent, paddingTop: 3 }}>{n}</span>
@@ -1515,15 +1542,15 @@ function HomePage({ setPage, accent, variant, activeFilters }) {
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'center' }}>
           <div>
             <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.14em', marginBottom: 16 }}>05 / also available — concierge</p>
-            <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,44px)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 16 }}>concierge: when you'd rather just have the names.</h3>
-            <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.78, marginBottom: 8 }}>a paragraph from you. five top-tier names from us. you email them yourself.</p>
-            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, opacity: 0.6, lineHeight: 1.7 }}>$199 to open the bench.</p>
+            <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,44px)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 16 }}>rather skip the browsing?</h3>
+            <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.78, marginBottom: 8 }}>tell us what you need. we'll send you five names that fit. you take it from there.</p>
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, opacity: 0.6, lineHeight: 1.7 }}>$199. no markup, no placement fee.</p>
           </div>
           <div>
             <button onClick={() => gotoBrief(setPage)} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.06em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '13px 22px', cursor: 'pointer' }}>
               send a brief →
             </button>
-            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 12, lineHeight: 1.6 }}>$199 to open the bench.</p>
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 12, lineHeight: 1.6 }}>$199. no markup, no placement fee.</p>
           </div>
         </div>
       </section>
@@ -1701,7 +1728,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange }) {
   const [serverCount, setServerCount] = useState(null);   // authoritative bench count from /api/bench-count
 
   const STEPS = [
-    { key: 'disciplines', label: 'discipline',  question: 'what do you actually need?',
+    { key: 'disciplines', label: 'discipline',  question: 'what are you working on?',
       sub: 'pick all that apply. or skip to see the whole bench.',
       options: ['art direction','copywriting','design leadership','creative direction','brand strategy','motion design','ux / content design'] },
     { key: 'avail', label: 'availability', question: 'when do you need them?',
@@ -1975,7 +2002,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange }) {
               />
             </div>
             <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginTop: 14, lineHeight: 1.6 }}>
-              a private view of the directory will be issued in your name. shareable within your team.
+              access is issued to you personally. shareable within your team.
             </p>
           </div>
 
@@ -2685,7 +2712,7 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
           </div>
 
           <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 24, lineHeight: 1.7 }}>
-            $199 to open the bench. No markup on the creative — you pay them direct.
+            $199. no markup, no placement fee. No markup on the creative — you pay them direct.
           </p>
 
           <button id="brief-intake" onClick={startCheckout} style={{ display: 'block', width: '100%', textAlign: 'center', fontFamily: GM, fontSize: 12, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: 'none', padding: '20px 24px', borderRadius: 6, scrollMarginTop: 80, cursor: 'pointer' }}>
@@ -3368,7 +3395,7 @@ function BenchDrawer({ accent, setActiveDrawer }) {
       {/* Stats strip */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderBottom: `1px solid ${C.rule}`, background: C.paper }}>
         {[
-          { n: stats.total,       l: 'in the directory',       sub: 'admitted by referral' },
+          { n: stats.total,       l: 'in the directory',       sub: 'each personally vetted' },
           { n: stats.availableNow,l: 'open for projects',      sub: 'this week' },
           { n: stats.medianExp + 'yr', l: 'median experience', sub: 'range: 2–15 years' },
           { n: stats.pastClients, l: 'past clients represented', sub: 'apple to zara' },
@@ -3452,12 +3479,23 @@ function ConciergeDrawer({ accent, setPage }) {
     </div>);
 }
 
-// ── ACCESS DRAWER (tab 05) ────────────────────────────────────────────────
-// Compact drawer — code input that hands off to the existing /access page,
-// which already does the verify-session round trip.
-function AccessDrawerContent({ setActiveDrawer }) {
+// ── ACCESS MODAL (tab 05) ─────────────────────────────────────────────────
+// Centered overlay, not a tab-anchored panel. Blurs the whole page behind
+// it. ESC + backdrop click close. Submit hands off to /access?token=… so
+// the existing AccessPage handles verify-session.
+function AccessModal({ active, onClose, setActiveDrawer }) {
   const [code, setCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [active, onClose]);
+
+  if (!active) return null;
+
   const submit = (e) => {
     e.preventDefault();
     const v = code.trim();
@@ -3465,32 +3503,56 @@ function AccessDrawerContent({ setActiveDrawer }) {
     setSubmitting(true);
     window.location.href = `/access?token=${encodeURIComponent(v)}`;
   };
+
   return (
-    <div style={{ padding: '36px 44px 40px', maxWidth: 720 }}>
-      <h2 style={{ fontFamily: GS, fontStyle: 'italic', fontWeight: 500, fontSize: 'clamp(28px,3vw,42px)', letterSpacing: '-0.02em', color: C.ink, marginBottom: 10, lineHeight: 1.05 }}>
-        the bench, unlocked.
-      </h2>
-      <p style={{ fontFamily: GM, fontSize: 12, color: 'rgba(0,0,0,0.7)', marginBottom: 24, letterSpacing: '0.04em' }}>
-        enter an access code to open the directory.
-      </p>
-      <form onSubmit={submit} style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-        <input
-          autoFocus
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="access code"
-          style={{ ...FIELD, flex: '1 1 220px' }}
-        />
-        <button type="submit" disabled={submitting || !code.trim()} style={{ ...BUTTON_PRIMARY, opacity: (submitting || !code.trim()) ? 0.5 : 1 }}>
-          {submitting ? '…' : 'open →'}
+    <div
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 200,
+        background: 'rgba(13,13,11,0.45)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}>
+      <div className="drawer-tinted" style={{
+        background: '#b8b878',
+        borderRadius: 14,
+        boxShadow: '0 30px 80px rgba(0,0,0,0.35)',
+        padding: '44px 52px',
+        width: '100%',
+        maxWidth: 520,
+        color: C.ink,
+      }}>
+        <h2 style={{ fontFamily: GS, fontStyle: 'italic', fontWeight: 500, fontSize: 'clamp(28px,3vw,42px)', letterSpacing: '-0.02em', marginBottom: 12, lineHeight: 1.05 }}>
+          the bench, unlocked.
+        </h2>
+        <p style={{ fontFamily: GM, fontSize: 12, color: 'rgba(0,0,0,0.7)', marginBottom: 24, letterSpacing: '0.04em' }}>
+          enter an access code to open the directory.
+        </p>
+        <form onSubmit={submit} style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+          <input
+            autoFocus
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="access code"
+            style={{ ...FIELD, flex: '1 1 200px' }}
+          />
+          <button type="submit" disabled={submitting || !code.trim()} style={{ ...BUTTON_PRIMARY, opacity: (submitting || !code.trim()) ? 0.5 : 1 }}>
+            {submitting ? '…' : 'open →'}
+          </button>
+        </form>
+        <button
+          type="button"
+          onClick={() => { onClose(); setActiveDrawer('look'); }}
+          style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: GM, fontSize: 11, color: 'rgba(0,0,0,0.6)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+          don't have one? get a look →
         </button>
-      </form>
-      <button
-        type="button"
-        onClick={() => setActiveDrawer('look')}
-        style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: GM, fontSize: 11, color: 'rgba(0,0,0,0.6)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
-        don't have one? get a look →
-      </button>
+      </div>
     </div>
   );
 }
@@ -3864,9 +3926,7 @@ function App() {
       <Drawer id="apply" active={activeDrawer} color="#b8a8c8" onClose={closeDrawer}>
         <ApplyPage accent={accent} isDrawer={true} />
       </Drawer>
-      <Drawer id="access" active={activeDrawer} color="#b8b878" compact={true} onClose={closeDrawer}>
-        <AccessDrawerContent setActiveDrawer={setActiveDrawer} />
-      </Drawer>
+      <AccessModal active={activeDrawer === 'access'} onClose={closeDrawer} setActiveDrawer={setActiveDrawer} />
 
       {/* Full-page routes — bench lives inside HomePage and is always visible
           on the 'home' route, including underneath an open drawer.
