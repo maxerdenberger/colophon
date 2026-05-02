@@ -1403,11 +1403,43 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
   const isBold = variant === 'bold';
   // STEP 6 — when a drawer's filters are active, expand the teaser cap so
   // there's a useful population to filter against. Otherwise keep the static
-  // 19-row teaser the home page was designed around.
+  // ~19-row teaser the home page was designed around.
   const filterActive = !!(activeFilters && Object.values(activeFilters).some(
     (v) => Array.isArray(v) && v.length > 0
   ));
-  const teaserBench = filterActive ? liveBench : liveBench.slice(0, 19);
+
+  // Subtle live-supply feel: every 0.7–2 minutes, swap one random teaser
+  // row with someone different from the rest of the bench. Communicates
+  // "this is fluid — names cycle" without ever turning into churn.
+  const [teaserPool, setTeaserPool] = useState(() => liveBench.slice(0, 19));
+  useEffect(() => {
+    setTeaserPool(liveBench.slice(0, 19));
+  }, [liveBench]);
+  useEffect(() => {
+    if (filterActive) return;
+    let timer;
+    const tick = () => {
+      const wait = (42 + Math.random() * 78) * 1000;   // 42s–120s
+      timer = setTimeout(() => {
+        setTeaserPool((current) => {
+          if (!current.length) return current;
+          const visible = new Set(current.map((p) => p.id));
+          const candidates = liveBench.filter((p) => !visible.has(p.id));
+          if (!candidates.length) return current;
+          const next = [...current];
+          const replaceIdx = Math.floor(Math.random() * next.length);
+          const incoming  = candidates[Math.floor(Math.random() * candidates.length)];
+          next[replaceIdx] = incoming;
+          return next;
+        });
+        tick();
+      }, wait);
+    };
+    tick();
+    return () => clearTimeout(timer);
+  }, [liveBench, filterActive]);
+
+  const teaserBench = filterActive ? liveBench : teaserPool;
 
   const CTAs = () =>
   <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -1896,13 +1928,11 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
             </div>
           )}
 
-          {/* Discount line */}
+          {/* Discount line — inline text, not a button-shaped pill */}
           {filterCount > 0 && (
-            <div style={{ marginBottom: 40, padding:'14px 18px', background: C.ink, color: C.cream, display:'inline-block' }}>
-              <span style={{ fontFamily: GM, fontSize: 11, letterSpacing:'0.06em' }}>
-                {rawFilterCount} filter{rawFilterCount > 1 ? 's' : ''} applied — <span style={{ color: accent }}>{Math.round(discount*100)}% off</span> all passes.
-              </span>
-            </div>
+            <p style={{ fontFamily: GM, fontSize: 12, letterSpacing: '0.04em', color: C.ink, marginBottom: 40, lineHeight: 1.6 }}>
+              {rawFilterCount} filter{rawFilterCount > 1 ? 's' : ''} applied — <span style={{ color: accent, fontWeight: 600 }}>{Math.round(discount*100)}% off</span> all passes.
+            </p>
           )}
 
           {/* Duration slider — three breakpoints */}
@@ -2727,7 +2757,7 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
                 ['Get 5+ names in 4h', 'Real names, real rates, real contact info. You email them yourself.'],
               ].map(([t, d], i) => (
                 <div key={i} style={{ display: 'grid', gridTemplateColumns: '36px 1fr', gap: 14, padding: '18px 0', borderTop: `1px solid ${C.rule}`, borderBottom: i === 2 ? `1px solid ${C.rule}` : 'none' }}>
-                  <div style={{ fontFamily: GM, fontSize: 11, color: accent, letterSpacing: '0.1em' }}>0{i+1}</div>
+                  <div style={{ fontFamily: GM, fontSize: 11, color: C.ink, letterSpacing: '0.1em' }}>0{i+1}</div>
                   <div>
                     <div style={{ fontFamily: GS, fontSize: 18, color: C.ink, marginBottom: 4 }}>{t}</div>
                     <div style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.6 }}>{d}</div>
@@ -3341,7 +3371,7 @@ function Drawer({ id, active, color, onClose, compact = false, children }) {
       const tab = document.getElementById(`nav-tab-${id}`);
       if (!tab) { setDrawerLeft(null); return; }
       const r = tab.getBoundingClientRect();
-      const MIN_WIDTH = 720;
+      const MIN_WIDTH = 936;   // 720 + 30%, gives apply (04) drawer a real form width
       const desiredLeft = Math.min(r.left, window.innerWidth - MIN_WIDTH);
       setDrawerLeft(Math.max(0, desiredLeft));
     };
