@@ -3706,14 +3706,26 @@ function AdminFormspreeApproval({ secret }) {
     setLoading(true); setError('');
     try {
       const r = await fetch('/api/submissions', { headers: { Authorization: `Bearer ${secret}` } });
+      // Read body as text first so we can produce a clean message even when
+      // the route is unimplemented (Vercel SPA fallback returns index.html
+      // → JSON.parse explodes with "unexpected token <").
+      const text = await r.text();
+      let j = null;
+      try { j = text ? JSON.parse(text) : null; } catch {}
       if (!r.ok) {
-        setError(r.status === 404
-          ? 'endpoint /api/submissions not implemented yet — see handoff for wire-up.'
-          : r.status === 401 ? 'unauthorized — check ADMIN_SECRET on Vercel.'
-          : `status ${r.status}`);
+        const msg = (j && (j.error || j.message)) || '';
+        setError(
+          r.status === 401 ? 'unauthorized — check ADMIN_KEY on Vercel.' :
+          r.status === 501 ? (msg || 'submissions endpoint not configured — set FORMSPREE_API_KEY on Vercel.') :
+          r.status === 404 ? 'endpoint /api/submissions not deployed yet — push the latest main.' :
+          (msg || `status ${r.status}`)
+        );
         return;
       }
-      const j = await r.json();
+      if (!j) {
+        setError('endpoint returned non-JSON — likely the SPA fallback. push the latest main so /api/submissions deploys.');
+        return;
+      }
       setSubs(j.submissions || j.data || j || []);
     } catch (ex) { setError(ex.message || 'fetch failed'); }
     finally { setLoading(false); }
