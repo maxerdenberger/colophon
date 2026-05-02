@@ -1487,7 +1487,7 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
   const sH = { fontFamily: GS, fontWeight: 600, fontSize: 18, letterSpacing: '-0.01em', marginBottom: 18, marginTop: 40, paddingTop: 32, borderTop: `1px solid ${C.rule}` };
 
   if (done) return (
-    <div style={{ background: C.cream, minHeight: isDrawer ? 'auto' : '80vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: isDrawer ? '60px 40px' : 40, textAlign: 'center' }}>
+    <div style={{ background: isDrawer ? 'transparent' : C.cream, minHeight: isDrawer ? 'auto' : '80vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: isDrawer ? '60px 40px' : 40, textAlign: 'center' }}>
       <div style={{ width: 48, height: 48, border: `1.5px solid ${accent}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontSize: 18 }}>✓</div>
       <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em', lineHeight: 0.95 }}>you're in the queue.</h2>
       <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '44ch', lineHeight: 1.75 }}>
@@ -1497,7 +1497,7 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
 
 
   return (
-    <div style={{ background: C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : '100vh' }}>
+    <div style={{ background: isDrawer ? 'transparent' : C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : '100vh' }}>
       <div style={{ maxWidth: 680, margin: '0 auto', padding: isDrawer ? '24px 40px 60px' : '52px 40px 80px' }}>
         {!isDrawer && <PageHeader
           n="04"
@@ -1740,7 +1740,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange }) {
     // RESULT + DURATION + CONCIERGE UPSELL
     const showConcierge = matched.length < 15;
     return (
-      <div style={{ background: C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : '100vh' }}>
+      <div style={{ background: isDrawer ? 'transparent' : C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : '100vh' }}>
         <div style={{ maxWidth: 880, margin: '0 auto', padding: isDrawer ? '24px 40px 60px' : '60px 40px 80px' }}>
           {stepHeader}
 
@@ -2027,7 +2027,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange }) {
   // For simplicity in this build, keep tz hidden; user can refine later. (Or expand into 5 steps later.)
 
   return (
-    <div style={{ background: C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : '100vh' }}>
+    <div style={{ background: isDrawer ? 'transparent' : C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : '100vh' }}>
       <div style={{ maxWidth: 720, margin: '0 auto', padding: isDrawer ? '24px 40px 60px' : '60px 40px 80px' }}>
         {stepHeader}
 
@@ -2545,7 +2545,7 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
   if (stage === 'sent') {
     try { localStorage.removeItem('concierge_paid'); } catch {}
     return (
-    <div style={{ background: C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : 'calc(100vh - 54px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: isDrawer ? '60px 40px' : 40, textAlign: 'center' }}>
+    <div style={{ background: isDrawer ? 'transparent' : C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : 'calc(100vh - 54px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: isDrawer ? '60px 40px' : 40, textAlign: 'center' }}>
       <div style={{ width: 48, height: 48, border: `1.5px solid ${accent}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontSize: 18 }}>✓</div>
       <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em', lineHeight: 0.95 }}>Brief received.</h2>
       <p style={{ fontFamily: GM, fontSize: 13, color: C.soft, maxWidth: '46ch', lineHeight: 1.75 }}>
@@ -2575,7 +2575,7 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
 
   if (stage === 'pay') {
     return (
-      <div style={{ background: C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : 'calc(100vh - 54px)' }}>
+      <div style={{ background: isDrawer ? 'transparent' : C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : 'calc(100vh - 54px)' }}>
         <div style={{ maxWidth: 720, margin: '0 auto', padding: isDrawer ? '24px 40px 60px' : '52px 40px 80px' }}>
           {!isDrawer && <PageHeader
             n="03"
@@ -2641,7 +2641,7 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
 
   // BRIEF STAGE
   return (
-    <div style={{ background: C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : 'calc(100vh - 54px)' }}>
+    <div style={{ background: isDrawer ? 'transparent' : C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : 'calc(100vh - 54px)' }}>
       <div style={{ maxWidth: 720, margin: '0 auto', padding: isDrawer ? '24px 40px 60px' : '52px 40px 80px' }}>
         {!isDrawer && <PageHeader
           n="03"
@@ -3204,30 +3204,50 @@ function AdminPage({ accent, setPage }) {
 }
 
 // ── DRAWER WRAPPER ───────────────────────────────────────────────────────────
-// STEP 3 — new mechanic: a panel that floats over the always-mounted bench.
-// Height collapses to 0 when closed (so the bench underneath is fully visible).
-// `color` is the tab color for the open-state borders. ESC + outside-click
-// closure is preserved for STEP 7 — fires onClose if provided.
+// Right-side panel that drops down from its corresponding nav tab — same
+// visual language as the sage dossier on tab 01. Background is the tab color
+// (so the open drawer is visibly "orange" / "gold" / "rose" / "lilac"), left
+// edge is anchored to the tab's left edge with a sane minimum width so later
+// tabs don't produce a cramped panel. ESC + outside-click → onClose.
 function Drawer({ id, active, color, onClose, children }) {
   const ref = useRef(null);
   const justOpened = useRef(false);
+  const isMobile = useIsMobile();
   const isOpen = active === id;
+  const [drawerLeft, setDrawerLeft] = useState(null);
 
+  // Anchor the drawer's left edge to its tab. On mobile, take the full width.
+  useEffect(() => {
+    if (isMobile) { setDrawerLeft(0); return; }
+    const update = () => {
+      const tab = document.getElementById(`nav-tab-${id}`);
+      if (!tab) { setDrawerLeft(null); return; }
+      const r = tab.getBoundingClientRect();
+      const minWidth = 600;                       // keep the panel usable
+      const desiredLeft = Math.min(r.left, window.innerWidth - minWidth);
+      setDrawerLeft(Math.max(0, desiredLeft));
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [id, isMobile, isOpen]);
+
+  // ESC + outside-click closure
   useEffect(() => {
     if (!isOpen || !onClose) return;
-    // Defensive: ignore clicks for ~150ms after open — covers the click that
-    // opened the drawer (race with listener attach in some browsers) and any
-    // synthetic-event echoes.
     justOpened.current = true;
     const t1 = setTimeout(() => { justOpened.current = false; }, 150);
-
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     const onClick = (e) => {
       if (justOpened.current) return;
       const t = e.target;
-      if (ref.current && ref.current.contains(t)) return;     // inside drawer
-      if (t.closest && t.closest('header'))      return;      // tabs handle themselves
-      if (t.closest && t.closest('.bench-hover-panel')) return; // dossier panel (portaled to body)
+      if (ref.current && ref.current.contains(t)) return;
+      if (t.closest && t.closest('header'))      return;
+      if (t.closest && t.closest('.bench-hover-panel')) return;
       onClose();
     };
     window.addEventListener('keydown', onKey);
@@ -3239,6 +3259,8 @@ function Drawer({ id, active, color, onClose, children }) {
     };
   }, [isOpen, onClose]);
 
+  const left = drawerLeft != null ? drawerLeft : 0;
+
   return (
     <div
       ref={ref}
@@ -3247,18 +3269,22 @@ function Drawer({ id, active, color, onClose, children }) {
       style={{
         position: 'fixed',
         top: 'var(--nav-h)',
-        left: 0,
+        left,
         right: 0,
-        height: isOpen ? 'calc(100vh - var(--nav-h))' : 0,
-        overflow: isOpen ? 'auto' : 'hidden',
-        background: C.paper,
-        borderTop: isOpen && color ? `3px solid ${color}` : 'none',
-        borderBottom: isOpen && color ? `3px solid ${color}` : 'none',
-        transition: 'height 150ms ease',
-        zIndex: 30,
+        bottom: 0,
+        background: color || C.paper,
+        borderTop: `3px solid ${color || 'transparent'}`,
+        boxShadow: '-1px 0 0 rgba(13,13,11,0.08)',
+        color: C.ink,
+        opacity: isOpen ? 1 : 0,
+        transform: isOpen ? 'translateY(0)' : 'translateY(-6px)',
+        transition: 'opacity 0.16s ease, transform 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
         pointerEvents: isOpen ? 'auto' : 'none',
+        visibility: isOpen ? 'visible' : 'hidden',
+        overflow: isOpen ? 'auto' : 'hidden',
+        zIndex: 50,
       }}>
-      {isOpen && children}
+      {children}
     </div>);
 }
 
