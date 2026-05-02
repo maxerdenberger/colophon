@@ -42,43 +42,47 @@ export default async function handler(req, res) {
     });
   }
 
-  try {
-    // Formspree v0 read API — paid plan required for full access.
-    // Form-level keys (Read-only API key, Master API key) use HTTP Basic
-    // with the key as username and empty password. Account-level Personal
-    // Access Tokens would use Bearer instead — supporting both: if the
-    // value looks like a hex form-level key, use Basic; otherwise Bearer.
-    const looksLikeFormLevelKey = /^[0-9a-f]{16,}$/i.test(formspreeKey);
-    const authHeader = looksLikeFormLevelKey
-      ? `Basic ${Buffer.from(`${formspreeKey}:`).toString('base64')}`
-      : `Bearer ${formspreeKey}`;
-
-    const url = `https://formspree.io/api/0/forms/${encodeURIComponent(formId)}/submissions`;
-    const r = await fetch(url, {
-      headers: {
-        Authorization: authHeader,
-        Accept: 'application/json',
-      },
-    });
-    const text = await r.text();
-    let j = null;
-    try { j = text ? JSON.parse(text) : null; } catch {}
-
-    if (!r.ok) {
-      return res.status(r.status === 401 ? 502 : r.status).json({
-        error: (j && (j.error || j.message)) || `formspree responded ${r.status}`,
-        submissions: [],
+  // Formspree v0 read API — try multiple auth + URL combinations and
+  // return the one that works. Form-level keys (Master / Read-only) use
+  // HTTP Basic; account-level Personal Access Tokens use Bearer. URL
+  // can be /api/0/forms/{id} OR /api/0/forms/{id}/submissions depending
+  // on plan / API version. We try them in order and return the first
+  // 2xx, surfacing the actual Formspree response on failure so the UI
+  // has something diagnostic to show.
+  const basic = `Basic ${Buffer.from(`${formspreeKey}:`).toString('base64')}`;
+  const bearer = `Bearer ${formspreeKey}`;
+  const attempts = [
+    { auth: basic,  url: `https://formspree.io/api/0/forms/${encodeURIComponent(formId)}/submissions` },
+    { auth: bearer, url: `https://formspree.io/api/0/forms/${encodeURIComponent(formId)}/submissions` },
+    { auth: basic,  url: `https://formspree.io/api/0/forms/${encodeURIComponent(formId)}` },
+    { auth: bearer, url: `https://formspree.io/api/0/forms/${encodeURIComponent(formId)}` },
+  ];
+  let lastStatus = 0, lastError = '', lastTried = '';
+  for (const a of attempts) {
+    try {
+      const r = await fetch(a.url, {
+        headers: { Authorization: a.auth, Accept: 'application/json' },
       });
+      const text = await r.text();
+      let j = null;
+      try { j = text ? JSON.parse(text) : null; } catch {}
+      if (r.ok) {
+        const submissions = (j && (j.submissions || j.data)) || [];
+        return res.status(200).json({ submissions, _via: { auth: a.auth.split(' ')[0], url: a.url } });
+      }
+      lastStatus = r.status;
+      lastTried = `${a.auth.split(' ')[0]} ${a.url}`;
+      lastError = (j && (j.error || j.message)) || (text ? text.slice(0, 200) : `status ${r.status}`);
+    } catch (err) {
+      lastError = err.message || 'fetch failed';
     }
-
-    // Formspree shapes: { submissions: [...] } or { data: [...] }
-    // Each submission usually has { id, submitted_at, data: {...} }.
-    const submissions = (j && (j.submissions || j.data)) || [];
-    return res.status(200).json({ submissions });
-  } catch (err) {
-    return res.status(502).json({
-      error: err.message || 'formspree fetch failed',
-      submissions: [],
-    });
   }
+  return res.status(lastStatus === 401 ? 502 : (lastStatus || 502)).json({
+    error: `formspree: ${lastError}`,
+    tried: lastTried,
+    hint: lastStatus === 401
+      ? 'auth rejected — verify the FORMSPREE_API_KEY value (try the Master API key if Read-only fails) and that FORMSPREE_FORM_ID matches your form hashid'
+      : 'check Formspree plan + form hashid',
+    submissions: [],
+  });
 }
