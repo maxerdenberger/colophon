@@ -63,9 +63,9 @@
   "serviceType": "Creative talent marketplace",
   "description": "A directory of senior creative directors, art directors, designers, copywriters, and strategists, available for direct engagement. Membership by application; inclusion by referral and editor review.",
   "offers": [
-    { "@type": "Offer", "name": "day pass",   "price": "29",  "priceCurrency": "USD", "description": "24 hours of bench access" },
-    { "@type": "Offer", "name": "week pass",  "price": "79",  "priceCurrency": "USD", "description": "7 days of bench access" },
-    { "@type": "Offer", "name": "month pass", "price": "249", "priceCurrency": "USD", "description": "30 days of bench access" }
+    { "@type": "Offer", "name": "day pass",   "price": "40",  "priceCurrency": "USD", "description": "24 hours of bench access" },
+    { "@type": "Offer", "name": "week pass",  "price": "109", "priceCurrency": "USD", "description": "7 days of bench access" },
+    { "@type": "Offer", "name": "month pass", "price": "349", "priceCurrency": "USD", "description": "30 days of bench access" }
   ]
 }
 </script>
@@ -305,9 +305,9 @@
   </ul>
   <h2>Membership</h2>
   <ul>
-    <li>day — $29</li>
-    <li>week — $79</li>
-    <li>month — $249</li>
+    <li>day — $40</li>
+    <li>week — $109</li>
+    <li>month — $349</li>
   </ul>
   <h2>On admission</h2>
   <p>Inclusion is by referral and editor review. Applicants are asked to name three peers whose work they would personally vouch for, and one client, brand, or studio they believe should have access to the directory. Decisions are issued quarterly.</p>
@@ -2089,7 +2089,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
   const matched = bench.filter(personMatches);
   const matchedAvail = matched.filter((p) => p.availability !== 'booked').length;
 
-  const PRICES = { day: 29, week: 79, month: 249 };
+  const PRICES = { day: 40, week: 109, month: 349 };
   const MAX_DISCOUNTED_FILTERS = 4;
   const rawFilterCount = Object.values(filters).filter((arr) => arr.length > 0).length;
   const filterCount = Math.min(MAX_DISCOUNTED_FILTERS, rawFilterCount);
@@ -4472,7 +4472,7 @@ function LookDrawer({ accent, setPage }) {
           { n: stats.total,       l: 'in the directory',    sub: 'all senior, all referred' },
           { n: '5',               l: 'filters to narrow',   sub: 'discipline · avail · region · level · rate' },
           { n: 'up to 40%',       l: 'off all passes',      sub: '10% per filter, stacked' },
-          { n: '$29',             l: 'single-day pass',     sub: 'weekly + monthly available' },
+          { n: '$40',             l: 'single-day pass',     sub: 'weekly + monthly available' },
         ].map((s, i) => (
           <div key={i} style={{ padding: '20px 24px', borderRight: i < 3 ? `1px solid ${C.rule}` : 'none' }}>
             <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3vw,40px)', letterSpacing: '-0.025em', lineHeight: 1 }}>{s.n}</div>
