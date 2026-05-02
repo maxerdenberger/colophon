@@ -1412,6 +1412,15 @@ function BenchTeaser({ accent, bench: benchProp, activeFilters, onRowClick, onHo
           const isH = hovered === p.id;
           const rk = `${p.id}-${isH ? 1 : 0}-${matrixTick}`;
           const d = i * 80;
+          // When a discipline filter is active, render the matching
+          // discipline from the person's disciplines[] array — not the
+          // canonical primary picked by canonDisc, which often surfaces
+          // 'art direction' for someone who's also a design lead. Avoids
+          // the "I filtered for X but the table shows Y" weirdness.
+          const personDiscs = (p.disciplines && p.disciplines.length) ? p.disciplines : [p.discipline];
+          const activeDisc = (activeFilters && activeFilters.disciplines && activeFilters.disciplines.length)
+            ? (activeFilters.disciplines.find((fd) => personDiscs.includes(fd)) || p.discipline)
+            : p.discipline;
           return (
             <div
               key={p.id}
@@ -1429,7 +1438,7 @@ function BenchTeaser({ accent, bench: benchProp, activeFilters, onRowClick, onHo
 
               <span style={{ fontFamily: GM, fontSize: 10, color: isH ? C.soft : 'rgba(13,13,11,0.28)' }}><Scramble text={String(i + 1).padStart(3, '0')} delay={d} runKey={rk} /></span>
               <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 15, letterSpacing: '-0.01em', color: C.ink, transition: 'font-weight 0.12s' }}><Scramble text={p.name} delay={d} runKey={rk} /></span>
-              <span style={{ color: C.soft, fontSize: 12 }}><Scramble text={p.discipline} delay={d} runKey={rk} /></span>
+              <span style={{ color: C.soft, fontSize: 12 }}><Scramble text={activeDisc} delay={d} runKey={rk} /></span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <Dot status={p.availability} />
                 <span style={{ fontSize: 12, color: C.soft }}><Scramble text={AVAIL_LBL[p.availability]} delay={d} runKey={rk} /></span>
