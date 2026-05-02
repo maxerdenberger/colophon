@@ -1943,6 +1943,36 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
   }));
   const resetAll = () => setFilters({ disciplines: [], avail: [], experience: [], timezone: [], rate: [], teams: [] });
 
+  // Supply count per filter option — used to hide categories with zero
+  // matching creatives. Counts against the full bench (no filters), so what
+  // shows is "what we have any of", not "what's left after this filter".
+  const supplyCount = (groupKey, value) => {
+    return bench.filter((p) => {
+      if (groupKey === 'disciplines') {
+        const personDiscs = (p.disciplines && p.disciplines.length) ? p.disciplines : [p.discipline];
+        return personDiscs.includes(value);
+      }
+      if (groupKey === 'avail') return p.availability === value;
+      if (groupKey === 'experience') {
+        const lvl = p.yoe < 4 ? 'junior' : p.yoe < 8 ? 'mid' : p.yoe < 15 ? 'senior' : 'lead';
+        return lvl === value;
+      }
+      if (groupKey === 'timezone') {
+        const tz = (p.tz || '').toLowerCase().replace(/−/g, '-');
+        const region = tz.startsWith('utc-') ? 'americas'
+          : (tz === 'utc+0' || tz === 'utc+1' || tz === 'utc+2') ? 'europe'
+          : 'asia';
+        return region === value;
+      }
+      if (groupKey === 'rate') return p.rate === value;
+      if (groupKey === 'teams') {
+        const hasPartners = !!(p.partners && p.partners.length);
+        return value === 'has-partners' ? hasPartners : !hasPartners;
+      }
+      return false;
+    }).length;
+  };
+
   // Match logic. Note: tz strings use the unicode minus (U+2212), so we
   // normalise before testing prefixes.
   const personMatches = (p) => {
@@ -2080,21 +2110,27 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
           )}
         </div>
 
-        {FILTER_GROUPS.map((g) => (
-          <div key={g.key}>
-            <p style={groupHeader}>[ {g.letter} ]&nbsp;&nbsp;{g.label}</p>
-            <div style={{ paddingLeft: 22 }}>
-              {g.options.map(([val, label]) => {
-                const on = filters[g.key].includes(val);
-                return (
-                  <button key={val} onClick={() => toggle(g.key, val)} style={optBtn}>
-                    [{on ? '\u25cf' : ' '}]&nbsp;&nbsp;{label}
-                  </button>
-                );
-              })}
+        {FILTER_GROUPS.map((g) => {
+          // Hide options with zero supply; hide the whole group if every
+          // option is empty (e.g., teams before partner data is collected).
+          const live = g.options.filter(([val]) => supplyCount(g.key, val) > 0);
+          if (live.length === 0) return null;
+          return (
+            <div key={g.key}>
+              <p style={groupHeader}>[ {g.letter} ]&nbsp;&nbsp;{g.label}</p>
+              <div style={{ paddingLeft: 22 }}>
+                {live.map(([val, label]) => {
+                  const on = filters[g.key].includes(val);
+                  return (
+                    <button key={val} onClick={() => toggle(g.key, val)} style={optBtn}>
+                      [{on ? '\u25cf' : ' '}]&nbsp;&nbsp;{label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         <hr style={{ border: 'none', borderTop: `1px solid ${C.rule}`, margin: '40px 0 18px' }} />
         <p style={{ fontFamily: GM, fontSize: 13, color: C.ink, lineHeight: 1.55 }}>
