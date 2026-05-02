@@ -3234,6 +3234,157 @@ function AdminTestFlows({ secret }) {
   );
 }
 
+// Color-coded admin button intents. Hoisted so AdminBenchBrowser,
+// AdminFormspreeApproval, and any other admin sub-panel share the lookup.
+const ADMIN_INTENT = {
+  approve:  { bg: '#3F7F4A', fg: '#FAFAF8' },
+  deny:     { bg: '#B04040', fg: '#FAFAF8' },
+  pause:    { bg: '#C87C18', fg: '#FAFAF8' },
+  resume:   { bg: '#3F7F4A', fg: '#FAFAF8' },
+  legend:   { bg: '#FF5100', fg: '#FFFFFF' },
+  unlegend: { bg: '#0D0D0B', fg: '#FAFAF8' },
+  revoke:   { bg: '#7A1818', fg: '#FAFAF8' },
+  neutral:  { bg: 'transparent', fg: '#0d0d0b' },
+};
+const adminIntentBtn = (intent) => {
+  const c = ADMIN_INTENT[intent] || ADMIN_INTENT.neutral;
+  return {
+    fontFamily: GM, fontSize: 10, letterSpacing: '0.05em',
+    padding: '5px 10px',
+    background: c.bg, color: c.fg,
+    border: c.bg === 'transparent' ? `1px solid rgba(13,13,11,0.08)` : '1px solid transparent',
+    cursor: 'pointer', borderRadius: 4,
+    transition: 'opacity 0.1s ease, transform 0.06s ease',
+  };
+};
+
+// Pulls submissions from Formspree via a server-side proxy at
+// /api/submissions (proxy because the Formspree API token shouldn't
+// ride in client JS). Each row gets approve / skip / reject; approve
+// POSTs the payload to /api/bench-update with action='add' so the
+// server can append it to the source Sheet.
+function AdminFormspreeApproval({ secret }) {
+  const [subs, setSubs] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [reviewed, setReviewed] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('colophon_reviewed') || '[]')); }
+    catch { return new Set(); }
+  });
+  const [log, setLog] = useState([]);
+  const append = (s) => setLog((l) => [...l, `${new Date().toLocaleTimeString()} · ${s}`]);
+  const persist = (s) => { try { localStorage.setItem('colophon_reviewed', JSON.stringify([...s])); } catch {} };
+
+  const fetchSubs = async () => {
+    setLoading(true); setError('');
+    try {
+      const r = await fetch('/api/submissions', { headers: { Authorization: `Bearer ${secret}` } });
+      if (!r.ok) {
+        setError(r.status === 404
+          ? 'endpoint /api/submissions not implemented yet — see handoff for wire-up.'
+          : r.status === 401 ? 'unauthorized — check ADMIN_SECRET on Vercel.'
+          : `status ${r.status}`);
+        return;
+      }
+      const j = await r.json();
+      setSubs(j.submissions || j.data || j || []);
+    } catch (ex) { setError(ex.message || 'fetch failed'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { fetchSubs(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const list = subs || [];
+  const sources = [...new Set(list.map((s) => (s.data && s.data.source) || s.source || 'unknown'))].sort();
+  const filtered = list.filter((s) => {
+    const src = (s.data && s.data.source) || s.source || 'unknown';
+    return filter === 'all' || src === filter;
+  });
+  const pending = filtered.filter((s) => !reviewed.has(s.id));
+
+  const act = async (sub, op) => {
+    append(`→ ${op} · ${sub.id}`);
+    if (op === 'approve') {
+      const data = sub.data || sub;
+      try {
+        const r = await fetch('/api/bench-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+          body: JSON.stringify({ action: 'add', from: 'formspree-submission', submissionId: sub.id, ...data }),
+        });
+        if (!r.ok) throw new Error('bench-update ' + r.status);
+        append(`✓ approved → sheet · ${data.name || sub.id}`);
+      } catch (ex) { append(`✗ approve — ${ex.message}`); return; }
+    } else {
+      append(`✓ ${op} (local) · ${sub.id}`);
+    }
+    setReviewed((s) => { const n = new Set(s); n.add(sub.id); persist(n); return n; });
+  };
+  const clearReviewed = () => { setReviewed(new Set()); persist(new Set()); append('cleared local reviewed list'); };
+
+  const cellRow = { padding: '12px 14px', borderBottom: `1px solid rgba(13,13,11,0.08)`, display: 'grid', gridTemplateColumns: '1fr auto', gap: 14, alignItems: 'start', fontFamily: GM, fontSize: 11 };
+
+  return (
+    <div style={{ marginBottom: 36, border: `1px solid rgba(13,13,11,0.08)`, padding: 18, background: '#fff' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+        <p style={{ fontFamily: GM, fontSize: 10, color: '#3D3C38', letterSpacing: '0.16em', textTransform: 'uppercase' }}>formspree → bench approval queue</p>
+        <span style={{ fontFamily: GM, fontSize: 10, color: '#3D3C38' }}>{pending.length} pending · {reviewed.size} reviewed</span>
+      </div>
+      <p style={{ fontFamily: GM, fontSize: 11, color: '#3D3C38', marginBottom: 14, lineHeight: 1.6 }}>
+        Approving a row POSTs <code>action: 'add'</code> to <code>/api/bench-update</code>, which (when implemented server-side) appends to the source Sheet. Skip / reject mark the submission as reviewed locally on this browser only.
+      </p>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select value={filter} onChange={(e) => setFilter(e.target.value)}
+          style={{ fontFamily: GM, fontSize: 12, padding: '8px 10px', border: '1px solid rgba(13,13,11,0.25)', borderRadius: 4, background: '#fff', minWidth: 220 }}>
+          <option value="all">all sources ({list.length})</option>
+          {sources.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <button onClick={fetchSubs} style={adminIntentBtn('neutral')} disabled={loading}>{loading ? 'loading…' : 'refresh'}</button>
+        {reviewed.size > 0 && <button onClick={clearReviewed} style={adminIntentBtn('neutral')}>clear reviewed log</button>}
+      </div>
+      {error && (
+        <div style={{ padding: '12px 14px', border: '1px solid #b04040', background: 'rgba(176,64,64,0.06)', color: '#7a1818', fontFamily: GM, fontSize: 11, borderRadius: 4, marginBottom: 14 }}>{error}</div>
+      )}
+      {!error && list.length === 0 && !loading && (
+        <p style={{ fontFamily: GM, fontSize: 11, color: '#3D3C38' }}>no submissions yet.</p>
+      )}
+      {!error && pending.length > 0 && (
+        <div style={{ maxHeight: 480, overflowY: 'auto', border: `1px solid rgba(13,13,11,0.08)` }}>
+          {pending.map((s) => {
+            const data = s.data || s;
+            return (
+              <div key={s.id} style={cellRow}>
+                <div>
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 4, flexWrap: 'wrap', alignItems: 'baseline' }}>
+                    <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 13 }}>{data.name || '(no name)'}</span>
+                    <span style={{ fontFamily: GM, fontSize: 9, color: '#3D3C38', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{data.source || 'unknown'}</span>
+                    <span style={{ fontFamily: GM, fontSize: 9, color: '#3D3C38' }}>{s.submitted_at ? new Date(s.submitted_at).toLocaleString() : (s.created_at || '')}</span>
+                  </div>
+                  <div style={{ color: '#3D3C38', fontSize: 11 }}>{data.email}</div>
+                  {data.discipline && <div style={{ fontSize: 11, color: '#3D3C38' }}>{data.discipline}</div>}
+                  {data.disciplines && <div style={{ fontSize: 11, color: '#3D3C38' }}>{data.disciplines}</div>}
+                  {data.hourlyRate && <div style={{ fontSize: 11, color: '#3D3C38' }}>{data.hourlyRate} · {data.timezone || ''} · ai-savvy {data.aiSavvy || '—'}</div>}
+                  {data.summary && <div style={{ fontSize: 11, color: '#0d0d0b', marginTop: 4, fontStyle: 'italic' }}>“{String(data.summary).slice(0, 200)}{String(data.summary).length > 200 ? '…' : ''}”</div>}
+                  {data.brief && <div style={{ fontSize: 11, color: '#0d0d0b', marginTop: 4, fontStyle: 'italic' }}>“{String(data.brief).slice(0, 200)}{String(data.brief).length > 200 ? '…' : ''}”</div>}
+                  {data.partnerEmails && <div style={{ fontSize: 10, color: '#3D3C38', marginTop: 4 }}>partners: {String(data.partnerEmails).split(/\n+/).join(', ')}</div>}
+                </div>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <button onClick={() => act(s, 'approve')} style={adminIntentBtn('approve')}>approve → sheet</button>
+                  <button onClick={() => act(s, 'skip')}    style={adminIntentBtn('neutral')}>skip</button>
+                  <button onClick={() => act(s, 'reject')}  style={adminIntentBtn('deny')}>reject</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {log.length > 0 && (
+        <pre style={{ fontFamily: GM, fontSize: 11, color: '#0d0d0b', background: '#F2EDE4', padding: 12, borderRadius: 4, lineHeight: 1.55, whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto', marginTop: 12 }}>{log.join('\n')}</pre>
+      )}
+    </div>
+  );
+}
+
 // Read-only bench browser with per-row approve/deny/revoke + manual-add.
 // Action buttons POST to /api/bench-update (server-side endpoint must
 // implement the Sheets write-back). Failures surface in the inline log.
@@ -3285,31 +3436,8 @@ function AdminBenchBrowser({ secret }) {
     catch (ex) { append(`✗ add · ${newRow.name} — ${ex.message}`); }
   };
 
-  // Color-coded intent fills: approve=green, deny=red, pause=amber,
-  // resume=green, legend=accent-orange, unlegend=ink, revoke=dark-red.
-  // Neutral falls back to transparent for the email/website icon links.
-  const INTENT = {
-    approve:  { bg: '#3F7F4A', fg: '#FAFAF8' },
-    deny:     { bg: '#B04040', fg: '#FAFAF8' },
-    pause:    { bg: '#C87C18', fg: '#FAFAF8' },
-    resume:   { bg: '#3F7F4A', fg: '#FAFAF8' },
-    legend:   { bg: '#FF5100', fg: '#FFFFFF' },
-    unlegend: { bg: '#0D0D0B', fg: '#FAFAF8' },
-    revoke:   { bg: '#7A1818', fg: '#FAFAF8' },
-    neutral:  { bg: 'transparent', fg: C.ink },
-  };
-  const intentBtn = (intent) => {
-    const c = INTENT[intent] || INTENT.neutral;
-    return {
-      fontFamily: GM, fontSize: 10, letterSpacing: '0.05em',
-      padding: '5px 10px',
-      background: c.bg, color: c.fg,
-      border: c.bg === 'transparent' ? `1px solid ${C.rule}` : '1px solid transparent',
-      cursor: 'pointer', borderRadius: 4,
-      transition: 'opacity 0.1s ease, transform 0.06s ease',
-    };
-  };
-  const miniBtn = intentBtn('neutral');
+  const intentBtn = adminIntentBtn;
+  const miniBtn = adminIntentBtn('neutral');
 
   return (
     <div style={{ marginBottom: 36, border: `1px solid ${C.rule}`, padding: 18, background: '#fff' }}>
@@ -3671,6 +3799,9 @@ function AdminPage({ accent, setPage }) {
 
         {/* ── Bench browser — approve / deny / revoke / add. ───────────── */}
         <AdminBenchBrowser secret={secret} />
+
+        {/* ── Formspree → bench approval queue. ─────────────────────────── */}
+        <AdminFormspreeApproval secret={secret} />
 
         {/* ── Quick links ──────────────────────────────────────────────── */}
         <AdminQuickLinks />
