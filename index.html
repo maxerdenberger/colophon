@@ -3441,19 +3441,34 @@ function AdminBenchBrowser({ secret }) {
   const [newRow, setNewRow] = useState({ name: '', discipline: '', tz: 'UTC−5', rate: '$$$', availability: 'available', email: '', aiSavvy: '' });
   const append = (s) => setLog((l) => [...l, `${new Date().toLocaleTimeString()} · ${s}`]);
   // Three-state action buttons: empty → tint (past session) → full (this session).
+  // We persist actions under THREE keys per row so we survive Sheet row-order
+  // changes: numeric id, name (lowercased), and email (lowercased). New actions
+  // write all three; stateFor reads any.
   const [pastActions, setPastActions] = useState(loadAdminActions);
   const [sessionActions, setSessionActions] = useState({});
-  const stateFor = (rowId, op) => {
-    const k = String(rowId);
-    if (sessionActions[k] && sessionActions[k][op]) return 'full';
-    if (pastActions[k]    && pastActions[k][op])    return 'tint';
+  const keysForRow = (row) => [
+    row && row.id != null ? String(row.id) : null,
+    row && row.realName  ? `n:${row.realName.toLowerCase()}` : null,
+    row && row.name      ? `n:${row.name.toLowerCase()}` : null,
+    row && row.emailRaw  ? `e:${row.emailRaw.toLowerCase()}` : null,
+  ].filter(Boolean);
+  const stateFor = (row, op) => {
+    const keys = keysForRow(row);
+    for (const k of keys) if (sessionActions[k] && sessionActions[k][op]) return 'full';
+    for (const k of keys) if (pastActions[k]    && pastActions[k][op])    return 'tint';
     return 'empty';
   };
-  const recordAction = (rowId, op) => {
-    const k = String(rowId);
-    setSessionActions((s) => ({ ...s, [k]: { ...(s[k] || {}), [op]: Date.now() } }));
+  const recordAction = (row, op) => {
+    const keys = keysForRow(row);
+    const stamp = Date.now();
+    setSessionActions((s) => {
+      const next = { ...s };
+      for (const k of keys) next[k] = { ...(next[k] || {}), [op]: stamp };
+      return next;
+    });
     setPastActions((p) => {
-      const next = { ...p, [k]: { ...(p[k] || {}), [op]: Date.now() } };
+      const next = { ...p };
+      for (const k of keys) next[k] = { ...(next[k] || {}), [op]: stamp };
       saveAdminActions(next);
       return next;
     });
@@ -3487,10 +3502,10 @@ function AdminBenchBrowser({ secret }) {
     return r.json().catch(() => ({}));
   };
   const act = async (row, op) => {
-    append(`→ ${op} · ${row.name}`);
-    recordAction(row.id, op);
-    try { await post({ action: op, id: row.id, name: row.name }); append(`✓ ${op} · ${row.name}`); }
-    catch (ex) { append(`✗ ${op} · ${row.name} — ${ex.message}`); }
+    append(`→ ${op} · ${row.realName || row.name}`);
+    recordAction(row, op);
+    try { await post({ action: op, id: row.id, name: row.realName || row.name }); append(`✓ ${op} · ${row.realName || row.name}`); }
+    catch (ex) { append(`✗ ${op} · ${row.realName || row.name} — ${ex.message}`); }
   };
   const addManual = async (e) => {
     e.preventDefault();
@@ -3540,17 +3555,17 @@ function AdminBenchBrowser({ secret }) {
               </a>
             </span>
             <span style={{ display: 'flex', gap: 4 }}>
-              <button onClick={() => act(p, 'approve')} style={intentBtn('approve', stateFor(p.id, 'approve'))}>approve</button>
-              <button onClick={() => act(p, 'deny')}    style={intentBtn('deny',    stateFor(p.id, 'deny'))}>deny</button>
+              <button onClick={() => act(p, 'approve')} style={intentBtn('approve', stateFor(p, 'approve'))}>approve</button>
+              <button onClick={() => act(p, 'deny')}    style={intentBtn('deny',    stateFor(p, 'deny'))}>deny</button>
               <button onClick={() => act(p, p.paused ? 'unpause' : 'pause')}
-                style={intentBtn(p.paused ? 'resume' : 'pause', stateFor(p.id, p.paused ? 'unpause' : 'pause'))}>
+                style={intentBtn(p.paused ? 'resume' : 'pause', stateFor(p, p.paused ? 'unpause' : 'pause'))}>
                 {p.paused ? 'resume' : 'pause'}
               </button>
               <button onClick={() => act(p, p.legend ? 'unlegend' : 'legend')}
-                style={intentBtn(p.legend ? 'unlegend' : 'legend', stateFor(p.id, p.legend ? 'unlegend' : 'legend'))}>
+                style={intentBtn(p.legend ? 'unlegend' : 'legend', stateFor(p, p.legend ? 'unlegend' : 'legend'))}>
                 {p.legend ? '★ legend' : 'legend'}
               </button>
-              <button onClick={() => act(p, 'revoke')}  style={intentBtn('revoke', stateFor(p.id, 'revoke'))}>revoke</button>
+              <button onClick={() => act(p, 'revoke')}  style={intentBtn('revoke', stateFor(p, 'revoke'))}>revoke</button>
             </span>
           </div>
         ))}
@@ -3558,8 +3573,33 @@ function AdminBenchBrowser({ secret }) {
           <div style={{ padding: '14px 18px', fontFamily: GM, fontSize: 11, color: C.soft }}>no matches.</div>
         )}
       </div>
-      <p style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
-        showing {filtered.length} of {bench.length} (raw count, pre-holdback)
+      <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+        <span>showing {filtered.length} of {bench.length} (raw count, pre-holdback)</span>
+        <span style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+          <span>{Object.keys(pastActions).length} past-action keys in storage</span>
+          <button onClick={() => {
+              const all = loadAdminActions();
+              const entries = Object.entries(all);
+              append(`local storage: ${entries.length} keys`);
+              entries.slice(0, 12).forEach(([k, ops]) => {
+                const ts = Object.entries(ops).map(([op, t]) => `${op}@${new Date(t).toLocaleString()}`).join(', ');
+                append(`  ${k} → ${ts}`);
+              });
+              if (entries.length > 12) append(`  …and ${entries.length - 12} more`);
+            }}
+            style={{ ...miniBtn, padding: '4px 8px', fontSize: 9 }}>
+            dump
+          </button>
+          <button onClick={() => {
+              if (!confirm('Clear all past-action history? This only affects the tint state, not the Sheet.')) return;
+              saveAdminActions({});
+              setPastActions({});
+              append('cleared past-action history');
+            }}
+            style={{ ...miniBtn, padding: '4px 8px', fontSize: 9 }}>
+            reset
+          </button>
+        </span>
       </p>
 
       <div style={{ marginTop: 24 }}>
