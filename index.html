@@ -3254,7 +3254,31 @@ function AdminBenchBrowser({ secret }) {
     catch (ex) { append(`✗ add · ${newRow.name} — ${ex.message}`); }
   };
 
-  const miniBtn = { fontFamily: GM, fontSize: 10, letterSpacing: '0.04em', padding: '5px 9px', background: 'transparent', border: `1px solid ${C.rule}`, color: C.ink, cursor: 'pointer', borderRadius: 4 };
+  // Color-coded intent fills: approve=green, deny=red, pause=amber,
+  // resume=green, legend=accent-orange, unlegend=ink, revoke=dark-red.
+  // Neutral falls back to transparent for the email/website icon links.
+  const INTENT = {
+    approve:  { bg: '#3F7F4A', fg: '#FAFAF8' },
+    deny:     { bg: '#B04040', fg: '#FAFAF8' },
+    pause:    { bg: '#C87C18', fg: '#FAFAF8' },
+    resume:   { bg: '#3F7F4A', fg: '#FAFAF8' },
+    legend:   { bg: '#FF5100', fg: '#FFFFFF' },
+    unlegend: { bg: '#0D0D0B', fg: '#FAFAF8' },
+    revoke:   { bg: '#7A1818', fg: '#FAFAF8' },
+    neutral:  { bg: 'transparent', fg: C.ink },
+  };
+  const intentBtn = (intent) => {
+    const c = INTENT[intent] || INTENT.neutral;
+    return {
+      fontFamily: GM, fontSize: 10, letterSpacing: '0.05em',
+      padding: '5px 10px',
+      background: c.bg, color: c.fg,
+      border: c.bg === 'transparent' ? `1px solid ${C.rule}` : '1px solid transparent',
+      cursor: 'pointer', borderRadius: 4,
+      transition: 'opacity 0.1s ease, transform 0.06s ease',
+    };
+  };
+  const miniBtn = intentBtn('neutral');
 
   return (
     <div style={{ marginBottom: 36, border: `1px solid ${C.rule}`, padding: 18, background: '#fff' }}>
@@ -3293,17 +3317,17 @@ function AdminBenchBrowser({ secret }) {
               </a>
             </span>
             <span style={{ display: 'flex', gap: 4 }}>
-              <button onClick={() => act(p, 'approve')} style={miniBtn}>approve</button>
-              <button onClick={() => act(p, 'deny')}    style={miniBtn}>deny</button>
+              <button onClick={() => act(p, 'approve')} style={intentBtn('approve')}>approve</button>
+              <button onClick={() => act(p, 'deny')}    style={intentBtn('deny')}>deny</button>
               <button onClick={() => act(p, p.paused ? 'unpause' : 'pause')}
-                style={{ ...miniBtn, color: p.paused ? '#7a4a0e' : C.ink, borderColor: p.paused ? '#c87c18' : C.rule }}>
+                style={intentBtn(p.paused ? 'resume' : 'pause')}>
                 {p.paused ? 'resume' : 'pause'}
               </button>
               <button onClick={() => act(p, p.legend ? 'unlegend' : 'legend')}
-                style={{ ...miniBtn, color: p.legend ? '#7a4a0e' : C.ink, borderColor: p.legend ? '#FF5100' : C.rule }}>
+                style={intentBtn(p.legend ? 'unlegend' : 'legend')}>
                 {p.legend ? '★ legend' : 'legend'}
               </button>
-              <button onClick={() => act(p, 'revoke')}  style={miniBtn}>revoke</button>
+              <button onClick={() => act(p, 'revoke')}  style={intentBtn('revoke')}>revoke</button>
             </span>
           </div>
         ))}
