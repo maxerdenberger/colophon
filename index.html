@@ -162,6 +162,21 @@
   :root { --nav-h: 60px; }
   @media (max-width: 760px) { :root { --nav-h: 52px; } }
 
+  /* ── DRAWER TINT CONTRAST ────────────────────────────────────────────── */
+  /* Inside a tinted drawer, muted helper text and rule borders need to read
+     against the colored fill. Map them to ink + 50%-black respectively.
+     React serializes our color tokens with predictable spacing, so attribute
+     selectors against the inline style attribute do the work without
+     touching every JSX call site. */
+  .drawer-tinted [style*="rgb(90, 88, 84)"],
+  .drawer-tinted [style*="rgb(90,88,84)"] {
+    color: #0d0d0b !important;
+  }
+  .drawer-tinted [style*="rgba(13, 13, 11, 0.14)"],
+  .drawer-tinted [style*="rgba(13,13,11,0.14)"] {
+    border-color: rgba(0,0,0,0.5) !important;
+  }
+
   /* ── MOBILE PASS ─────────────────────────────────────────────────────── */
   @media (max-width: 760px) {
     body { font-size: 13px; }
@@ -3268,6 +3283,7 @@ function Drawer({ id, active, color, onClose, children }) {
   return (
     <div
       ref={ref}
+      className="drawer-tinted"
       aria-hidden={!isOpen}
       role="region"
       style={{
@@ -3751,10 +3767,10 @@ function App() {
       <Drawer id="look" active={activeDrawer} color="#e8c478" onClose={closeDrawer}>
         <PricingPage setPage={setPage} accent={accent} isDrawer={true} onFiltersChange={(f) => setDrawerFilters(f)} />
       </Drawer>
-      <Drawer id="concierge" active={activeDrawer} color="#c4a882" onClose={closeDrawer}>
+      <Drawer id="concierge" active={activeDrawer} color="#c89090" onClose={closeDrawer}>
         <ConciergePage accent={accent} setPage={setPage} isDrawer={true} />
       </Drawer>
-      <Drawer id="apply" active={activeDrawer} color="#9b8ec4" onClose={closeDrawer}>
+      <Drawer id="apply" active={activeDrawer} color="#b8a8c8" onClose={closeDrawer}>
         <ApplyPage accent={accent} isDrawer={true} />
       </Drawer>
 
