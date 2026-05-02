@@ -3964,6 +3964,50 @@ function AdminBenchBrowser({ secret }) {
     catch (ex) { append(`✗ add · ${newRow.name} — ${ex.message}`); }
   };
 
+  // ── Bulk approve by email list ─────────────────────────────────────────
+  // Paste a list of emails (one per line, commas, semicolons, or whitespace
+  // all OK). For each email that matches a bench row, register the same
+  // 'approve' action a single click would (writes to localStorage past +
+  // session actions, then optionally POSTs to /api/bench-update). Rows
+  // without a match are reported in the inline log.
+  const [bulkOpen, setBulkOpen]     = useState(false);
+  const [bulkText, setBulkText]     = useState('');
+  const [bulkBusy, setBulkBusy]     = useState(false);
+  const parseEmails = (s) => Array.from(new Set(
+    String(s || '')
+      .split(/[\s,;]+/)
+      .map((x) => x.trim().toLowerCase())
+      .filter((x) => x.includes('@'))
+  ));
+  const bulkApproveByEmails = async () => {
+    const emails = parseEmails(bulkText);
+    if (!emails.length) { append('bulk: no emails parsed'); return; }
+    setBulkBusy(true);
+    const byEmail = new Map();
+    for (const p of bench) {
+      const e = (p.emailRaw || '').toLowerCase();
+      if (e) byEmail.set(e, p);
+    }
+    let matched = 0, alreadyApproved = 0, missed = [];
+    append(`→ bulk approve · ${emails.length} emails`);
+    for (const e of emails) {
+      const row = byEmail.get(e);
+      if (!row) { missed.push(e); continue; }
+      if (wasApproved(row)) { alreadyApproved++; continue; }
+      // Register the same action a single click does — this updates
+      // pastActions (localStorage) + sessionActions (UI 'full' state).
+      recordAction(row, 'approve');
+      matched++;
+      // Best-effort server-side write. Fails silently — local approval
+      // gate already drives bench visibility for this browser.
+      try { await post({ action: 'approve', id: row.id, name: row.realName || row.name, email: row.emailRaw }); }
+      catch {}
+    }
+    append(`✓ bulk approve · ${matched} newly approved · ${alreadyApproved} already approved · ${missed.length} no match`);
+    if (missed.length) append(`  no match: ${missed.slice(0, 8).join(', ')}${missed.length > 8 ? `… +${missed.length-8} more` : ''}`);
+    setBulkBusy(false);
+  };
+
   const intentBtn = adminIntentBtn;
   const miniBtn = adminIntentBtn('neutral');
 
@@ -3992,6 +4036,42 @@ function AdminBenchBrowser({ secret }) {
           <span style={{ ...adminIntentBtn('approve', 'full'), padding: '3px 8px', cursor: 'default', fontSize: 9 }}>approve</span>
           this session
         </span>
+      </div>
+      {/* Bulk approve — paste a list of emails, hit approve. Matches against
+          bench rows by email (case-insensitive); each match registers the
+          same approve action as a single click. */}
+      <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px dashed rgba(13,13,11,0.2)', background: 'rgba(63,127,74,0.05)' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+          <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#3F7F4A' }}>
+            bulk approve by email
+          </span>
+          <button type="button" onClick={() => setBulkOpen((b) => !b)}
+            style={{ ...miniBtn, padding: '5px 10px', fontSize: 10 }}>
+            {bulkOpen ? 'close' : 'paste emails →'}
+          </button>
+        </div>
+        {bulkOpen && (
+          <>
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.6, marginTop: 8 }}>
+              one per line, commas, semicolons, or whitespace all parse. each match writes the same approve action a single click does.
+            </p>
+            <textarea
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              placeholder="torlemhag@gmail.com&#10;sarafbecker@gmail.com&#10;…"
+              rows={6}
+              style={{ width: '100%', fontFamily: GM, fontSize: 11, padding: 10, border: '1px solid rgba(13,13,11,0.2)', borderRadius: 4, background: '#fff', marginTop: 8, resize: 'vertical', lineHeight: 1.5, color: C.ink }} />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+              <button type="button" onClick={bulkApproveByEmails} disabled={bulkBusy || !bulkText.trim()}
+                style={{ ...intentBtn('approve', 'full'), padding: '7px 12px', fontSize: 10, opacity: (bulkBusy || !bulkText.trim()) ? 0.5 : 1, cursor: (bulkBusy || !bulkText.trim()) ? 'default' : 'pointer' }}>
+                {bulkBusy ? 'approving…' : `approve ${parseEmails(bulkText).length} emails →`}
+              </button>
+              <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
+                {parseEmails(bulkText).length} parsed · matches against bench by email · check log below
+              </span>
+            </div>
+          </>
+        )}
       </div>
       <input
         value={filter}
