@@ -1747,63 +1747,77 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
 // ── PRICING PAGE ──────────────────────────────────────────────────────────────
 // ── BENCH BUILDER (replaces fixed pricing) ─────────────────────────────────
 function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedFilters, seedKey }) {
-  // Checkout is handled by /api/checkout — no static Payment Links.
-
+  // Terminal-style filter view: every group on one page, [ ] / [●] toggles,
+  // mono throughout. Timezone is a first-class filter alongside the others.
   const { bench } = useBench();
 
-  const [step, setStep] = useState(0);
   const [filters, setFilters] = useState({
-    disciplines: [],   // [] = all
-    avail: [],         // [] = all  ('available'|'soon'|'booked')
-    experience: [],    // [] = all
-    timezone: [],      // [] = all  ('americas'|'europe'|'asia')
-    rate: [],          // [] = all
+    disciplines: [], avail: [], experience: [], timezone: [], rate: [],
   });
+  const [duration, setDuration] = useState('week');
+  const [buyerName, setBuyerName] = useState('');
+  const [buyerEmail, setBuyerEmail] = useState('');
+  const [serverCount, setServerCount] = useState(null);
+  const [checkoutErr, setCheckoutErr] = useState('');
 
-  // STEP 6 — emit filter changes upward so the always-mounted BenchTeaser
-  // can live-filter behind the gold drawer. Fires on every chip toggle.
+  // Emit filter changes upward (BenchTeaser live-filters behind the drawer).
   useEffect(() => {
     if (typeof onFiltersChange === 'function') onFiltersChange(filters);
-    // onFiltersChange is intentionally omitted from deps — it's a fresh
-    // closure on every parent render; we only care about filter changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
-  // External seed (e.g. clicking a bench row). seedKey is bumped by App on
-  // every seed; we re-sync internal filters and jump to the reveal step so
-  // the user immediately sees the count of matching creatives.
+  // External seed (clicking a bench row prefills filters).
   const lastSeedRef = useRef(0);
   useEffect(() => {
     if (seedKey == null || seedKey === lastSeedRef.current) return;
     if (!seedFilters) return;
     lastSeedRef.current = seedKey;
     setFilters((prev) => ({ ...prev, ...seedFilters }));
-    setStep(STEPS.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seedKey]);
-  const [duration, setDuration] = useState('week'); // 'day' | 'week' | 'month' — default to most popular
-  const [buyerName, setBuyerName] = useState('');
-  const [buyerEmail, setBuyerEmail] = useState('');
-  const [conciergeSent, setConciergeSent] = useState(false);
-  const [checkoutErr, setCheckoutErr] = useState('');
-  const [serverCount, setServerCount] = useState(null);   // authoritative bench count from /api/bench-count
 
-  const STEPS = [
-    { key: 'disciplines', label: 'discipline',  question: 'what are you working on?',
-      sub: 'pick all that apply. or skip to see the whole bench.',
-      options: ['art direction','copywriting','design leadership','creative direction','brand strategy','motion design','ux / content design'] },
-    { key: 'avail', label: 'availability', question: 'when do you need them?',
-      sub: 'we keep this fresh — every name pings every 20 days.',
-      options: [['available','available now'],['soon','available in 1\u20132 weeks'],['booked','anytime in the next quarter']] },
-    { key: 'experience', label: 'experience', question: 'what level of experience?',
-      sub: 'years are self-reported and verified by referrals.',
-      options: [['junior','junior — 0\u20133 yrs'],['mid','mid — 4\u20137 yrs'],['senior','senior — 8\u201314 yrs'],['lead','lead — 15+ yrs']] },
-    { key: 'rate', label: 'rate', question: 'what does your budget look like?',
-      sub: 'we show real rate bands. you talk money directly with them.',
-      options: [['$','$ — under $150/hr'],['$$','$$ — $150\u2013250/hr'],['$$$','$$$ — $250\u2013400/hr'],['$$$$','$$$$ — $400+/hr']] },
+  const FILTER_GROUPS = [
+    { key: 'disciplines', letter: 'A', label: 'discipline', options: [
+      ['art direction',      'art direction'],
+      ['copywriting',        'copywriting'],
+      ['design leadership',  'design leadership'],
+      ['creative direction', 'creative direction'],
+      ['brand strategy',     'brand strategy'],
+      ['motion design',      'motion design'],
+      ['ux / content design','ux / content design'],
+    ] },
+    { key: 'avail', letter: 'B', label: 'availability', options: [
+      ['available', 'available now'],
+      ['soon',      'available in 1\u20132 weeks'],
+      ['booked',    'available next quarter'],
+    ] },
+    { key: 'experience', letter: 'C', label: 'experience', options: [
+      ['junior', 'junior \u2014 0\u20133 yrs'],
+      ['mid',    'mid \u2014 4\u20137 yrs'],
+      ['senior', 'senior \u2014 8\u201314 yrs'],
+      ['lead',   'lead \u2014 15+ yrs'],
+    ] },
+    { key: 'timezone', letter: 'D', label: 'working timezone', options: [
+      ['americas', 'americas (UTC\u22123 to UTC\u22128)'],
+      ['europe',   'europe / africa (UTC+0 to UTC+2)'],
+      ['asia',     'asia / pacific (UTC+5 to UTC+12)'],
+    ] },
+    { key: 'rate', letter: 'E', label: 'rate', options: [
+      ['$',    '$ \u2014 under $150 / hr'],
+      ['$$',   '$$ \u2014 $150\u2013250 / hr'],
+      ['$$$',  '$$$ \u2014 $250\u2013400 / hr'],
+      ['$$$$', '$$$$ \u2014 $400+ / hr'],
+    ] },
   ];
 
-  // Map a person to filter buckets
+  const toggle = (key, val) => setFilters((f) => ({
+    ...f,
+    [key]: f[key].includes(val) ? f[key].filter((v) => v !== val) : [...f[key], val],
+  }));
+  const resetAll = () => setFilters({ disciplines: [], avail: [], experience: [], timezone: [], rate: [] });
+
+  // Match logic. Note: tz strings use the unicode minus (U+2212), so we
+  // normalise before testing prefixes.
   const personMatches = (p) => {
     if (filters.disciplines.length && !filters.disciplines.includes(p.discipline)) return false;
     if (filters.avail.length && !filters.avail.includes(p.availability)) return false;
@@ -1812,7 +1826,12 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
       if (!filters.experience.includes(lvl)) return false;
     }
     if (filters.timezone.length) {
-      const region = p.tz?.startsWith('utc-') ? 'americas' : p.tz === 'utc+0' || p.tz === 'utc+1' || p.tz === 'utc+2' ? 'europe' : 'asia';
+      const tz = (p.tz || '').toLowerCase().replace(/\u2212/g, '-');
+      const region = tz.startsWith('utc-')
+        ? 'americas'
+        : (tz === 'utc+0' || tz === 'utc+1' || tz === 'utc+2')
+          ? 'europe'
+          : 'asia';
       if (!filters.timezone.includes(region)) return false;
     }
     if (filters.rate.length && !filters.rate.includes(p.rate)) return false;
@@ -1820,44 +1839,16 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
   };
 
   const matched = bench.filter(personMatches);
-  const matchedAvail = matched.filter(p => p.availability !== 'booked').length;
+  const matchedAvail = matched.filter((p) => p.availability !== 'booked').length;
 
-  // Map discipline → plural role label (and singular when count is 1)
-  const ROLE_PLURALS = {
-    'copywriting':       ['copywriter',       'copywriters'],
-    'art direction':     ['art director',     'art directors'],
-    'creative direction':['creative director','creative directors'],
-    'design':            ['designer',         'designers'],
-    'design leadership': ['design leader',    'design leaders'],
-    'brand strategy':    ['brand strategist', 'brand strategists'],
-    'strategy':          ['strategist',       'strategists'],
-    'illustration':      ['illustrator',      'illustrators'],
-    'motion':            ['motion designer',  'motion designers'],
-    'photography':       ['photographer',     'photographers'],
-    'production':        ['producer',         'producers'],
-  };
-  const roleLabel = (() => {
-    if (filters.disciplines.length !== 1) return matched.length === 1 ? 'creative' : 'creatives';
-    const d = filters.disciplines[0].toLowerCase();
-    const map = ROLE_PLURALS[d];
-    if (map) return matched.length === 1 ? map[0] : map[1];
-    // fallback: trim '-ing' / '-tion' / '-ship' and add 'er(s)' is unsafe, so just use generic
-    return matched.length === 1 ? 'creative' : 'creatives';
-  })();
   const PRICES = { day: 29, week: 79, month: 249 };
   const MAX_DISCOUNTED_FILTERS = 4;
-  const rawFilterCount = Object.values(filters).filter(arr => arr.length > 0).length;
+  const rawFilterCount = Object.values(filters).filter((arr) => arr.length > 0).length;
   const filterCount = Math.min(MAX_DISCOUNTED_FILTERS, rawFilterCount);
-  const discount = filterCount * 0.10; // capped at 0.40 via filterCount cap
+  const discount = filterCount * 0.10;
   const priceFor = (d) => Math.round(PRICES[d] * (1 - discount));
 
-  const toggle = (key, val) => setFilters(f => ({
-    ...f,
-    [key]: f[key].includes(val) ? f[key].filter(v => v !== val) : [...f[key], val]
-  }));
-
-  // Authoritative server-side count — debounced. Used to surface the actual
-  // result size (and warn on narrow looks) BEFORE purchase.
+  // Server-side count.
   useEffect(() => {
     const ctrl = new AbortController();
     const id = setTimeout(() => {
@@ -1869,380 +1860,149 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
     return () => { clearTimeout(id); ctrl.abort(); };
   }, [filters]);
 
-  const TZS_OPT = [['americas','americas (utc-3 to utc-8)'],['europe','europe / africa (utc+0 to utc+2)'],['asia','asia / pacific (utc+5 to utc+12)']];
+  const checkout = async () => {
+    if (!buyerName.trim() || !buyerEmail.trim()) {
+      setCheckoutErr('add your name and email so we can mint your bench.');
+      return;
+    }
+    setCheckoutErr('');
+    try {
+      const r = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: priceFor(duration),
+          duration, filters,
+          matched: matched.length,
+          name: buyerName.trim(),
+          email: buyerEmail.trim(),
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j.url) { window.location.href = j.url; return; }
+      throw new Error(j.error || `error ${r.status}`);
+    } catch (err) {
+      setCheckoutErr(err.message || 'checkout failed. please try again.');
+    }
+  };
 
-  // ──────────────────────────────────────────────────
-  // INTRO + STEPS + REVEAL — single column, big type
-  // ──────────────────────────────────────────────────
-  const totalSteps = STEPS.length + 1; // + tz baked into step 2 visually... actually keep tz as part of step 2
-  const isReveal = step >= STEPS.length;
-
-  const stepHeader = isDrawer ? (
-    <div style={{ display:'flex', justifyContent:'flex-end', alignItems:'center', marginBottom: 32, fontFamily: GM, fontSize: 10, letterSpacing:'0.14em', color: C.soft }}>
-      <span>{isReveal ? 'your bench' : `0${step+1} / 0${STEPS.length+1}`}</span>
-    </div>
-  ) : (
-    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 56, fontFamily: GM, fontSize: 10, letterSpacing:'0.14em', color: C.soft }}>
-      <span>build a bench</span>
-      <span>{isReveal ? 'your bench' : `0${step+1} / 0${STEPS.length+1}`}</span>
-    </div>
-  );
-
-  if (isReveal) {
-    // RESULT + DURATION + CONCIERGE UPSELL
-    const showConcierge = matched.length < 15;
-    return (
-      <div style={{ background: isDrawer ? 'transparent' : C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : '100vh' }}>
-        <div style={{ maxWidth: 880, margin: '0 auto', padding: isDrawer ? '24px 40px 60px' : '60px 40px 80px' }}>
-          {stepHeader}
-
-          {/* Result headline */}
-          <p style={{ fontFamily: GM, fontSize: 11, letterSpacing:'0.14em', color: C.soft, marginBottom: 16 }}>your custom bench</p>
-          <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(56px,9vw,108px)', letterSpacing:'-0.04em', lineHeight: 0.92, marginBottom: 28 }}>
-            <span style={{ color: accent }}>{matched.length}</span> <span style={{ color: C.ink }}>{roleLabel}.</span><br/>
-            <span style={{ fontWeight:300, color: C.soft }}>{matchedAvail} available now.</span>
-          </h1>
-
-          {/* Filter recap */}
-          <div style={{ display:'flex', flexWrap:'wrap', gap: 8, marginBottom: 40 }}>
-            {Object.entries(filters).flatMap(([k, arr]) =>
-              arr.map(v => (
-                <span key={`${k}-${v}`} style={{ fontFamily: GM, fontSize: 10, letterSpacing:'0.06em', padding:'5px 11px', border:`1px solid ${C.rule}`, background: C.paper, color: C.ink }}>{v}</span>
-              ))
-            )}
-            {rawFilterCount > 0 && (
-              <button onClick={() => { setFilters({ disciplines: [], avail: [], experience: [], timezone: [], rate: [] }); setStep(0); }}
-                style={{ fontFamily: GM, fontSize: 10, letterSpacing:'0.06em', padding:'5px 11px', background: 'transparent', border:'none', color: C.soft, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:3 }}>reset</button>
-            )}
-            {rawFilterCount === 0 && (
-              <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>no filters applied — full bench, full price.</span>
-            )}
-          </div>
-
-          {/* Live count preview from /api/bench-count (authoritative) */}
-          {(serverCount != null && rawFilterCount > 0) && (
-            <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 18, letterSpacing: '0.04em' }}>
-              your look would show <span style={{ color: C.ink, fontWeight: 600 }}>{serverCount}</span> {serverCount === 1 ? 'creative' : 'creatives'}.
-            </p>
-          )}
-          {(serverCount != null && serverCount <= 2 && rawFilterCount > 0) && (
-            <div style={{ marginBottom: 24, padding: '12px 16px', border: '1px solid #c87c18', background: 'rgba(200,124,24,0.08)', color: '#7a4a0e', fontFamily: GM, fontSize: 11, lineHeight: 1.6, borderRadius: 4 }}>
-              narrow filters — only {serverCount} match. broaden your search or go filterless.
-            </div>
-          )}
-
-          {/* Discount line — inline text, not a button-shaped pill */}
-          {filterCount > 0 && (
-            <p style={{ fontFamily: GM, fontSize: 12, letterSpacing: '0.04em', color: C.ink, marginBottom: 40, lineHeight: 1.6 }}>
-              {rawFilterCount} filter{rawFilterCount > 1 ? 's' : ''} applied — <span style={{ color: accent, fontWeight: 600 }}>{Math.round(discount*100)}% off</span> all passes.
-            </p>
-          )}
-
-          {/* Duration slider — three breakpoints */}
-          <h2 style={{ fontFamily: GS, fontWeight: 600, fontSize: 22, letterSpacing: '-0.015em', marginBottom: 32 }}>how long do you need access?</h2>
-          {(() => {
-            const TIERS = ['day', 'week', 'month'];
-            const TIER_META = {
-              day:   { lbl: '24 hours', sub: 'for one urgent brief' },
-              week:  { lbl: '7 days',   sub: 'most common' },
-              month: { lbl: '30 days',  sub: 'for ongoing search' },
-            };
-            const idx = Math.max(0, TIERS.indexOf(duration));
-            const meta = TIER_META[duration];
-            const onKey = (e) => {
-              if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
-                e.preventDefault();
-                setDuration(TIERS[Math.max(0, idx - 1)]);
-              } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
-                e.preventDefault();
-                setDuration(TIERS[Math.min(TIERS.length - 1, idx + 1)]);
-              }
-            };
-            return (
-              <div style={{ marginBottom: 48 }}>
-                {/* Track + stops */}
-                <div
-                  role="slider"
-                  tabIndex={0}
-                  aria-valuemin={0} aria-valuemax={2} aria-valuenow={idx}
-                  aria-valuetext={`${meta.lbl} pass`}
-                  aria-label="how long do you need access"
-                  onKeyDown={onKey}
-                  style={{ position: 'relative', height: 28, padding: '0 14px', cursor: 'pointer', outline: 'none' }}>
-                  {/* base rule */}
-                  <div style={{ position: 'absolute', top: '50%', left: 14, right: 14, height: 1, background: C.rule, transform: 'translateY(-0.5px)' }} />
-                  {/* filled portion */}
-                  <div style={{ position: 'absolute', top: '50%', left: 14, height: 1, width: `calc((100% - 28px) * ${idx / 2})`, background: C.ink, transform: 'translateY(-0.5px)', transition: 'width 0.22s cubic-bezier(0.4, 0, 0.2, 1)' }} />
-                  {/* stops */}
-                  {TIERS.map((t, i) => {
-                    const left = `calc(14px + (100% - 28px) * ${i / 2})`;
-                    const active = duration === t;
-                    const past = i < idx;
-                    return (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setDuration(t)}
-                        aria-label={`${TIER_META[t].lbl} pass`}
-                        style={{
-                          position: 'absolute',
-                          left, top: '50%',
-                          transform: 'translate(-50%, -50%)',
-                          width: active ? 22 : 12,
-                          height: active ? 22 : 12,
-                          borderRadius: '50%',
-                          background: active ? C.ink : (past ? C.ink : C.cream),
-                          border: `1.5px solid ${C.ink}`,
-                          padding: 0,
-                          cursor: 'pointer',
-                          transition: 'width 0.18s ease, height 0.18s ease, background 0.18s ease',
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-
-                {/* Labels under stops */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: 16 }}>
-                  {TIERS.map((t, i) => (
-                    <div key={t} style={{ textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center' }}>
-                      <button
-                        type="button"
-                        onClick={() => setDuration(t)}
-                        style={{
-                          background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
-                          fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
-                          color: duration === t ? C.ink : C.soft,
-                          fontWeight: duration === t ? 600 : 400,
-                        }}>
-                        {TIER_META[t].lbl}
-                      </button>
-                      {t === 'week' && (
-                        <div style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', color: accent, marginTop: 4, textTransform: 'uppercase', textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center' }}>
-                          most popular
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Selected price + caption */}
-                <div style={{ marginTop: 36, display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: GS, fontWeight: 700, fontSize: 88, letterSpacing: '-0.045em', lineHeight: 1, color: C.ink }}>${priceFor(duration)}</span>
-                  {filterCount > 0 && (
-                    <span style={{ fontFamily: GM, fontSize: 16, color: C.soft, opacity: 0.55, textDecoration: 'line-through' }}>${PRICES[duration]}</span>
-                  )}
-                  <span style={{ fontFamily: GM, fontSize: 12, color: C.soft, marginLeft: 'auto', alignSelf: 'flex-end' }}>{meta.sub}</span>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Name + email capture — feels like signing into your private bench */}
-          <div style={{ marginBottom: 24, padding: '28px 32px', background: C.cream, border: `1.5px solid ${C.ink}`, borderRadius: 8 }}>
-            <p style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.14em', color: C.ink, fontWeight: 500, marginBottom: 18 }}>your bench, in your name</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <input
-                value={buyerName}
-                onChange={(e) => setBuyerName(e.target.value)}
-                placeholder="your name"
-                style={{ ...FIELD, padding: '18px 20px', fontSize: 16, fontWeight: 500 }}
-                onFocus={(e) => e.target.style.background = C.paper}
-                onBlur={(e) => e.target.style.background = C.cream}
-              />
-              <input
-                value={buyerEmail}
-                onChange={(e) => setBuyerEmail(e.target.value)}
-                placeholder="work email"
-                type="email"
-                style={{ ...FIELD, padding: '18px 20px', fontSize: 16, fontWeight: 500 }}
-                onFocus={(e) => e.target.style.background = C.paper}
-                onBlur={(e) => e.target.style.background = C.cream}
-              />
-            </div>
-            <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginTop: 14, lineHeight: 1.6 }}>
-              access is issued to you personally. shareable within your team.
-            </p>
-          </div>
-
-          {/* Checkout CTA */}
-          <button onClick={async () => {
-              if (!duration) return;
-              if (!buyerName.trim() || !buyerEmail.trim()) {
-                setCheckoutErr('add your name and email so we can mint your bench.');
-                return;
-              }
-              setCheckoutErr('');
-              try {
-                const r = await fetch('/api/checkout', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    amount: priceFor(duration),
-                    duration,
-                    filters,
-                    matched: matched.length,
-                    name: buyerName.trim(),
-                    email: buyerEmail.trim(),
-                  }),
-                });
-                const j = await r.json().catch(() => ({}));
-                if (j.url) { window.location.href = j.url; return; }
-                throw new Error(j.error || `error ${r.status}`);
-              } catch (err) {
-                setCheckoutErr(err.message || 'checkout failed. please try again.');
-              }
-            }}
-            style={{ display:'block', width:'100%', padding:'20px 28px', background: C.ink, color: C.cream, fontFamily: GM, fontSize: 12, letterSpacing:'0.08em', textAlign:'center', textDecoration:'none', cursor:'pointer', marginBottom: checkoutErr ? 12 : 40, border:'none' }}>
-            {buyerName.trim()
-              ? `mint ${buyerName.trim().split(' ')[0]}'s bench — $${priceFor(duration)} →`
-              : `unlock ${matched.length} ${roleLabel} — $${priceFor(duration)} →`}
-          </button>
-          {checkoutErr && (
-            <div style={{ marginBottom: 40, padding: '12px 16px', border: '1px solid #b04040', background: 'rgba(176,64,64,0.08)', color: '#b04040', fontFamily: GM, fontSize: 11, letterSpacing: '0.04em', borderRadius: 4 }}>
-              {checkoutErr}
-            </div>
-          )}
-
-          {/* Concierge upsell — only if bench is small */}
-          {showConcierge && (
-            <div style={{ padding: '32px 36px', background: C.paper, border: `1px solid ${C.rule}`, position:'relative' }}>
-              <span style={{ position:'absolute', top:-10, left:24, background: C.cream, padding:'0 12px', fontFamily: GM, fontSize: 9, letterSpacing:'0.14em', color: C.soft }}>or</span>
-              <h3 style={{ fontFamily: GS, fontWeight: 600, fontSize: 22, letterSpacing:'-0.015em', marginBottom: 8 }}>only {matched.length}? want us to make the match?</h3>
-              <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.7, marginBottom: 18, maxWidth:'56ch' }}>
-                that's a tight bench. skip the search — send a brief and we'll come back with 5+ top-tier names within 4 hours.
-              </p>
-              <div style={{ display:'flex', alignItems:'baseline', gap: 10, marginBottom: 18 }}>
-                <span style={{ fontFamily: GS, fontWeight: 700, fontSize: 40, letterSpacing:'-0.045em' }}>$199</span>
-                <span style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>to open the bench.</span>
-              </div>
-              {conciergeSent ? (
-                <div style={{ fontFamily: GM, fontSize: 13, color: C.ink, padding: '14px 0' }}>
-                  ✓ &nbsp; brief received. we'll be in touch within 4 hours.
-                </div>
-              ) : (
-                <form onSubmit={async (e) => {
-                  e.preventDefault();
-                  const fd = new FormData(e.target);
-                  const payload = {
-                    what: `concierge match request — bench size ${matched.length}\n\nfilters:\n${JSON.stringify(filters, null, 2)}\n\nproject:\n${fd.get('what')}`,
-                    email: fd.get('email'),
-                    source: 'concierge'
-                  };
-                  try {
-                    const res = await fetch('/api/lead', {
-                      method: 'POST',
-                      headers: {'Content-Type':'application/json'},
-                      body: JSON.stringify(payload)
-                    });
-                    if (res.ok) { setConciergeSent(true); return; }
-                    throw new Error();
-                  } catch {
-                    const subj = encodeURIComponent('concierge match request');
-                    const body = encodeURIComponent(payload.what + `\n\nfrom: ${payload.email}`);
-                    window.location.href = `mailto:hello@colophon.contact?subject=${subj}&body=${body}`;
-                    setConciergeSent(true);
-                  }
-                }} style={{ display:'flex', flexDirection:'column', gap: 10 }}>
-                  <textarea name="what" required placeholder="what are you working on?" rows={3}
-                    style={{ ...FIELD, fontSize: 13, padding: '12px 14px', resize: 'none', lineHeight: 1.55 }}/>
-                  <div style={{ display:'flex', gap: 8 }}>
-                    <input name="email" type="email" required placeholder="your email"
-                      style={{ ...FIELD, flex: 1, fontSize: 13, padding: '12px 14px' }}/>
-                    <button type="submit"
-                      style={{ background: C.ink, color: C.cream, border:'none', padding:'12px 20px', fontFamily: GM, fontSize: 11, letterSpacing:'0.07em', cursor:'pointer', whiteSpace:'nowrap' }}>
-                      start match →
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          )}
-
-          <button onClick={() => setStep(STEPS.length - 1)} style={{ marginTop: 32, fontFamily: GM, fontSize: 11, color: C.soft, background:'transparent', border:'none', cursor:'pointer', textDecoration:'underline', textUnderlineOffset: 3 }}>
-            ← edit filters
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ──────────────────────────────────────────────────
-  // STEP VIEW — one question at a time
-  // ──────────────────────────────────────────────────
-  const cur = STEPS[step];
-  const curSelected = filters[cur.key];
-
-  // For the timezone "step", we fold it into step 1 (avail) — actually let's just expose tz inline on the avail step, since it's quick.
-  // For simplicity in this build, keep tz hidden; user can refine later. (Or expand into 5 steps later.)
+  const optBtn = {
+    display: 'block',
+    width: '100%',
+    background: 'transparent',
+    border: 'none',
+    padding: '5px 0',
+    fontFamily: GM,
+    fontSize: 13,
+    color: C.ink,
+    cursor: 'pointer',
+    textAlign: 'left',
+    lineHeight: 1.55,
+    borderRadius: 0,
+  };
+  const groupHeader = {
+    fontFamily: GM,
+    fontSize: 11,
+    letterSpacing: '0.16em',
+    textTransform: 'uppercase',
+    color: C.ink,
+    marginBottom: 10,
+    marginTop: 32,
+  };
 
   return (
     <div style={{ background: isDrawer ? 'transparent' : C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : '100vh' }}>
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: isDrawer ? '24px 40px 60px' : '60px 40px 80px' }}>
-        {stepHeader}
+      <div style={{ maxWidth: 640, margin: '0 auto', padding: isDrawer ? '24px 40px 60px' : '60px 40px 80px' }}>
+        <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.soft, marginBottom: 18 }}>build a bench / 02</p>
+        <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(36px,5vw,64px)', letterSpacing: '-0.045em', lineHeight: 0.92, marginBottom: 14 }}>
+          filter the directory.
+        </h1>
+        <p style={{ fontFamily: GM, fontSize: 13, color: C.soft, lineHeight: 1.75, marginBottom: 8, maxWidth: '54ch' }}>
+          pick what you need. live count below. skip filters to see the whole bench.
+        </p>
 
-        {/* Progress bar */}
-        <div style={{ display:'flex', gap: 6, marginBottom: 64 }}>
-          {STEPS.map((_, i) => (
-            <div key={i} style={{ flex: 1, height: 2, background: i <= step ? C.ink : C.rule, transition:'background 0.2s' }} />
-          ))}
-        </div>
+        {FILTER_GROUPS.map((g) => (
+          <div key={g.key}>
+            <p style={groupHeader}>[ {g.letter} ]&nbsp;&nbsp;{g.label}</p>
+            <div style={{ paddingLeft: 22 }}>
+              {g.options.map(([val, label]) => {
+                const on = filters[g.key].includes(val);
+                return (
+                  <button key={val} onClick={() => toggle(g.key, val)} style={optBtn}>
+                    [{on ? '\u25cf' : ' '}]&nbsp;&nbsp;{label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
 
-        <p style={{ fontFamily: GM, fontSize: 10, letterSpacing:'0.14em', color: C.soft, marginBottom: 14 }}>{cur.label}</p>
-        <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(40px,6vw,68px)', letterSpacing:'-0.035em', lineHeight: 1, marginBottom: 14 }}>{cur.question}</h1>
-        <p style={{ fontFamily: GS, fontStyle:'italic', fontSize: 17, color: C.soft, lineHeight: 1.5, marginBottom: 40, maxWidth:'48ch' }}>{cur.sub}</p>
+        <hr style={{ border: 'none', borderTop: `1px solid ${C.rule}`, margin: '40px 0 18px' }} />
+        <p style={{ fontFamily: GM, fontSize: 13, color: C.ink, lineHeight: 1.55 }}>
+          <span style={{ fontFamily: GS, fontWeight: 700, fontSize: 26, letterSpacing: '-0.045em', verticalAlign: 'baseline', marginRight: 8 }}>{matchedAvail}</span>
+          {matchedAvail === 1 ? 'creative' : 'creatives'} available now &middot; {matched.length} match total
+        </p>
+        {(serverCount != null && serverCount <= 2 && rawFilterCount > 0) && (
+          <p style={{ fontFamily: GM, fontSize: 12, color: '#7a4a0e', marginTop: 8 }}>
+            narrow filters \u2014 only {serverCount} match. broaden to see more.
+          </p>
+        )}
+        {filterCount > 0 && (
+          <p style={{ fontFamily: GM, fontSize: 12, color: C.ink, marginTop: 8, lineHeight: 1.55 }}>
+            {rawFilterCount} filter{rawFilterCount > 1 ? 's' : ''} applied \u00b7 <span style={{ color: accent, fontWeight: 600 }}>{Math.round(discount*100)}% off</span> all passes.
+          </p>
+        )}
+        {rawFilterCount > 0 && (
+          <button onClick={resetAll} style={{ ...optBtn, marginTop: 4, color: C.soft, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+            [\u00d7]&nbsp;&nbsp;clear all filters
+          </button>
+        )}
 
-        {/* Options */}
-        <div style={{ display:'flex', flexWrap:'wrap', gap: 10, marginBottom: 48 }}>
-          {cur.options.map((opt) => {
-            const [val, label] = Array.isArray(opt) ? opt : [opt, opt];
-            const on = curSelected.includes(val);
+        <p style={groupHeader}>[ F ]&nbsp;&nbsp;duration</p>
+        <div style={{ paddingLeft: 22 }}>
+          {[
+            ['day',   '24 hours'],
+            ['week',  '7 days  \u00b7  most popular'],
+            ['month', '30 days'],
+          ].map(([val, label]) => {
+            const on = duration === val;
             return (
-              <button key={val} onClick={() => toggle(cur.key, val)}
-                style={{
-                  display:'inline-flex', alignItems:'center', gap: 10,
-                  padding:'14px 20px',
-                  borderRadius: 999,
-                  border: on ? `1px solid ${C.ink}` : `1px solid ${C.rule}`,
-                  background: on ? C.ink : C.paper,
-                  color: on ? C.cream : C.ink,
-                  cursor:'pointer',
-                  fontFamily: GS, fontSize: 15, fontWeight: on ? 600 : 500,
-                  letterSpacing:'-0.005em',
-                  transition: 'background 0.12s ease, color 0.12s ease, border-color 0.12s ease',
-                }}>
-                {on && <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width: 16, height: 16, borderRadius:'50%', background: C.cream, color: C.ink, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>✓</span>}
-                <span>{label}</span>
+              <button key={val} onClick={() => setDuration(val)} style={optBtn}>
+                [{on ? '\u25cf' : ' '}]&nbsp;&nbsp;{label} \u2014 ${priceFor(val)}
               </button>
             );
           })}
         </div>
 
-        {/* Footer: live count + continue */}
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap: 24, flexWrap:'wrap' }}>
-          <div style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>
-            <span style={{ fontFamily: GS, fontSize: 32, color: C.ink, fontWeight: 700, letterSpacing:'-0.045em' }}>{matchedAvail}</span>
-            <span style={{ marginLeft: 10 }}>available now</span>
-          </div>
-          <div style={{ display:'flex', gap: 12 }}>
-            {step > 0 && (
-              <button onClick={() => setStep(step - 1)} style={{ fontFamily: GM, fontSize: 11, letterSpacing:'0.06em', padding:'14px 20px', background:'transparent', border:`1px solid ${C.rule}`, color: C.soft, cursor:'pointer' }}>← back</button>
-            )}
-            <button onClick={() => setStep(step + 1)}
-              style={{ fontFamily: GM, fontSize: 11, letterSpacing:'0.07em', padding:'14px 24px', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, cursor:'pointer' }}>
-              {curSelected.length === 0 ? 'skip →' : `continue · ${curSelected.length} picked →`}
-            </button>
-          </div>
-        </div>
+        <p style={groupHeader}>[ G ]&nbsp;&nbsp;your bench</p>
+        <input
+          value={buyerName}
+          onChange={(e) => setBuyerName(e.target.value)}
+          placeholder="your name"
+          style={{ ...FIELD, marginBottom: 12 }}
+        />
+        <input
+          value={buyerEmail}
+          onChange={(e) => setBuyerEmail(e.target.value)}
+          placeholder="work email"
+          type="email"
+          style={FIELD}
+        />
 
-        <button onClick={() => setStep(STEPS.length)} style={{ marginTop: 40, fontFamily: GM, fontSize: 10, color: C.soft, background:'transparent', border:'none', cursor:'pointer', textDecoration:'underline', textUnderlineOffset: 3 }}>
-          skip the questions, show me the full bench →
+        <button onClick={checkout}
+          style={{ ...BUTTON_PRIMARY, marginTop: 32, width: '100%', textAlign: 'center', padding: '18px 24px' }}>
+          mint your bench \u2014 ${priceFor(duration)} \u2192
         </button>
+        {checkoutErr && (
+          <p style={{ fontFamily: GM, fontSize: 12, color: '#b04040', marginTop: 12 }}>{checkoutErr}</p>
+        )}
+        <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 14, lineHeight: 1.6 }}>
+          a private view of the directory will be issued in your name. no markup, no placement fee.
+        </p>
       </div>
     </div>
   );
 }
-
 
 // ── UNLOCKED BENCH TABLE ──────────────────────────────────────────────────────
 function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionFilters = null }) {
