@@ -1761,12 +1761,16 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
           <h3 style={sH}>your work</h3>
           <div>
             <label style={lS}>primary creative discipline(s)</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {DISCIPLINES.map((d) =>
-              <label key={d} style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: GM, fontSize: 11, color: C.ink, cursor: 'pointer', padding: '12px 14px', borderRadius: 8, border: `1.5px solid ${disciplines.includes(d) ? C.ink : 'rgba(0,0,0,0.35)'}`, background: disciplines.includes(d) ? 'rgba(255,255,255,0.55)' : 'transparent' }}>
-                  <input type="checkbox" checked={disciplines.includes(d)} onChange={() => toggle(disciplines, setDisciplines, d)} style={{ flexShrink: 0 }} /> {d}
-                </label>
-              )}
+            <div style={{ paddingLeft: 22 }}>
+              {DISCIPLINES.map((d) => {
+                const on = disciplines.includes(d);
+                return (
+                  <button key={d} type="button" onClick={() => toggle(disciplines, setDisciplines, d)}
+                    style={{ display: 'block', width: '100%', background: 'transparent', border: 'none', padding: '6px 0', fontFamily: GM, fontSize: 13, color: C.ink, cursor: 'pointer', textAlign: 'left', lineHeight: 1.55, borderRadius: 0 }}>
+                    [{on ? '●' : ' '}]&nbsp;&nbsp;{d}
+                  </button>
+                );
+              })}
             </div>
           </div>
           {disciplines.includes('Other (specify below)') && <div><label style={lS}>specify discipline</label><input style={iS} value={form.disciplineOther} onChange={set('disciplineOther')} /></div>}
@@ -1779,29 +1783,32 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
           </div>
           <div>
             <label style={lS}>project categories — strongest expertise</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {CATEGORIES.map((c) =>
-              <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: GM, fontSize: 11, color: C.ink, cursor: 'pointer', padding: '12px 14px', borderRadius: 8, border: `1.5px solid ${categories.includes(c) ? C.ink : 'rgba(0,0,0,0.35)'}`, background: categories.includes(c) ? 'rgba(255,255,255,0.55)' : 'transparent' }}>
-                  <input type="checkbox" checked={categories.includes(c)} onChange={() => toggle(categories, setCategories, c)} style={{ flexShrink: 0 }} /> {c}
-                </label>
-              )}
+            <div style={{ paddingLeft: 22 }}>
+              {CATEGORIES.map((c) => {
+                const on = categories.includes(c);
+                return (
+                  <button key={c} type="button" onClick={() => toggle(categories, setCategories, c)}
+                    style={{ display: 'block', width: '100%', background: 'transparent', border: 'none', padding: '6px 0', fontFamily: GM, fontSize: 13, color: C.ink, cursor: 'pointer', textAlign: 'left', lineHeight: 1.55, borderRadius: 0 }}>
+                    [{on ? '●' : ' '}]&nbsp;&nbsp;{c}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div><label style={lS}>your unique value proposition</label><textarea style={{ ...iS, minHeight: 110, resize: 'vertical' }} value={form.summary} onChange={set('summary')} placeholder="what sets you apart? be specific." /></div>
           <div>
             <label style={lS}>ai savvy</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+            <div style={{ paddingLeft: 22 }}>
               {[
-                ['s', 'S', 'basics, occasional use'],
-                ['m', 'M', 'fluent in the tools, in the workflow'],
-                ['l', 'L', 'building with AI, prompting at depth'],
-              ].map(([v, label, sub]) => {
+                ['s', 'S — basics, occasional use'],
+                ['m', 'M — fluent in the tools, in the workflow'],
+                ['l', 'L — building with AI, prompting at depth'],
+              ].map(([v, label]) => {
                 const on = form.aiSavvy === v;
                 return (
                   <button key={v} type="button" onClick={() => setForm((f) => ({ ...f, aiSavvy: v }))}
-                    style={{ padding: '12px 14px', borderRadius: 8, border: `1.5px solid ${on ? C.ink : 'rgba(0,0,0,0.35)'}`, background: on ? 'rgba(255,255,255,0.55)' : 'transparent', fontFamily: GM, fontSize: 11, color: C.ink, cursor: 'pointer', textAlign: 'left', lineHeight: 1.45 }}>
-                    <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 14, letterSpacing: '-0.01em', marginBottom: 2 }}>{label}</div>
-                    <div style={{ fontSize: 10, opacity: 0.78 }}>{sub}</div>
+                    style={{ display: 'block', width: '100%', background: 'transparent', border: 'none', padding: '6px 0', fontFamily: GM, fontSize: 13, color: C.ink, cursor: 'pointer', textAlign: 'left', lineHeight: 1.55, borderRadius: 0 }}>
+                    [{on ? '●' : ' '}]&nbsp;&nbsp;{label}
                   </button>
                 );
               })}
