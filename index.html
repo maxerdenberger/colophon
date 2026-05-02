@@ -3246,16 +3246,43 @@ const ADMIN_INTENT = {
   revoke:   { bg: '#7A1818', fg: '#FAFAF8' },
   neutral:  { bg: 'transparent', fg: '#0d0d0b' },
 };
-const adminIntentBtn = (intent) => {
+const _hexToRgba = (hex, a) => {
+  const m = (hex || '').replace('#', '');
+  if (m.length < 6) return `rgba(0,0,0,${a})`;
+  const r = parseInt(m.slice(0, 2), 16);
+  const g = parseInt(m.slice(2, 4), 16);
+  const b = parseInt(m.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${a})`;
+};
+// state: 'empty' (default), 'tint' (acted in a previous session),
+// 'full' (acted in the current session).
+const adminIntentBtn = (intent, state = 'empty') => {
   const c = ADMIN_INTENT[intent] || ADMIN_INTENT.neutral;
-  return {
+  const base = {
     fontFamily: GM, fontSize: 10, letterSpacing: '0.05em',
     padding: '5px 10px',
-    background: c.bg, color: c.fg,
-    border: c.bg === 'transparent' ? `1px solid rgba(13,13,11,0.08)` : '1px solid transparent',
     cursor: 'pointer', borderRadius: 4,
-    transition: 'opacity 0.1s ease, transform 0.06s ease',
+    transition: 'background 0.12s ease, color 0.12s ease, border-color 0.12s ease',
   };
+  if (intent === 'neutral') {
+    return { ...base, background: 'transparent', color: c.fg, border: '1px solid rgba(13,13,11,0.08)' };
+  }
+  if (state === 'full') {
+    return { ...base, background: c.bg, color: c.fg, border: '1px solid transparent' };
+  }
+  if (state === 'tint') {
+    return { ...base, background: _hexToRgba(c.bg, 0.14), color: c.bg, border: `1px solid ${_hexToRgba(c.bg, 0.35)}` };
+  }
+  return { ...base, background: 'transparent', color: c.bg, border: `1px solid ${_hexToRgba(c.bg, 0.5)}` };
+};
+// Persisted per-row × per-action history; keyed by rowId, then opName.
+const ACTIONS_KEY = 'colophon_admin_actions';
+const loadAdminActions = () => {
+  try { return JSON.parse(localStorage.getItem(ACTIONS_KEY) || '{}') || {}; }
+  catch { return {}; }
+};
+const saveAdminActions = (m) => {
+  try { localStorage.setItem(ACTIONS_KEY, JSON.stringify(m)); } catch {}
 };
 
 // Pulls submissions from Formspree via a server-side proxy at
@@ -3272,6 +3299,23 @@ function AdminFormspreeApproval({ secret }) {
     try { return new Set(JSON.parse(localStorage.getItem('colophon_reviewed') || '[]')); }
     catch { return new Set(); }
   });
+  const [pastActions, setPastActions] = useState(loadAdminActions);
+  const [sessionActions, setSessionActions] = useState({});
+  const stateFor = (rowId, op) => {
+    const k = 's:' + String(rowId);
+    if (sessionActions[k] && sessionActions[k][op]) return 'full';
+    if (pastActions[k]    && pastActions[k][op])    return 'tint';
+    return 'empty';
+  };
+  const recordAction = (rowId, op) => {
+    const k = 's:' + String(rowId);
+    setSessionActions((s) => ({ ...s, [k]: { ...(s[k] || {}), [op]: Date.now() } }));
+    setPastActions((p) => {
+      const next = { ...p, [k]: { ...(p[k] || {}), [op]: Date.now() } };
+      saveAdminActions(next);
+      return next;
+    });
+  };
   const [log, setLog] = useState([]);
   const append = (s) => setLog((l) => [...l, `${new Date().toLocaleTimeString()} · ${s}`]);
   const persist = (s) => { try { localStorage.setItem('colophon_reviewed', JSON.stringify([...s])); } catch {} };
@@ -3304,6 +3348,7 @@ function AdminFormspreeApproval({ secret }) {
 
   const act = async (sub, op) => {
     append(`→ ${op} · ${sub.id}`);
+    recordAction(sub.id, op);
     if (op === 'approve') {
       const data = sub.data || sub;
       try {
@@ -3369,9 +3414,9 @@ function AdminFormspreeApproval({ secret }) {
                   {data.partnerEmails && <div style={{ fontSize: 10, color: '#3D3C38', marginTop: 4 }}>partners: {String(data.partnerEmails).split(/\n+/).join(', ')}</div>}
                 </div>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <button onClick={() => act(s, 'approve')} style={adminIntentBtn('approve')}>approve → sheet</button>
+                  <button onClick={() => act(s, 'approve')} style={adminIntentBtn('approve', stateFor(s.id, 'approve'))}>approve → sheet</button>
                   <button onClick={() => act(s, 'skip')}    style={adminIntentBtn('neutral')}>skip</button>
-                  <button onClick={() => act(s, 'reject')}  style={adminIntentBtn('deny')}>reject</button>
+                  <button onClick={() => act(s, 'reject')}  style={adminIntentBtn('deny', stateFor(s.id, 'reject'))}>reject</button>
                 </div>
               </div>
             );
@@ -3395,6 +3440,24 @@ function AdminBenchBrowser({ secret }) {
   const [adding, setAdding] = useState(false);
   const [newRow, setNewRow] = useState({ name: '', discipline: '', tz: 'UTC−5', rate: '$$$', availability: 'available', email: '', aiSavvy: '' });
   const append = (s) => setLog((l) => [...l, `${new Date().toLocaleTimeString()} · ${s}`]);
+  // Three-state action buttons: empty → tint (past session) → full (this session).
+  const [pastActions, setPastActions] = useState(loadAdminActions);
+  const [sessionActions, setSessionActions] = useState({});
+  const stateFor = (rowId, op) => {
+    const k = String(rowId);
+    if (sessionActions[k] && sessionActions[k][op]) return 'full';
+    if (pastActions[k]    && pastActions[k][op])    return 'tint';
+    return 'empty';
+  };
+  const recordAction = (rowId, op) => {
+    const k = String(rowId);
+    setSessionActions((s) => ({ ...s, [k]: { ...(s[k] || {}), [op]: Date.now() } }));
+    setPastActions((p) => {
+      const next = { ...p, [k]: { ...(p[k] || {}), [op]: Date.now() } };
+      saveAdminActions(next);
+      return next;
+    });
+  };
 
   // Sort by hourlyRate desc, then yoe desc — top-of-the-top first.
   // Search hits on real name, code name, discipline.
@@ -3425,6 +3488,7 @@ function AdminBenchBrowser({ secret }) {
   };
   const act = async (row, op) => {
     append(`→ ${op} · ${row.name}`);
+    recordAction(row.id, op);
     try { await post({ action: op, id: row.id, name: row.name }); append(`✓ ${op} · ${row.name}`); }
     catch (ex) { append(`✗ ${op} · ${row.name} — ${ex.message}`); }
   };
@@ -3476,17 +3540,17 @@ function AdminBenchBrowser({ secret }) {
               </a>
             </span>
             <span style={{ display: 'flex', gap: 4 }}>
-              <button onClick={() => act(p, 'approve')} style={intentBtn('approve')}>approve</button>
-              <button onClick={() => act(p, 'deny')}    style={intentBtn('deny')}>deny</button>
+              <button onClick={() => act(p, 'approve')} style={intentBtn('approve', stateFor(p.id, 'approve'))}>approve</button>
+              <button onClick={() => act(p, 'deny')}    style={intentBtn('deny',    stateFor(p.id, 'deny'))}>deny</button>
               <button onClick={() => act(p, p.paused ? 'unpause' : 'pause')}
-                style={intentBtn(p.paused ? 'resume' : 'pause')}>
+                style={intentBtn(p.paused ? 'resume' : 'pause', stateFor(p.id, p.paused ? 'unpause' : 'pause'))}>
                 {p.paused ? 'resume' : 'pause'}
               </button>
               <button onClick={() => act(p, p.legend ? 'unlegend' : 'legend')}
-                style={intentBtn(p.legend ? 'unlegend' : 'legend')}>
+                style={intentBtn(p.legend ? 'unlegend' : 'legend', stateFor(p.id, p.legend ? 'unlegend' : 'legend'))}>
                 {p.legend ? '★ legend' : 'legend'}
               </button>
-              <button onClick={() => act(p, 'revoke')}  style={intentBtn('revoke')}>revoke</button>
+              <button onClick={() => act(p, 'revoke')}  style={intentBtn('revoke', stateFor(p.id, 'revoke'))}>revoke</button>
             </span>
           </div>
         ))}
