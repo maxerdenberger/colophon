@@ -148,7 +148,18 @@
   .drawer-tinted [style*="#3D3C38"],
   .drawer-tinted [style*="rgb(61, 60, 56)"],
   .drawer-tinted [style*="rgb(61,60,56)"] {
-    color: rgba(13,13,11,0.55) !important;
+    color: rgba(13,13,11,0.78) !important;
+  }
+  /* Catch the muted helper text styles that use rgba(13,13,11,0.5/0.55/0.6)
+     directly — bump them to ~0.78 so they stay readable on the green
+     (apply) and other tinted drawers. */
+  .drawer-tinted [style*="rgba(13,13,11,0.5)"],
+  .drawer-tinted [style*="rgba(13, 13, 11, 0.5)"],
+  .drawer-tinted [style*="rgba(13,13,11,0.55)"],
+  .drawer-tinted [style*="rgba(13, 13, 11, 0.55)"],
+  .drawer-tinted [style*="rgba(13,13,11,0.6)"],
+  .drawer-tinted [style*="rgba(13, 13, 11, 0.6)"] {
+    color: rgba(13,13,11,0.78) !important;
   }
   .drawer-tinted [style*="rgba(13, 13, 11, 0.08)"],
   .drawer-tinted [style*="rgba(13,13,11,0.08)"] {
@@ -569,8 +580,10 @@ function parseSheetCSV(text) {
                           : s.includes('creative dir') ? 'creative direction'
                           : 'creative direction';
     const disc = canonDisc(rawDiscFull);
-    const firstName = (row[1] || '').split(' ')[0].toLowerCase() || name;
-    const emailEnc = btoa(row[2] || '');
+    const realName  = (row[1] || '').trim();
+    const firstName = realName.split(' ')[0].toLowerCase() || name;
+    const emailRaw  = (row[2] || '').trim();
+    const emailEnc  = btoa(emailRaw);
     const portfolio = (row[3] || '').trim();
     const linkedin  = (row[4] || '').trim();
     const updatedAt = Date.parse(row[0]) || 0;
@@ -594,12 +607,13 @@ function parseSheetCSV(text) {
               : 0;
 
     return {
-      id: i+1, name, firstName, emailEnc, portfolio, linkedin, updatedAt,
+      id: i+1, name, realName, firstName, emailRaw, emailEnc, portfolio, linkedin, updatedAt,
       discipline: disc, rawDisciplines, availability, hourlyRate,
       tz: TZS[i % TZS.length], // tz still synthesized — no city/tz column in form
       rate, yoe,
       clients: clients.length ? clients : ['portfolio available'],
       note,
+      paused: false, legend: false,  // admin-toggleable; persisted via /api/bench-update
     };
   }).filter(Boolean);
 }
@@ -1684,8 +1698,9 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState({
     name: '', email: '', portfolio: '', linkedin: '', disciplineOther: '',
-    availability: '', hourlyRate: '', minFee: '',
+    availability: '', timezone: '', hourlyRate: '', minFee: '',
     referralContext: '', topClients: '', expLevel: '', summary: '',
+    partnerEmails: '',
     rec1Name: '', rec1Email: '', rec2Name: '', rec2Email: '', rec3Name: '', rec3Email: '',
     buyerName: '', buyerOrg: '', buyerEmail: ''
   });
@@ -1776,6 +1791,15 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
               {AVAIL_OPTS.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
+          <div>
+            <label style={lS}>working timezone</label>
+            <select style={iS} value={form.timezone} onChange={set('timezone')} required>
+              <option value="">—</option>
+              <option value="americas">Americas (UTC−3 to UTC−8)</option>
+              <option value="europe">Europe / Africa (UTC+0 to UTC+2)</option>
+              <option value="asia">Asia / Pacific (UTC+5 to UTC+12)</option>
+            </select>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
             <div><label style={lS}>preferred hourly rate (usd)</label><input style={iS} value={form.hourlyRate} onChange={set('hourlyRate')} placeholder="e.g. $150/hr" /></div>
             <div><label style={lS}>minimum project fee (usd)</label><input style={iS} value={form.minFee} onChange={set('minFee')} placeholder="e.g. $5,000" /></div>
@@ -1784,6 +1808,14 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
           <h3 style={sH}>background</h3>
           <div><label style={lS}>top 3 most relevant past clients / brands</label><input style={iS} value={form.topClients} onChange={set('topClients')} placeholder="apple, google, nike" /></div>
           <div><label style={lS}>referral context — who referred you or where have we crossed paths?</label><input style={iS} value={form.referralContext} onChange={set('referralContext')} /></div>
+          <div>
+            <label style={lS}>partners you team up with — emails, one per line</label>
+            <textarea style={{ ...iS, minHeight: 84, resize: 'vertical' }} value={form.partnerEmails} onChange={set('partnerEmails')}
+              placeholder={`producer@example.com\nstrategy-partner@example.com`} />
+            <p style={{ fontFamily: GM, fontSize: 10, color: 'rgba(13,13,11,0.5)', lineHeight: 1.55, marginTop: 4 }}>
+              if you bring a team or trusted collaborators, list their emails. we'll reach out to them too — some buyers prefer pre-formed teams.
+            </p>
+          </div>
 
           <button type="submit" style={{ ...BUTTON_PRIMARY, marginTop: 24 }}>
             submit application →
@@ -1802,7 +1834,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
   const { bench } = useBench();
 
   const [filters, setFilters] = useState({
-    disciplines: [], avail: [], experience: [], timezone: [], rate: [],
+    disciplines: [], avail: [], experience: [], timezone: [], rate: [], teams: [],
   });
   const [duration, setDuration] = useState('week');
   const [buyerName, setBuyerName] = useState('');
@@ -1858,13 +1890,17 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
       ['$$$',  '$$$ \u2014 $250\u2013400 / hr'],
       ['$$$$', '$$$$ \u2014 $400+ / hr'],
     ] },
+    { key: 'teams', letter: 'F', label: 'teams', options: [
+      ['solo',         'solo creative'],
+      ['has-partners', 'comes with a team / trusted collaborators'],
+    ] },
   ];
 
   const toggle = (key, val) => setFilters((f) => ({
     ...f,
     [key]: f[key].includes(val) ? f[key].filter((v) => v !== val) : [...f[key], val],
   }));
-  const resetAll = () => setFilters({ disciplines: [], avail: [], experience: [], timezone: [], rate: [] });
+  const resetAll = () => setFilters({ disciplines: [], avail: [], experience: [], timezone: [], rate: [], teams: [] });
 
   // Match logic. Note: tz strings use the unicode minus (U+2212), so we
   // normalise before testing prefixes.
@@ -3176,11 +3212,23 @@ function AdminBenchBrowser({ secret }) {
   const [newRow, setNewRow] = useState({ name: '', discipline: '', tz: 'UTC−5', rate: '$$$', availability: 'available', email: '' });
   const append = (s) => setLog((l) => [...l, `${new Date().toLocaleTimeString()} · ${s}`]);
 
-  const filtered = bench.filter((p) =>
-    !filter ||
-    p.name.toLowerCase().includes(filter.toLowerCase()) ||
-    (p.discipline || '').toLowerCase().includes(filter.toLowerCase())
-  );
+  // Sort by hourlyRate desc, then yoe desc — top-of-the-top first.
+  // Search hits on real name, code name, discipline.
+  const filtered = bench
+    .filter((p) =>
+      !filter ||
+      (p.realName || '').toLowerCase().includes(filter.toLowerCase()) ||
+      p.name.toLowerCase().includes(filter.toLowerCase()) ||
+      (p.discipline || '').toLowerCase().includes(filter.toLowerCase())
+    )
+    .slice()
+    .sort((a, b) => {
+      // Legends always at the very top.
+      if (!!a.legend !== !!b.legend) return a.legend ? -1 : 1;
+      const ah = a.hourlyRate || 0, bh = b.hourlyRate || 0;
+      if (bh !== ah) return bh - ah;
+      return (b.yoe || 0) - (a.yoe || 0);
+    });
 
   const post = async (payload) => {
     const r = await fetch('/api/bench-update', {
@@ -3218,16 +3266,41 @@ function AdminBenchBrowser({ secret }) {
         placeholder="filter by name or discipline…"
         style={{ ...FIELD, marginBottom: 14 }}
       />
-      <div style={{ maxHeight: 360, overflowY: 'auto', border: `1px solid ${C.rule}`, marginBottom: 14 }}>
+      <div style={{ maxHeight: 480, overflowY: 'auto', border: `1px solid ${C.rule}`, marginBottom: 14 }}>
         {filtered.map((p, i) => (
-          <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '36px 1.5fr 1fr 80px auto', gap: 10, padding: '8px 14px', borderBottom: i < filtered.length - 1 ? `1px solid ${C.rule}` : 'none', alignItems: 'center', fontFamily: GM, fontSize: 11 }}>
-            <span style={{ color: C.soft, fontSize: 10 }}>{String(i + 1).padStart(3, '0')}</span>
-            <span style={{ fontFamily: GS, fontWeight: 600 }}>{p.name}</span>
+          <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '34px 1.4fr 1fr 60px 60px auto auto', gap: 10, padding: '8px 14px', borderBottom: i < filtered.length - 1 ? `1px solid ${C.rule}` : 'none', alignItems: 'center', fontFamily: GM, fontSize: 11, background: p.paused ? 'rgba(176,64,64,0.05)' : (p.legend ? 'rgba(255,81,0,0.06)' : 'transparent') }}>
+            <span style={{ color: C.soft, fontSize: 10 }}>{p.legend ? '★' : String(i + 1).padStart(3, '0')}</span>
+            <span>
+              <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 13 }}>{p.realName || p.name}</span>
+              {p.realName && p.realName.toLowerCase() !== p.name.toLowerCase() && (
+                <span style={{ marginLeft: 8, fontFamily: GM, fontSize: 9, color: C.soft, opacity: 0.7 }}>aka {p.name}</span>
+              )}
+              {p.paused && <span style={{ marginLeft: 8, fontFamily: GM, fontSize: 9, color: '#b04040', textTransform: 'uppercase', letterSpacing: '0.1em' }}>paused</span>}
+            </span>
             <span style={{ color: C.soft, fontSize: 10 }}>{p.discipline}</span>
-            <span style={{ color: C.soft, fontSize: 9, letterSpacing: '0.06em' }}>{p.availability}</span>
+            <span style={{ color: C.ink, fontSize: 11, fontFamily: GS, fontWeight: 600 }}>{p.hourlyRate ? `$${p.hourlyRate}` : p.rate}</span>
+            <span style={{ color: C.soft, fontSize: 10 }}>{p.yoe ? `${p.yoe}y` : '—'}</span>
+            <span style={{ display: 'flex', gap: 6 }}>
+              <a href={p.emailRaw ? `mailto:${p.emailRaw}` : '#'} target="_blank" rel="noreferrer" title={p.emailRaw || 'no email'}
+                style={{ ...miniBtn, padding: '5px 7px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', opacity: p.emailRaw ? 1 : 0.35, pointerEvents: p.emailRaw ? 'auto' : 'none' }}>
+                <span aria-hidden="true">✉</span>
+              </a>
+              <a href={p.portfolio || '#'} target="_blank" rel="noreferrer" title={p.portfolio || 'no website'}
+                style={{ ...miniBtn, padding: '5px 7px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', opacity: p.portfolio ? 1 : 0.35, pointerEvents: p.portfolio ? 'auto' : 'none' }}>
+                <span aria-hidden="true">↗</span>
+              </a>
+            </span>
             <span style={{ display: 'flex', gap: 4 }}>
               <button onClick={() => act(p, 'approve')} style={miniBtn}>approve</button>
               <button onClick={() => act(p, 'deny')}    style={miniBtn}>deny</button>
+              <button onClick={() => act(p, p.paused ? 'unpause' : 'pause')}
+                style={{ ...miniBtn, color: p.paused ? '#7a4a0e' : C.ink, borderColor: p.paused ? '#c87c18' : C.rule }}>
+                {p.paused ? 'resume' : 'pause'}
+              </button>
+              <button onClick={() => act(p, p.legend ? 'unlegend' : 'legend')}
+                style={{ ...miniBtn, color: p.legend ? '#7a4a0e' : C.ink, borderColor: p.legend ? '#FF5100' : C.rule }}>
+                {p.legend ? '★ legend' : 'legend'}
+              </button>
               <button onClick={() => act(p, 'revoke')}  style={miniBtn}>revoke</button>
             </span>
           </div>
