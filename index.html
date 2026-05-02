@@ -157,51 +157,10 @@
   /* Prevent the rounding from breaking the dense bench-table grid rows */
   .bench-row, .bench-row * { border-radius: 0 !important; }
 
-  /* ── DRAWER ─────────────────────────────────────────────────────────── */
+  /* ── NAV HEIGHT ──────────────────────────────────────────────────────── */
+  /* Used by the new Drawer's inline-style top + height. Mobile nav is shorter. */
   :root { --nav-h: 60px; }
   @media (max-width: 760px) { :root { --nav-h: 52px; } }
-  .drawer {
-    position: fixed;
-    top: var(--nav-h);
-    left: 0;
-    right: 0;
-    height: calc(100vh - var(--nav-h));
-    overflow-y: auto;
-    background: #f4f1ec;  /* C.cream */
-    border-bottom: 1px solid rgba(13,13,11,0.14);
-    z-index: 40;          /* above page, below sticky nav (100) */
-    opacity: 0;
-    transform: translateY(-8px);
-    pointer-events: none;
-    visibility: hidden;
-    /* hide visibility instantly on enter, defer on exit so it counts as
-       'display:none after transition' for fixed descendants like portals */
-    transition: opacity 120ms ease, transform 120ms ease, visibility 0s 120ms;
-  }
-  .drawer.active {
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: auto;
-    visibility: visible;
-    transition: opacity 120ms ease, transform 120ms ease, visibility 0s 0s;
-  }
-  .drawer-close {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    z-index: 90;
-    background: transparent;
-    border: 1px solid rgba(13,13,11,0.14);
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 16px;
-    color: #0d0d0b;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
 
   /* ── MOBILE PASS ─────────────────────────────────────────────────────── */
   @media (max-width: 760px) {
@@ -1027,8 +986,40 @@ const INK_72 = 'rgba(13,13,11,0.72)';
 const INK_55 = 'rgba(13,13,11,0.55)';
 const INK_38 = 'rgba(13,13,11,0.38)';
 
-function BenchTeaser({ accent, bench: benchProp }) {
-  const rows = benchProp || BENCH;
+function BenchTeaser({ accent, bench: benchProp, activeFilters }) {
+  const allRows = benchProp || BENCH;
+  // STEP 2 — live filtering driven by the open drawer's filter state.
+  // When activeFilters is null/empty → show every row. When any filter has
+  // values → narrow the visible rows. Names stay anonymized either way.
+  const rows = useMemo(() => {
+    if (!activeFilters) return allRows;
+    const f = activeFilters;
+    const hasAny = (f.disciplines && f.disciplines.length)
+                || (f.avail       && f.avail.length)
+                || (f.experience  && f.experience.length)
+                || (f.timezone    && f.timezone.length)
+                || (f.rate        && f.rate.length);
+    if (!hasAny) return allRows;
+    return allRows.filter((p) => {
+      if (f.disciplines && f.disciplines.length && !f.disciplines.includes(p.discipline)) return false;
+      if (f.avail       && f.avail.length       && !f.avail.includes(p.availability))    return false;
+      if (f.experience  && f.experience.length) {
+        const lvl = p.yoe < 4 ? 'junior' : p.yoe < 8 ? 'mid' : p.yoe < 15 ? 'senior' : 'lead';
+        if (!f.experience.includes(lvl)) return false;
+      }
+      if (f.timezone && f.timezone.length) {
+        const tz = (p.tz || '').toLowerCase().replace(/−/g, '-');
+        const region = tz.startsWith('utc-')
+          ? 'americas'
+          : (tz === 'utc+0' || tz === 'utc+1' || tz === 'utc+2')
+            ? 'europe'
+            : 'asia';
+        if (!f.timezone.includes(region)) return false;
+      }
+      if (f.rate && f.rate.length && !f.rate.includes(p.rate)) return false;
+      return true;
+    });
+  }, [allRows, activeFilters]);
   const [hovered, setHovered] = useState(null);
   const [drawerLeft, setDrawerLeft] = useState(null);
   const hp = rows.find((p) => p.id === hovered);
@@ -1305,11 +1296,18 @@ function Footer({ accent, setPage }) {
 }
 
 // ── HOME PAGE ─────────────────────────────────────────────────────────────────
-function HomePage({ setPage, accent, variant }) {
+function HomePage({ setPage, accent, variant, activeFilters }) {
   const { bench: liveBench, stats, loading } = useBench();
   const total = stats.total;
   const avail = stats.availableNow;
   const isBold = variant === 'bold';
+  // STEP 6 — when a drawer's filters are active, expand the teaser cap so
+  // there's a useful population to filter against. Otherwise keep the static
+  // 19-row teaser the home page was designed around.
+  const filterActive = !!(activeFilters && Object.values(activeFilters).some(
+    (v) => Array.isArray(v) && v.length > 0
+  ));
+  const teaserBench = filterActive ? liveBench : liveBench.slice(0, 19);
 
   const CTAs = () =>
   <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -1377,8 +1375,8 @@ function HomePage({ setPage, accent, variant }) {
         </div>
       </section>
 
-      {/* bench */}
-      <section>
+      {/* bench (STEP 5 — id used by tab 01's scroll-into-view) */}
+      <section id="bench">
         <div style={{ maxWidth: 1100, margin: '0 auto', paddingTop: 40, paddingBottom: 64 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 40px 16px', borderBottom: `1px solid ${C.rule}` }}>
             <div>
@@ -1387,7 +1385,7 @@ function HomePage({ setPage, accent, variant }) {
             <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>{Math.max(0, total - liveBench.slice(0, 19).length)} more creatives sit behind the blur.</span>
           </div>
           <div style={{ position: 'relative' }}>
-            <BenchTeaser accent={accent} bench={liveBench.slice(0, 19)} />
+            <BenchTeaser accent={accent} bench={teaserBench} activeFilters={activeFilters} />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 240, background: `linear-gradient(to bottom, transparent, ${C.cream})`, pointerEvents: 'none' }} />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingBottom: 32 }}>
               <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '11px 22px', cursor: 'pointer', position: 'relative', zIndex: 2 }}>
@@ -1609,7 +1607,7 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
 
 // ── PRICING PAGE ──────────────────────────────────────────────────────────────
 // ── BENCH BUILDER (replaces fixed pricing) ─────────────────────────────────
-function PricingPage({ setPage, accent, isDrawer = false }) {
+function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange }) {
   // Checkout is handled by /api/checkout — no static Payment Links.
 
   const { bench } = useBench();
@@ -1622,6 +1620,15 @@ function PricingPage({ setPage, accent, isDrawer = false }) {
     timezone: [],      // [] = all  ('americas'|'europe'|'asia')
     rate: [],          // [] = all
   });
+
+  // STEP 6 — emit filter changes upward so the always-mounted BenchTeaser
+  // can live-filter behind the gold drawer. Fires on every chip toggle.
+  useEffect(() => {
+    if (typeof onFiltersChange === 'function') onFiltersChange(filters);
+    // onFiltersChange is intentionally omitted from deps — it's a fresh
+    // closure on every parent render; we only care about filter changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
   const [duration, setDuration] = useState('week'); // 'day' | 'week' | 'month' — default to most popular
   const [buyerName, setBuyerName] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
@@ -3197,21 +3204,20 @@ function AdminPage({ accent, setPage }) {
 }
 
 // ── DRAWER WRAPPER ───────────────────────────────────────────────────────────
-// Renders a full-width panel below the nav. Closes on ESC and on clicks outside
-// the drawer (click on the home content visible behind/below).
-// Always-mounted drawer. Toggles .active class for visibility/transition.
-// Compares its own id against `active` to decide if it's open. ESC + click-outside close.
-function Drawer({ id, active, onClose, children }) {
+// STEP 3 — new mechanic: a panel that floats over the always-mounted bench.
+// Height collapses to 0 when closed (so the bench underneath is fully visible).
+// `color` is the tab color for the open-state borders. ESC + outside-click
+// closure is preserved for STEP 7 — fires onClose if provided.
+function Drawer({ id, active, color, onClose, children }) {
   const ref = useRef(null);
   const justOpened = useRef(false);
-  const isMobile = useIsMobile();
-  const open = active === id;
+  const isOpen = active === id;
 
   useEffect(() => {
-    if (!open) return;
+    if (!isOpen || !onClose) return;
     // Defensive: ignore clicks for ~150ms after open — covers the click that
-    // opened the drawer (which can race the listener attach in some browsers)
-    // and any synthetic-event echoes.
+    // opened the drawer (race with listener attach in some browsers) and any
+    // synthetic-event echoes.
     justOpened.current = true;
     const t1 = setTimeout(() => { justOpened.current = false; }, 150);
 
@@ -3231,14 +3237,28 @@ function Drawer({ id, active, onClose, children }) {
       window.removeEventListener('keydown', onKey);
       document.removeEventListener('click', onClick);
     };
-  }, [open, onClose]);
+  }, [isOpen, onClose]);
 
   return (
-    <div ref={ref} className={`drawer${open ? ' active' : ''}`} aria-hidden={!open} role="region">
-      {isMobile && open && (
-        <button className="drawer-close" onClick={onClose} aria-label="close">×</button>
-      )}
-      {children}
+    <div
+      ref={ref}
+      aria-hidden={!isOpen}
+      role="region"
+      style={{
+        position: 'fixed',
+        top: 'var(--nav-h)',
+        left: 0,
+        right: 0,
+        height: isOpen ? 'calc(100vh - var(--nav-h))' : 0,
+        overflow: isOpen ? 'auto' : 'hidden',
+        background: C.paper,
+        borderTop: isOpen && color ? `3px solid ${color}` : 'none',
+        borderBottom: isOpen && color ? `3px solid ${color}` : 'none',
+        transition: 'height 150ms ease',
+        zIndex: 30,
+        pointerEvents: isOpen ? 'auto' : 'none',
+      }}>
+      {isOpen && children}
     </div>);
 }
 
@@ -3373,7 +3393,9 @@ const TABS = [
   ['apply',     'join the bench', '#b8a8c8'], // soft lilac — drawer
   ['access',    'access',         '#b8b878'], // olive — full page
 ];
-const DRAWER_KEYS = new Set(['bench', 'look', 'concierge', 'apply']);
+// STEP 5 — tab 01 ('bench') no longer opens a drawer; it scrolls to the
+// always-mounted bench section in HomePage. Removed from the toggle set.
+const DRAWER_KEYS = new Set(['look', 'concierge', 'apply']);
 
 function FolderTab({ n, label, color, active, onClick, isMobile, id }) {
   const height = active ? 38 : 32;
@@ -3478,12 +3500,24 @@ function Header({ page, activeDrawer, setActiveDrawer, setPage, accent }) {
   // When access is the live page, dim the drawer tabs (the access state replaces the home stack).
   const accessActive = page === 'access';
 
-  // Tab click router:
-  //   - 'access' → full-page navigation
-  //   - drawer tabs → toggle (close if active, open otherwise; switching is automatic)
-  //   - clicking the same drawer tab again closes the drawer
+  // Tab click router (STEP 5):
+  //   - 'access'   → full-page navigation
+  //   - 'bench'    → close any drawer, return to /, scroll the bench into view
+  //   - 02–04      → toggle their drawer (click the active tab again to close)
   const onTabClick = (key) => {
     if (key === 'access') { setPage('access'); return; }
+    if (key === 'bench') {
+      setActiveDrawer(null);
+      if (page !== 'home') setPage('home');
+      // Defer the scroll so HomePage / the bench section is mounted first.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const el = document.getElementById('bench');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+      return;
+    }
     if (DRAWER_KEYS.has(key)) {
       setActiveDrawer(activeDrawer === key ? null : key);
     }
@@ -3572,7 +3606,8 @@ function App() {
     if (p === '/admin')    return { page: 'admin',   drawer: null };
     if (p === '/invite')   return { page: 'invite',  drawer: null };
     if (p === '/success')  return { page: 'success', drawer: null };
-    if (p === '/bench' || p === '/dashboard') return { page: 'home', drawer: 'bench' };
+    // STEP 5 — /bench is a deep-link to the bench section on home; no drawer.
+    if (p === '/bench' || p === '/dashboard') return { page: 'home', drawer: null };
     if (p === '/look'  || p === '/pricing')   return { page: 'home', drawer: 'look' };
     if (p === '/concierge') return { page: 'home', drawer: 'concierge' };
     if (p === '/apply')     return { page: 'home', drawer: 'apply' };
@@ -3586,6 +3621,9 @@ function App() {
   const init = typeof window !== 'undefined' ? pathToState(window.location.pathname) : { page: 'home', drawer: null };
   const [page, setPageState] = useState(init.page);
   const [activeDrawer, setActiveDrawerState] = useState(init.drawer);
+  // STEP 4 / 6 — filters set by the open drawer (PricingPage in 'look') flow
+  // through here and into the always-mounted BenchTeaser as activeFilters.
+  const [drawerFilters, setDrawerFilters] = useState({});
 
   const pushUrl = (page, drawer) => {
     if (typeof window === 'undefined') return;
@@ -3603,11 +3641,24 @@ function App() {
 
   // setPage — for full-page navigation (closes any drawer).
   const setPage = (p) => {
-    // Treat 'pricing' / 'dashboard' as legacy aliases pointing at the drawer system.
+    // Treat 'pricing' / 'look' as legacy aliases pointing at the drawer system.
     if (p === 'pricing' || p === 'look') return setActiveDrawer('look');
-    if (p === 'dashboard' || p === 'bench') return setActiveDrawer('bench');
     if (p === 'concierge') return setActiveDrawer('concierge');
     if (p === 'apply') return setActiveDrawer('apply');
+    // STEP 5 — 'bench' / 'dashboard' no longer open a drawer; they go home and
+    // scroll to the always-mounted bench section.
+    if (p === 'dashboard' || p === 'bench') {
+      setActiveDrawerState(null);
+      if (page !== 'home') setPageState('home');
+      pushUrl('home', null);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const el = document.getElementById('bench');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+      return;
+    }
     if (p === 'home') {
       setPageState('home');
       setActiveDrawerState(null);
@@ -3663,30 +3714,28 @@ function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', paddingBottom: showBriefBar ? 60 : 0 }}>
       <Header page={page} activeDrawer={activeDrawer} setActiveDrawer={setActiveDrawer} setPage={setPage} accent={accent} />
-      {/* Full-page routes */}
-      {page === 'home' && <HomePage setPage={setPage} accent={accent} variant={variant} />}
+
+      {/* STEP 4 — Drawers float above the always-mounted bench. Tab 01 has no
+          drawer (the bench itself is the page). Always mounted; height 0 when
+          closed. */}
+      <Drawer id="look" active={activeDrawer} color="#e8c478" onClose={closeDrawer}>
+        <PricingPage setPage={setPage} accent={accent} isDrawer={true} onFiltersChange={(f) => setDrawerFilters(f)} />
+      </Drawer>
+      <Drawer id="concierge" active={activeDrawer} color="#c4a882" onClose={closeDrawer}>
+        <ConciergePage accent={accent} setPage={setPage} isDrawer={true} />
+      </Drawer>
+      <Drawer id="apply" active={activeDrawer} color="#9b8ec4" onClose={closeDrawer}>
+        <ApplyPage accent={accent} isDrawer={true} />
+      </Drawer>
+
+      {/* Full-page routes — bench lives inside HomePage and is always visible
+          on the 'home' route, including underneath an open drawer.
+          STEP 6 — drawerFilters flows through HomePage into BenchTeaser. */}
+      {page === 'home' && <HomePage setPage={setPage} accent={accent} variant={variant} activeFilters={drawerFilters} />}
       {page === 'access' && <AccessPage accent={accent} setPage={setPage} />}
       {page === 'invite' && <InvitePage accent={accent} setPage={setPage} />}
       {page === 'admin' && <AdminPage accent={accent} setPage={setPage} />}
       {page === 'success' && <SuccessPage accent={accent} setPage={setPage} />}
-
-      {/* Drawer overlays — always mounted on home so transitions animate cleanly */}
-      {page === 'home' && (
-        <>
-          <Drawer id="bench" active={activeDrawer} onClose={closeDrawer}>
-            <BenchDrawer accent={accent} setActiveDrawer={setActiveDrawer} />
-          </Drawer>
-          <Drawer id="look" active={activeDrawer} onClose={closeDrawer}>
-            <LookDrawer setPage={setPage} accent={accent} />
-          </Drawer>
-          <Drawer id="concierge" active={activeDrawer} onClose={closeDrawer}>
-            <ConciergeDrawer accent={accent} setPage={setPage} />
-          </Drawer>
-          <Drawer id="apply" active={activeDrawer} onClose={closeDrawer}>
-            <ApplyDrawer accent={accent} onDone={() => setTimeout(closeDrawer, 3000)} />
-          </Drawer>
-        </>
-      )}
 
       <Footer accent={accent} setPage={setPage} />
       {showBriefBar && <MobileBriefBar page={page} setPage={setPage} />}
