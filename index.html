@@ -831,19 +831,56 @@ function Scramble({ text, duration = 1200, delay = 0, runKey = 0, manual = false
 // ── ANALOG CLOCK ──────────────────────────────────────────────────────────────
 function AnalogClock({ tz, city, accent }) {
   const [now, setNow] = useState(new Date());
-  useEffect(() => {const id = setInterval(() => setNow(new Date()), 1000);return () => clearInterval(id);}, []);
+  const [hover, setHover] = useState(false);
+  const [windSec, setWindSec] = useState(0);   // extra seconds added when winding
+  const rafRef = useRef(null);
+  const startRef = useRef(0);
+
+  // 1Hz tick for real time when not winding.
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // On hover: spin the hands forward fast via requestAnimationFrame.
+  // On mouseleave: cancel and snap windSec → 0 (back to real time).
+  useEffect(() => {
+    if (!hover) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      setWindSec(0);
+      return;
+    }
+    startRef.current = performance.now();
+    const SPEED = 360; // 360 simulated seconds per real second → 6 spins/sec on the second hand
+    const step = () => {
+      const elapsed = performance.now() - startRef.current;
+      setWindSec((elapsed / 1000) * SPEED);
+      rafRef.current = requestAnimationFrame(step);
+    };
+    rafRef.current = requestAnimationFrame(step);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [hover]);
+
   const local = new Date(now.toLocaleString('en-US', { timeZone: tz }));
-  const h = local.getHours() % 12,m = local.getMinutes(),s = local.getSeconds();
-  const hA = (h * 30 + m * 0.5) * Math.PI / 180;
-  const mA = m * 6 * Math.PI / 180;
-  const sA = s * 6 * Math.PI / 180;
+  const baseSec = local.getHours() * 3600 + local.getMinutes() * 60 + local.getSeconds();
+  const totalSec = baseSec + windSec;
+  // Use floats so hands move continuously while winding.
+  const s = totalSec % 60;
+  const m = (totalSec / 60) % 60;
+  const h = (totalSec / 3600) % 12;
+  const hA = (h * 30) * Math.PI / 180;
+  const mA = (m * 6)  * Math.PI / 180;
+  const sA = (s * 6)  * Math.PI / 180;
   const hh = (d) => [24 + d * Math.sin(hA), 24 - d * Math.cos(hA)];
   const mh = (d) => [24 + d * Math.sin(mA), 24 - d * Math.cos(mA)];
   const sh = (d) => [24 + d * Math.sin(sA), 24 - d * Math.cos(sA)];
   const timeStr = local.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-      <svg width="52" height="52" viewBox="0 0 48 48" style={{ overflow: 'visible' }}>
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, cursor: 'crosshair' }}>
+      <svg width="60" height="60" viewBox="0 0 48 48" style={{ overflow: 'visible' }}>
         <circle cx="24" cy="24" r="22" fill="none" stroke="rgba(244,241,236,0.12)" strokeWidth="1" />
         {Array.from({ length: 12 }).map((_, i) => {
           const a = i * 30 * Math.PI / 180;
@@ -1302,15 +1339,13 @@ function Footer({ accent, setPage }) {
 
   return (
     <footer style={{ background: C.ink, color: C.cream, borderTop: `1px solid rgba(255,255,255,0.06)` }}>
-      {/* clocks row */}
+      {/* clocks row — span the full width of the page */}
       <div style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '40px 40px 36px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.14em', color: 'rgba(244,241,236,0.3)', marginBottom: 28 }}>
-            the bench spans seventeen cities.
-          </p>
-          <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap' }}>
-            {CLOCKS.map((c) => <AnalogClock key={c.city} tz={c.tz} city={c.city} accent={accent} />)}
-          </div>
+        <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.14em', color: 'rgba(244,241,236,0.3)', marginBottom: 28 }}>
+          the bench spans seventeen cities.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+          {CLOCKS.map((c) => <AnalogClock key={c.city} tz={c.tz} city={c.city} accent={accent} />)}
         </div>
       </div>
 
