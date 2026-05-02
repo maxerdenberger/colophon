@@ -44,10 +44,19 @@ export default async function handler(req, res) {
 
   try {
     // Formspree v0 read API — paid plan required for full access.
+    // Form-level keys (Read-only API key, Master API key) use HTTP Basic
+    // with the key as username and empty password. Account-level Personal
+    // Access Tokens would use Bearer instead — supporting both: if the
+    // value looks like a hex form-level key, use Basic; otherwise Bearer.
+    const looksLikeFormLevelKey = /^[0-9a-f]{16,}$/i.test(formspreeKey);
+    const authHeader = looksLikeFormLevelKey
+      ? `Basic ${Buffer.from(`${formspreeKey}:`).toString('base64')}`
+      : `Bearer ${formspreeKey}`;
+
     const url = `https://formspree.io/api/0/forms/${encodeURIComponent(formId)}/submissions`;
     const r = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${formspreeKey}`,
+        Authorization: authHeader,
         Accept: 'application/json',
       },
     });
