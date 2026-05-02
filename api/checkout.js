@@ -5,7 +5,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 // Canonical catalog. Amounts are in cents.
 const PRODUCTS = {
   'day-pass':   { name: 'Colophon — day pass',   amount: 4000 },
-  'week-pass':  { name: 'Colophon — week pass',  amount: 10900 },
+  'week-pass':  { name: 'Colophon — week pass',  amount: 8200 },
   'month-pass': { name: 'Colophon — month pass', amount: 34900 },
   'concierge':  { name: 'Colophon — concierge',  amount: 19900 },
 };

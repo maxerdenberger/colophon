@@ -64,7 +64,7 @@
   "description": "A directory of senior creative directors, art directors, designers, copywriters, and strategists, available for direct engagement. Membership by application; inclusion by referral and editor review.",
   "offers": [
     { "@type": "Offer", "name": "day pass",   "price": "40",  "priceCurrency": "USD", "description": "24 hours of bench access" },
-    { "@type": "Offer", "name": "week pass",  "price": "109", "priceCurrency": "USD", "description": "7 days of bench access" },
+    { "@type": "Offer", "name": "week pass",  "price": "82",  "priceCurrency": "USD", "description": "7 days of bench access" },
     { "@type": "Offer", "name": "month pass", "price": "349", "priceCurrency": "USD", "description": "30 days of bench access" }
   ]
 }
@@ -306,7 +306,7 @@
   <h2>Membership</h2>
   <ul>
     <li>day — $40</li>
-    <li>week — $109</li>
+    <li>week — $82</li>
     <li>month — $349</li>
   </ul>
   <h2>On admission</h2>
@@ -2111,7 +2111,8 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
   const matched = bench.filter(personMatches);
   const matchedAvail = matched.filter((p) => p.availability !== 'booked').length;
 
-  const PRICES = { day: 40, week: 109, month: 349 };
+  // week base = $82 → 4 filters × 10% off = 40% off → $82 × 0.6 = $49.20 → rounds to $49.
+  const PRICES = { day: 40, week: 82, month: 349 };
   const MAX_DISCOUNTED_FILTERS = 4;
   const rawFilterCount = Object.values(filters).filter((arr) => arr.length > 0).length;
   const filterCount = Math.min(MAX_DISCOUNTED_FILTERS, rawFilterCount);
