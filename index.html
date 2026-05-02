@@ -96,41 +96,6 @@
   /* No-JS / SEO-readable content (visible to crawlers, hidden from users) */
   .seo-only { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
-  /* bench hover panel — folder dropping out of the "01 the bench" tab.
-     Extends from the tab's left edge all the way to the right edge of the viewport. */
-  :root { --drawer-bg: #a8c4b8; }
-  .bench-hover-panel {
-    position: fixed;
-    top: 60px; /* directly under the header strip */
-    right: 0;
-    bottom: 0;
-    background: var(--drawer-bg);
-    border-top: 3px solid var(--drawer-bg); /* tab-continuation spine */
-    box-shadow: -1px 0 0 rgba(13,13,11,0.08);
-    color: #0d0d0b;
-    z-index: 50; /* above .drawer (40), below the sticky nav (100); portaled to body so the drawer's transform doesn't trap it */
-    opacity: 0;
-    transform: translateY(-6px);
-    transition: opacity 0.16s ease, transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-    pointer-events: none;
-    overflow: hidden;
-  }
-  .bench-hover-panel.open {
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: auto;
-  }
-  /* a small notch that visually finishes the tab into the folder body */
-  .bench-hover-panel::before {
-    content: '';
-    position: absolute;
-    top: -3px;
-    left: 0;
-    width: 14px;
-    height: 3px;
-    background: var(--drawer-bg);
-  }
-
   /* anti-scrape: no text selection on sensitive data */
   .protected {
     user-select: none;
@@ -253,7 +218,6 @@
     .bench-row-head > *:nth-child(n+4) { display: none !important; }
 
     /* Hide hover panel + force-shown side panels on mobile */
-    .bench-hover-panel { display: none !important; }
 
     /* Borders that become awkward when stacked: kill the right-borders */
     [style*="border-right: 1px solid"] { border-right: none !important; }
@@ -1146,7 +1110,7 @@ const INK_72 = 'rgba(13,13,11,0.72)';
 const INK_55 = 'rgba(13,13,11,0.55)';
 const INK_38 = 'rgba(13,13,11,0.38)';
 
-function BenchTeaser({ accent, bench: benchProp, activeFilters, onRowClick }) {
+function BenchTeaser({ accent, bench: benchProp, activeFilters, onRowClick, onHoverChange }) {
   const allRows = benchProp || BENCH;
   // STEP 2 — live filtering driven by the open drawer's filter state.
   // When activeFilters is null/empty → show every row. When any filter has
@@ -1181,72 +1145,22 @@ function BenchTeaser({ accent, bench: benchProp, activeFilters, onRowClick }) {
     });
   }, [allRows, activeFilters]);
   const [hovered, setHovered] = useState(null);
-  const [drawerLeft, setDrawerLeft] = useState(null);
-  const hp = rows.find((p) => p.id === hovered);
   const COLS = '36px 2fr 1.4fr 60px 90px 110px';
 
-  // Position the drawer's left edge flush with the "01 the bench" nav tab.
-  useEffect(() => {
-    const update = () => {
-      const el = document.getElementById('nav-tab-bench');
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      setDrawerLeft(r.left);
-    };
-    update();
-    window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true);
-    return () => {
-      window.removeEventListener('resize', update);
-      window.removeEventListener('scroll', update, true);
-    };
-  }, []);
-
-  const drawerStyle = drawerLeft != null ? { left: drawerLeft, right: 0 } : { left: 'auto', right: 0 };
-
-  // Portal the dossier panel directly to <body> so it stays viewport-relative
-  // (any ancestor with `transform` would otherwise become its containing block —
-  // e.g. the drawer's enter animation — clipping it before the right edge).
-  const dossier = (
-    <div className={`bench-hover-panel${hovered ? ' open' : ''}`} style={drawerStyle}>
-      {hp &&
-      <div style={{ padding: '32px 28px', height: '100%', display: 'flex', flexDirection: 'column', color: '#0d0d0b' }}>
-          <div style={{ fontFamily: GM, fontSize: 10, color: INK_55, letterSpacing: '0.14em', marginBottom: 18, textTransform: 'uppercase' }}>
-            {String(rows.findIndex((p) => p.id === hp.id) + 1).padStart(3, '0')} — {hp.discipline}
-          </div>
-          <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 28, letterSpacing: '-0.02em', color: '#0d0d0b', marginBottom: 10, lineHeight: 1.05 }}>
-            {hp.name}
-          </h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 22 }}>
-            <Dot status={hp.availability} />
-            <span style={{ fontFamily: GM, fontSize: 10, color: INK_72, letterSpacing: '0.04em' }}>
-              {AVAIL_LBL[hp.availability]} · {hp.tz} · {hp.yoe || '—'} yrs exp
-            </span>
-          </div>
-          <p style={{ fontFamily: GS, fontSize: 14, fontStyle: 'italic', color: INK_72, lineHeight: 1.55, marginBottom: 24, textTransform: 'none', flex: 1 }}>
-            “{hp.note}”
-          </p>
-          <div>
-            <div style={{ fontFamily: GM, fontSize: 9, color: INK_55, letterSpacing: '0.14em', marginBottom: 10, textTransform: 'uppercase' }}>selected clients</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {hp.clients.map((c) =>
-            <span key={c} style={{ border: '1px solid rgba(13,13,11,0.18)', padding: '3px 10px', fontFamily: GM, fontSize: 10, color: INK_72 }}>{c}</span>
-            )}
-            </div>
-            <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid rgba(13,13,11,0.12)', fontFamily: GM, fontSize: 10, color: INK_55, lineHeight: 1.7 }}>
-              rates + contact info — available with access.
-            </div>
-          </div>
-        </div>
-      }
-    </div>
-  );
+  // Bubble hover changes upward — the bench drawer reads them to swap its
+  // content between the "how we decide" criteria and the dossier card.
+  const handleEnter = (p) => {
+    setHovered(p.id);
+    if (onHoverChange) onHoverChange(p);
+  };
+  const handleLeave = () => {
+    setHovered(null);
+    if (onHoverChange) onHoverChange(null);
+  };
 
   return (
     <div style={{ position: 'relative' }}>
-      {typeof document !== 'undefined' && ReactDOM.createPortal(dossier, document.body)}
-
-      <div style={{ fontFamily: GM, fontSize: 12, marginRight: hovered ? 0 : 0, transition: 'margin 0.22s ease' }}>
+      <div style={{ fontFamily: GM, fontSize: 12 }}>
         <div className="bench-row-head" style={{ display: 'grid', gridTemplateColumns: COLS, padding: '8px 40px', borderBottom: `1px solid ${C.rule}`, background: C.paper }}>
           {['#', 'name', 'discipline', 'avl', 'tz', 'rate'].map((h) =>
           <span key={h} style={{ fontSize: 10, color: C.soft, letterSpacing: '0.1em' }}>{h}</span>
@@ -1260,8 +1174,8 @@ function BenchTeaser({ accent, bench: benchProp, activeFilters, onRowClick }) {
             <div
               key={p.id}
               className="bench-row"
-              onMouseEnter={() => setHovered(p.id)}
-              onMouseLeave={() => setHovered(null)}
+              onMouseEnter={() => handleEnter(p)}
+              onMouseLeave={handleLeave}
               onClick={(e) => {
                 if (!onRowClick) return;
                 // Stop propagation so the open-drawer's outside-click handler
@@ -1463,7 +1377,7 @@ function Footer({ accent, setPage }) {
 }
 
 // ── HOME PAGE ─────────────────────────────────────────────────────────────────
-function HomePage({ setPage, accent, variant, activeFilters, onRowClick }) {
+function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHoverChange }) {
   const { bench: liveBench, stats, loading } = useBench();
   const total = stats.total;
   const avail = stats.availableNow;
@@ -1555,31 +1469,8 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick }) {
             </div>
             <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>{Math.max(0, total - liveBench.slice(0, 19).length)} more creatives sit behind the blur.</span>
           </div>
-          {/* how we decide — header block above the bench table */}
-          <div style={{ padding: '40px 40px 24px', borderBottom: `1px solid ${C.rule}` }}>
-            <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,3.4vw,44px)', letterSpacing: '-0.025em', lineHeight: 1.05, marginBottom: 28 }}>
-              how we decide who's on the bench.
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {[
-                ['01', 'PORTFOLIO',  'has led — not just supported — nationally recognizable work.'],
-                ['02', 'REFERENCE',  'one unprompted "yes, hire them" from someone whose taste we trust.'],
-                ['03', 'SENIORITY',  'senior-band pricing. senior-band judgment. junior rates are a signal we read.'],
-                ['04', 'PRESENCE',   'current portfolio. responsive within 48 hours. shows up to the work.'],
-              ].map(([n, t, d]) => (
-                <div key={n} style={{ display: 'grid', gridTemplateColumns: '36px 120px 1fr', gap: 16, padding: '14px 0', borderTop: `1px solid ${C.rule}`, alignItems: 'baseline' }}>
-                  <span style={{ fontFamily: GM, fontSize: 11, color: C.soft, letterSpacing: '0.06em' }}>{n}</span>
-                  <span style={{ fontFamily: GM, fontSize: 11, color: C.ink, letterSpacing: '0.14em', fontWeight: 600 }}>{t}</span>
-                  <span style={{ fontFamily: GM, fontSize: 12, color: C.ink, lineHeight: 1.6 }}>{d}</span>
-                </div>
-              ))}
-            </div>
-            <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginTop: 18, letterSpacing: '0.04em' }}>
-              thoughtful placements for serious buyers.
-            </p>
-          </div>
           <div style={{ position: 'relative' }}>
-            <BenchTeaser accent={accent} bench={teaserBench} activeFilters={activeFilters} onRowClick={onRowClick} />
+            <BenchTeaser accent={accent} bench={teaserBench} activeFilters={activeFilters} onRowClick={onRowClick} onHoverChange={onHoverChange} />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 240, background: `linear-gradient(to bottom, transparent, ${C.cream})`, pointerEvents: 'none' }} />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingBottom: 32 }}>
               <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.09em', background: C.ink, color: C.cream, border: `1px solid ${C.ink}`, padding: '11px 22px', cursor: 'pointer', position: 'relative', zIndex: 2 }}>
@@ -3458,7 +3349,6 @@ function Drawer({ id, active, color, onClose, compact = false, children }) {
       const t = e.target;
       if (ref.current && ref.current.contains(t)) return;
       if (t.closest && t.closest('header'))      return;
-      if (t.closest && t.closest('.bench-hover-panel')) return;
       onClose();
     };
     window.addEventListener('keydown', onKey);
@@ -3595,6 +3485,72 @@ function ConciergeDrawer({ accent, setPage }) {
     </div>);
 }
 
+// ── BENCH DRAWER CONTENT (tab 01) ─────────────────────────────────────────
+// Dual-purpose: renders the hovered creative's dossier when a bench row is
+// being hovered, otherwise the "how we decide who's on the bench" criteria.
+function BenchDrawerContent({ hoveredCreative }) {
+  if (hoveredCreative) {
+    const c = hoveredCreative;
+    return (
+      <div style={{ padding: '32px 36px', height: '100%', display: 'flex', flexDirection: 'column', color: C.ink }}>
+        <div style={{ fontFamily: GM, fontSize: 10, color: 'rgba(0,0,0,0.55)', letterSpacing: '0.14em', marginBottom: 18, textTransform: 'uppercase' }}>
+          {c.discipline}
+        </div>
+        <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 28, letterSpacing: '-0.02em', color: C.ink, marginBottom: 10, lineHeight: 1.05 }}>
+          {c.name}
+        </h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 22 }}>
+          <Dot status={c.availability} />
+          <span style={{ fontFamily: GM, fontSize: 10, color: 'rgba(0,0,0,0.7)', letterSpacing: '0.04em' }}>
+            {AVAIL_LBL[c.availability]} · {c.tz} · {c.yoe || '—'} yrs exp
+          </span>
+        </div>
+        <p style={{ fontFamily: GS, fontSize: 14, fontStyle: 'italic', color: 'rgba(0,0,0,0.72)', lineHeight: 1.55, marginBottom: 24, textTransform: 'none', flex: 1 }}>
+          “{c.note}”
+        </p>
+        <div>
+          <div style={{ fontFamily: GM, fontSize: 9, color: 'rgba(0,0,0,0.55)', letterSpacing: '0.14em', marginBottom: 10, textTransform: 'uppercase' }}>selected clients</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {(c.clients || []).map((cl) =>
+              <span key={cl} style={{ border: '1px solid rgba(0,0,0,0.35)', padding: '3px 10px', fontFamily: GM, fontSize: 10, color: 'rgba(0,0,0,0.72)' }}>{cl}</span>
+            )}
+          </div>
+          <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid rgba(0,0,0,0.2)', fontFamily: GM, fontSize: 10, color: 'rgba(0,0,0,0.55)', lineHeight: 1.7 }}>
+            rates + contact info — available with access.
+          </div>
+        </div>
+      </div>
+    );
+  }
+  // Default content: how we decide who's on the bench.
+  return (
+    <div style={{ padding: '36px 36px 40px', color: C.ink }}>
+      <h3 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(26px,3vw,38px)', letterSpacing: '-0.025em', lineHeight: 1.05, marginBottom: 26 }}>
+        how we decide who's on the bench.
+      </h3>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {[
+          ['01', 'PORTFOLIO',  'has led — not just supported — nationally recognizable work.'],
+          ['02', 'REFERENCE',  'one unprompted "yes, hire them" from someone whose taste we trust.'],
+          ['03', 'SENIORITY',  'senior-band pricing. senior-band judgment. junior rates are a signal we read.'],
+          ['04', 'PRESENCE',   'current portfolio. responsive within 48 hours. shows up to the work.'],
+        ].map(([n, t, d]) => (
+          <div key={n} style={{ padding: '14px 0', borderTop: '1px solid rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 6 }}>
+              <span style={{ fontFamily: GM, fontSize: 10, color: 'rgba(0,0,0,0.55)', letterSpacing: '0.06em' }}>{n}</span>
+              <span style={{ fontFamily: GM, fontSize: 11, color: C.ink, letterSpacing: '0.14em', fontWeight: 600 }}>{t}</span>
+            </div>
+            <div style={{ fontFamily: GM, fontSize: 12, color: C.ink, lineHeight: 1.6 }}>{d}</div>
+          </div>
+        ))}
+      </div>
+      <p style={{ fontFamily: GM, fontSize: 11, color: 'rgba(0,0,0,0.6)', marginTop: 22, letterSpacing: '0.04em' }}>
+        thoughtful placements for serious buyers.
+      </p>
+    </div>
+  );
+}
+
 // ── ACCESS MODAL (tab 05) ─────────────────────────────────────────────────
 // Centered overlay, not a tab-anchored panel. Blurs the whole page behind
 // it. ESC + backdrop click close. Submit hands off to /access?token=… so
@@ -3709,9 +3665,9 @@ const TABS = [
   ['apply',     'join the bench', '#b8a8c8'], // soft lilac — drawer
   ['access',    'access',         '#b8b878'], // olive — full page
 ];
-// Tab 01 'bench' scrolls to the bench section instead of opening a drawer.
-// Tabs 02–05 all toggle drawers. Tab 05 is compact (height-fits-content).
-const DRAWER_KEYS = new Set(['look', 'concierge', 'apply', 'access']);
+// Tabs 01–05 all toggle drawers. Tab 01 dual-purposes: shows 'how we decide'
+// when clicked, swaps to a dossier when a bench row is hovered.
+const DRAWER_KEYS = new Set(['bench', 'look', 'concierge', 'apply', 'access']);
 
 function FolderTab({ n, label, color, active, onClick, isMobile, id }) {
   const height = active ? 38 : 32;
@@ -3817,22 +3773,8 @@ function Header({ page, activeDrawer, setActiveDrawer, setPage, accent }) {
   // When access is the live page, dim the drawer tabs (the access state replaces the home stack).
   const accessActive = page === 'access';
 
-  // Tab click router:
-  //   - 'bench'    → close any drawer, return to /, scroll the bench into view
-  //   - 02–05      → toggle their drawer (click the active tab again to close)
+  // Tab click router: every tab toggles its drawer (click active tab to close).
   const onTabClick = (key) => {
-    if (key === 'bench') {
-      setActiveDrawer(null);
-      if (page !== 'home') setPage('home');
-      // Defer the scroll so HomePage / the bench section is mounted first.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const el = document.getElementById('bench');
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
-      });
-      return;
-    }
     if (DRAWER_KEYS.has(key)) {
       setActiveDrawer(activeDrawer === key ? null : key);
     }
@@ -3921,8 +3863,7 @@ function App() {
     if (p === '/admin')    return { page: 'admin',   drawer: null };
     if (p === '/invite')   return { page: 'invite',  drawer: null };
     if (p === '/success')  return { page: 'success', drawer: null };
-    // STEP 5 — /bench is a deep-link to the bench section on home; no drawer.
-    if (p === '/bench' || p === '/dashboard') return { page: 'home', drawer: null };
+    if (p === '/bench' || p === '/dashboard') return { page: 'home', drawer: 'bench' };
     if (p === '/look'  || p === '/pricing')   return { page: 'home', drawer: 'look' };
     if (p === '/concierge') return { page: 'home', drawer: 'concierge' };
     if (p === '/apply')     return { page: 'home', drawer: 'apply' };
@@ -3943,6 +3884,22 @@ function App() {
   // a bench row). PricingPage watches it and re-syncs its internal filters
   // without looping with its own onFiltersChange emissions.
   const [seedKey, setSeedKey] = useState(0);
+  // Hovered bench row → bench drawer swaps from "how we decide" criteria to
+  // that creative's dossier. autoOpenedBenchRef tracks whether a hover is
+  // what opened the drawer, so mouseleave can close (vs. staying open if the
+  // user explicitly clicked tab 01).
+  const [hoveredCreative, setHoveredCreative] = useState(null);
+  const autoOpenedBenchRef = useRef(false);
+
+  useEffect(() => {
+    if (hoveredCreative && activeDrawer == null) {
+      autoOpenedBenchRef.current = true;
+      setActiveDrawerState('bench');
+    } else if (!hoveredCreative && autoOpenedBenchRef.current && activeDrawer === 'bench') {
+      autoOpenedBenchRef.current = false;
+      setActiveDrawerState(null);
+    }
+  }, [hoveredCreative, activeDrawer]);
 
   // Click on a bench row → open the build drawer prefilled with that
   // creative's discipline / availability / experience / rate.
@@ -3978,24 +3935,11 @@ function App() {
 
   // setPage — for full-page navigation (closes any drawer).
   const setPage = (p) => {
-    // Treat 'pricing' / 'look' as legacy aliases pointing at the drawer system.
+    // Drawer aliases — these all open their drawer instead of navigating.
     if (p === 'pricing' || p === 'look') return setActiveDrawer('look');
     if (p === 'concierge') return setActiveDrawer('concierge');
     if (p === 'apply') return setActiveDrawer('apply');
-    // STEP 5 — 'bench' / 'dashboard' no longer open a drawer; they go home and
-    // scroll to the always-mounted bench section.
-    if (p === 'dashboard' || p === 'bench') {
-      setActiveDrawerState(null);
-      if (page !== 'home') setPageState('home');
-      pushUrl('home', null);
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const el = document.getElementById('bench');
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
-      });
-      return;
-    }
+    if (p === 'dashboard' || p === 'bench') return setActiveDrawer('bench');
     if (p === 'home') {
       setPageState('home');
       setActiveDrawerState(null);
@@ -4052,9 +3996,10 @@ function App() {
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', paddingBottom: showBriefBar ? 60 : 0 }}>
       <Header page={page} activeDrawer={activeDrawer} setActiveDrawer={setActiveDrawer} setPage={setPage} accent={accent} />
 
-      {/* STEP 4 — Drawers float above the always-mounted bench. Tab 01 has no
-          drawer (the bench itself is the page). Always mounted; height 0 when
-          closed. */}
+      {/* Drawers float above the always-mounted bench. */}
+      <Drawer id="bench" active={activeDrawer} color="#a8c4b8" onClose={closeDrawer}>
+        <BenchDrawerContent hoveredCreative={hoveredCreative} />
+      </Drawer>
       <Drawer id="look" active={activeDrawer} color="#e8c478" onClose={closeDrawer}>
         <PricingPage setPage={setPage} accent={accent} isDrawer={true} onFiltersChange={(f) => setDrawerFilters(f)} seedFilters={drawerFilters} seedKey={seedKey} />
       </Drawer>
@@ -4069,7 +4014,7 @@ function App() {
       {/* Full-page routes — bench lives inside HomePage and is always visible
           on the 'home' route, including underneath an open drawer.
           STEP 6 — drawerFilters flows through HomePage into BenchTeaser. */}
-      {page === 'home' && <HomePage setPage={setPage} accent={accent} variant={variant} activeFilters={drawerFilters} onRowClick={openLookSeededFromCreative} />}
+      {page === 'home' && <HomePage setPage={setPage} accent={accent} variant={variant} activeFilters={drawerFilters} onRowClick={openLookSeededFromCreative} onHoverChange={setHoveredCreative} />}
       {page === 'access' && <AccessPage accent={accent} setPage={setPage} />}
       {page === 'invite' && <InvitePage accent={accent} setPage={setPage} />}
       {page === 'admin' && <AdminPage accent={accent} setPage={setPage} />}
