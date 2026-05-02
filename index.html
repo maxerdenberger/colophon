@@ -3777,7 +3777,16 @@ function AdminFormspreeApproval({ secret }) {
         setError('endpoint returned non-JSON — likely the SPA fallback. push the latest main so /api/submissions deploys.');
         return;
       }
-      setSubs(j.submissions || j.data || j || []);
+      const raw = j.submissions || j.data || j || [];
+      // Defensive fallback id — same logic as the proxy. Without this, a
+      // submission lacking `id` would share `undefined` with every other
+      // id-less row, making one review hide them all.
+      const stamped = (Array.isArray(raw) ? raw : []).map((s, i) => {
+        const data = s && (s.data || s) || {};
+        const fallback = `${s && s.submitted_at || ''}|${data.email || ''}|${i}`;
+        return { ...s, id: s && s.id != null ? s.id : fallback };
+      });
+      setSubs(stamped);
     } catch (ex) { setError(ex.message || 'fetch failed'); }
     finally { setLoading(false); }
   };

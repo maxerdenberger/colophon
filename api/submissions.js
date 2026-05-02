@@ -67,7 +67,16 @@ export default async function handler(req, res) {
       let j = null;
       try { j = text ? JSON.parse(text) : null; } catch {}
       if (r.ok) {
-        const submissions = (j && (j.submissions || j.data)) || [];
+        const raw = (j && (j.submissions || j.data)) || [];
+        // Stamp every submission with a stable id. Formspree responses
+        // sometimes omit a top-level id, which made one-row reviews hide
+        // every other id-less row in the panel (Set treats them all as
+        // the same `undefined` value).
+        const submissions = raw.map((s, i) => {
+          const data = s && (s.data || s) || {};
+          const fallback = `${s && s.submitted_at || ''}|${data.email || ''}|${i}`;
+          return { ...s, id: s && s.id != null ? s.id : fallback };
+        });
         return res.status(200).json({ submissions, _via: { auth: a.auth.split(' ')[0], url: a.url } });
       }
       lastStatus = r.status;
