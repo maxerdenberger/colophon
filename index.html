@@ -1953,8 +1953,37 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
           filter the directory.
         </h1>
         <p style={{ fontFamily: GM, fontSize: 13, color: C.soft, lineHeight: 1.75, marginBottom: 8, maxWidth: '54ch' }}>
-          pick what you need. live count below. skip filters to see the whole bench.
+          pick what you need. tally updates as you toggle. skip filters to see the whole bench.
         </p>
+
+        {/* Sticky live tally — updates as filters toggle, stays visible
+            while the user scrolls through filter groups. */}
+        <div style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+          background: 'rgba(13,13,11,0.92)',
+          color: C.cream,
+          padding: '12px 16px',
+          borderRadius: 8,
+          marginTop: 24,
+          marginBottom: 8,
+          fontFamily: GM,
+          fontSize: 12,
+          letterSpacing: '0.02em',
+          display: 'flex',
+          alignItems: 'baseline',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}>
+          <span style={{ fontFamily: GS, fontWeight: 700, fontSize: 22, letterSpacing: '-0.045em' }}>{matchedAvail}</span>
+          <span>available now &middot; {matched.length} match total</span>
+          {filterCount > 0 && (
+            <span style={{ color: accent, marginLeft: 'auto' }}>
+              {rawFilterCount} filter{rawFilterCount > 1 ? 's' : ''} &middot; {Math.round(discount*100)}% off
+            </span>
+          )}
+        </div>
 
         {FILTER_GROUPS.map((g) => (
           <div key={g.key}>
@@ -2943,6 +2972,9 @@ function SuccessPage({ accent, setPage }) {
 }
 
 // ── ADMIN PAGE (Bearer-gated console for sending invite batches) ──────────
+// Client-side admin gate. The same secret is also passed as Bearer to
+// /api/send-invites — keep ADMIN_SECRET on Vercel matched to this value.
+const ADMIN_PW = '590Rossmore';
 function AdminPage({ accent, setPage }) {
   const [secret, setSecret] = useState('');
   const [authed, setAuthed] = useState(false);
@@ -2966,7 +2998,7 @@ function AdminPage({ accent, setPage }) {
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem('colophon_admin_secret');
-      if (stored) { setSecret(stored); setAuthed(true); }
+      if (stored === ADMIN_PW) { setSecret(stored); setAuthed(true); }
     } catch {}
   }, []);
 
@@ -3048,10 +3080,20 @@ function AdminPage({ accent, setPage }) {
         <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 32, letterSpacing: '-0.02em' }}>admin</h2>
         <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '38ch', lineHeight: 1.7, textAlign: 'center' }}>Paste the admin secret to unlock the invite sender.</p>
         <input type="password" value={secret} onChange={(e) => setSecret(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && secret.trim()) { try { sessionStorage.setItem('colophon_admin_secret', secret.trim()); } catch {} setAuthed(true); } }}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' || !secret.trim()) return;
+            if (secret.trim() !== ADMIN_PW) { setErr('wrong password'); return; }
+            try { sessionStorage.setItem('colophon_admin_secret', secret.trim()); } catch {}
+            setErr(''); setAuthed(true);
+          }}
           placeholder="admin secret"
           style={{ ...inputStyle, maxWidth: 360 }} />
-        <button onClick={() => { if (!secret.trim()) return; try { sessionStorage.setItem('colophon_admin_secret', secret.trim()); } catch {} setAuthed(true); }}
+        <button onClick={() => {
+            if (!secret.trim()) return;
+            if (secret.trim() !== ADMIN_PW) { setErr('wrong password'); return; }
+            try { sessionStorage.setItem('colophon_admin_secret', secret.trim()); } catch {}
+            setErr(''); setAuthed(true);
+          }}
           style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: 'none', padding: '12px 22px', cursor: 'pointer', borderRadius: 6 }}>
           unlock →
         </button>
@@ -3181,17 +3223,20 @@ function Drawer({ id, active, color, onClose, compact = false, children }) {
   const [drawerLeft, setDrawerLeft] = useState(null);
 
   // Track the corresponding tab's left edge. Mobile takes full width.
-  // A minimum width keeps later tabs (apply/04, access/05) usable — the
-  // drawer extends further left than its own tab if the tab sits too far
-  // right to give a workable panel.
+  // Per-tab minimum width: tabs 01 (bench) and 02 (look) anchor strictly
+  // to their own tab so the bench teaser stays visible to their left.
+  // Later tabs that sit too far right keep a 936px floor so the drawer
+  // doesn't collapse to a sliver.
   useEffect(() => {
     if (isMobile) { setDrawerLeft(0); return; }
+    const MIN_WIDTH = (id === 'bench' || id === 'look') ? 0 : 936;
     const update = () => {
       const tab = document.getElementById(`nav-tab-${id}`);
       if (!tab) { setDrawerLeft(null); return; }
       const r = tab.getBoundingClientRect();
-      const MIN_WIDTH = 936;   // 720 + 30%, gives apply (04) drawer a real form width
-      const desiredLeft = Math.min(r.left, window.innerWidth - MIN_WIDTH);
+      const desiredLeft = MIN_WIDTH > 0
+        ? Math.min(r.left, window.innerWidth - MIN_WIDTH)
+        : r.left;
       setDrawerLeft(Math.max(0, desiredLeft));
     };
     update();
@@ -3414,7 +3459,7 @@ function BenchNewsletterForm() {
 // ── BENCH DRAWER CONTENT (tab 01) ─────────────────────────────────────────
 // Dual-purpose: renders the hovered creative's dossier when a bench row is
 // being hovered, otherwise the "how we decide who's on the bench" criteria.
-function BenchDrawerContent({ hoveredCreative }) {
+function BenchDrawerContent({ hoveredCreative, seedAndOpenLook }) {
   if (hoveredCreative) {
     const c = hoveredCreative;
     return (
@@ -3466,17 +3511,29 @@ function BenchDrawerContent({ hoveredCreative }) {
       </h3>
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         {[
-          ['01', 'PORTFOLIO',  'has led — not just supported — nationally recognizable work.'],
-          ['02', 'REFERENCE',  'one unprompted "yes, hire them" from someone whose taste we trust.'],
-          ['03', 'SENIORITY',  'senior-band pricing. senior-band judgment. junior rates are a signal we read.'],
-          ['04', 'PRESENCE',   'current portfolio. responsive within 48 hours. shows up to the work.'],
-        ].map(([n, t, d]) => (
+          ['01', 'PORTFOLIO',  'has led — not just supported — nationally recognizable work.', null],
+          ['02', 'REFERENCE',  'one unprompted "yes, hire them" from someone whose taste we trust.', null],
+          ['03', 'SENIORITY',  'senior-band pricing. senior-band judgment. junior rates are a signal we read.', 'junior'],
+          ['04', 'PRESENCE',   'current portfolio. responsive within 48 hours. shows up to the work.', null],
+        ].map(([n, t, d, egg]) => (
           <div key={n} style={{ padding: '14px 0', borderTop: '1px solid rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 6 }}>
               <span style={{ fontFamily: GM, fontSize: 10, color: 'rgba(0,0,0,0.55)', letterSpacing: '0.06em' }}>{n}</span>
               <span style={{ fontFamily: GM, fontSize: 11, color: C.ink, letterSpacing: '0.14em', fontWeight: 600 }}>{t}</span>
             </div>
-            <div style={{ fontFamily: GM, fontSize: 12, color: C.ink, lineHeight: 1.6 }}>{d}</div>
+            <div style={{ fontFamily: GM, fontSize: 12, color: C.ink, lineHeight: 1.6 }}>
+              {d}
+              {egg === 'junior' && seedAndOpenLook && (
+                <>
+                  {' '}
+                  <button
+                    onClick={() => seedAndOpenLook({ disciplines: [], avail: [], experience: ['junior'], timezone: [], rate: [] })}
+                    style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: GM, fontSize: 11, color: 'rgba(0,0,0,0.55)', fontStyle: 'italic', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                    (under 4 yrs →)
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -3854,22 +3911,26 @@ function App() {
     }
   }, [hoveredCreative, activeDrawer]);
 
-  // Click on a bench row → open the build drawer prefilled with that
-  // creative's discipline / availability / experience / rate.
-  const openLookSeededFromCreative = (creative) => {
-    const lvl = creative.yoe < 4 ? 'junior' : creative.yoe < 8 ? 'mid' : creative.yoe < 15 ? 'senior' : 'lead';
-    const seeded = {
-      disciplines: [creative.discipline],
-      avail:       [creative.availability],
-      experience:  [lvl],
-      timezone:    [],
-      rate:        [creative.rate],
-    };
+  // Generic — seed PricingPage's filters and open the build drawer.
+  const seedAndOpenLook = (seeded) => {
     setDrawerFilters(seeded);
     setSeedKey((k) => k + 1);
     setActiveDrawerState('look');
     if (page !== 'home') setPageState('home');
     pushUrl('home', 'look');
+  };
+
+  // Click on a bench row → open the build drawer prefilled with that
+  // creative's discipline / availability / experience / rate.
+  const openLookSeededFromCreative = (creative) => {
+    const lvl = creative.yoe < 4 ? 'junior' : creative.yoe < 8 ? 'mid' : creative.yoe < 15 ? 'senior' : 'lead';
+    seedAndOpenLook({
+      disciplines: [creative.discipline],
+      avail:       [creative.availability],
+      experience:  [lvl],
+      timezone:    [],
+      rate:        [creative.rate],
+    });
   };
 
   const pushUrl = (page, drawer) => {
@@ -3951,7 +4012,7 @@ function App() {
 
       {/* Drawers float above the always-mounted bench. */}
       <Drawer id="bench" active={activeDrawer} color={TAB_SAGE} onClose={closeDrawer}>
-        <BenchDrawerContent hoveredCreative={hoveredCreative} />
+        <BenchDrawerContent hoveredCreative={hoveredCreative} seedAndOpenLook={seedAndOpenLook} />
       </Drawer>
       <Drawer id="look" active={activeDrawer} color={TAB_BUILD} onClose={closeDrawer}>
         <PricingPage setPage={setPage} accent={accent} isDrawer={true} onFiltersChange={(f) => setDrawerFilters(f)} seedFilters={drawerFilters} seedKey={seedKey} />
