@@ -449,17 +449,36 @@ const FORM_ENDPOINT = 'https://formspree.io/f/xqenzjew';
 const FORM_FALLBACK_EMAIL = 'hello@colophon.contact';
 
 async function submitForm(payload) {
+  // Default Formspree niceties — honeypot + reply-to. Either can be
+  // overridden per-call by passing them explicitly in the payload.
+  const enriched = {
+    _gotcha: '',                                     // honeypot — bots fill this; submissions with non-empty _gotcha are silently dropped by Formspree
+    _replyto: payload.email || undefined,            // sets Reply-To on Formspree-sent emails when the submitter included an email field
+    ...payload,
+  };
   if (FORM_ENDPOINT) {
     try {
       const res = await fetch(FORM_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(enriched),
       });
       if (res.ok) return { ok: true };
-    } catch {}
+      // Validation failures come back 400 with { errors: [{ field, message, ... }] }.
+      // Surface them so the form UI can render specific guidance instead of
+      // pretending the submission worked.
+      const data = await res.json().catch(() => null);
+      if (data && Array.isArray(data.errors) && data.errors.length) {
+        return { ok: false, errors: data.errors, status: res.status };
+      }
+      // Other non-2xx (rate-limit, 5xx, etc.) — fall through to mailto so
+      // the user still has a path to reach us.
+    } catch {
+      // Network error — same fallback as above.
+    }
   }
-  // Fallback: open the user's mail client so the message still gets to us.
+  // Mailto fallback: triggers only when Formspree is unreachable or returned
+  // an unstructured non-2xx. Validation errors short-circuit above.
   const subj = encodeURIComponent(`${payload._subject || payload.source || 'inquiry'} — colophon`);
   const lines = Object.entries(payload)
     .filter(([k]) => !k.startsWith('_'))
