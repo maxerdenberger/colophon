@@ -778,7 +778,7 @@ function makeNoise(text, charset) {
 
 // `manual` — when true, do NOT animate on mount; only when runKey changes.
 // `runKey` — bump to retrigger the animation (e.g. on hover).
-function Scramble({ text, duration = 1200, delay = 0, runKey = 0, manual = false, charset }) {
+function Scramble({ text, duration = 2400, delay = 0, runKey = 0, manual = false, charset }) {
   const target = String(text);
   const [display, setDisplay] = useState(() => manual ? target : makeNoise(target, charset));
   const rafRef = useRef(null);
@@ -2295,6 +2295,20 @@ function AccessPage({ accent, setPage }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('preview') === '1') { setPreview(true); setUnlocked(true); return; }
+
+    // Junior easter-egg: free tokenized access scoped to under-4-yrs creatives.
+    // Token is local-only (base64 JSON); no server roundtrip — it grants a
+    // visibly tokenized URL while filtering the unlocked view to juniors.
+    if (params.get('jr') === '1') {
+      const days = 7;
+      setTier('jr');
+      setUnlocked(true);
+      setSessionFilters({ experience: ['junior'] });
+      setTimeLeft(`${days}d remaining`);
+      const token = btoa(JSON.stringify({ exp: Date.now() + days * 86400000, tier: 'jr', filters: { experience: ['junior'] } }));
+      window.history.replaceState({}, '', `/access?t=${token}`);
+      return;
+    }
 
     // Stripe success redirect → mint a local token from the tier and unlock (legacy)
     if (params.get('paid') === '1') {
@@ -3843,13 +3857,13 @@ function BenchDrawerContent({ hoveredCreative, seedAndOpenLook }) {
             </div>
             <div style={{ fontFamily: GM, fontSize: 12, color: C.ink, lineHeight: 1.6 }}>
               {d}
-              {egg === 'junior' && seedAndOpenLook && (
+              {egg === 'junior' && (
                 <>
                   {' '}
                   <button
-                    onClick={() => seedAndOpenLook({ disciplines: [], avail: [], experience: ['junior'], timezone: [], rate: [] })}
+                    onClick={() => { window.location.href = '/access?jr=1'; }}
                     style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: GM, fontSize: 11, color: 'rgba(0,0,0,0.55)', fontStyle: 'italic', textDecoration: 'underline', textUnderlineOffset: 3 }}>
-                    (under 4 yrs →)
+                    (free under-4-yrs bench →)
                   </button>
                 </>
               )}
