@@ -3813,6 +3813,20 @@ function AdminFormspreeApproval({ secret }) {
         });
         if (!r.ok) throw new Error('bench-update ' + r.status);
         append(`✓ approved → sheet · ${data.name || sub.id}`);
+        // Pre-stamp the new creative as approved in localStorage so the
+        // public bench filter (BenchProvider.isApproved) shows them as
+        // soon as the next CSV refresh lands. Mirror keys the bench
+        // browser uses: e:<email>, n:<name>.
+        try {
+          const all = JSON.parse(localStorage.getItem('colophon_admin_actions') || '{}') || {};
+          const stamp = Date.now();
+          const keys = [
+            data.email ? `e:${String(data.email).toLowerCase()}` : null,
+            data.name  ? `n:${String(data.name).toLowerCase()}`  : null,
+          ].filter(Boolean);
+          for (const k of keys) all[k] = { ...(all[k] || {}), approve: stamp };
+          localStorage.setItem('colophon_admin_actions', JSON.stringify(all));
+        } catch {}
       } catch (ex) { append(`✗ approve — ${ex.message}`); return; }
     } else {
       append(`✓ ${op} (local) · ${sub.id}`);
@@ -3859,7 +3873,27 @@ function AdminFormspreeApproval({ secret }) {
                     <span style={{ fontFamily: GM, fontSize: 9, color: '#3D3C38', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{data.source || 'unknown'}</span>
                     <span style={{ fontFamily: GM, fontSize: 9, color: '#3D3C38' }}>{s.submitted_at ? new Date(s.submitted_at).toLocaleString() : (s.created_at || '')}</span>
                   </div>
-                  <div style={{ color: '#3D3C38', fontSize: 11 }}>{data.email}</div>
+                  <div style={{ color: '#3D3C38', fontSize: 11, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    {data.email && <span>{data.email}</span>}
+                    {data.email && (
+                      <a href={`mailto:${data.email}`}
+                        style={{ fontFamily: GM, fontSize: 10, padding: '2px 8px', border: '1px solid rgba(13,13,11,0.2)', borderRadius: 4, color: C.ink, textDecoration: 'none', background: '#fff' }}>
+                        ✉ email
+                      </a>
+                    )}
+                    {data.portfolio && (
+                      <a href={normalizeUrl(data.portfolio)} target="_blank" rel="noopener noreferrer"
+                        style={{ fontFamily: GM, fontSize: 10, padding: '2px 8px', border: '1px solid rgba(13,13,11,0.2)', borderRadius: 4, color: C.ink, textDecoration: 'none', background: '#fff' }}>
+                        ↗ portfolio
+                      </a>
+                    )}
+                    {data.linkedin && (
+                      <a href={normalizeUrl(data.linkedin)} target="_blank" rel="noopener noreferrer"
+                        style={{ fontFamily: GM, fontSize: 10, padding: '2px 8px', border: '1px solid rgba(13,13,11,0.2)', borderRadius: 4, color: C.ink, textDecoration: 'none', background: '#fff' }}>
+                        ↗ linkedin
+                      </a>
+                    )}
+                  </div>
                   {data.discipline && <div style={{ fontSize: 11, color: '#3D3C38' }}>{data.discipline}</div>}
                   {data.disciplines && <div style={{ fontSize: 11, color: '#3D3C38' }}>{data.disciplines}</div>}
                   {data.hourlyRate && <div style={{ fontSize: 11, color: '#3D3C38' }}>{data.hourlyRate} · {data.timezone || ''} · ai-savvy {data.aiSavvy || '—'}</div>}

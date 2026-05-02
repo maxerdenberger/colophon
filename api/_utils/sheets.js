@@ -60,6 +60,48 @@ const AVAIL_MAP = {
   'Booked / waitlist only':   'Waitlist Only (currently booked)',
 };
 
+// Append a new row to the bench Sheet. Columns mirror the parser:
+//   0 Timestamp · 1 Name · 2 Email · 3 Portfolio · 4 LinkedIn · 5 Disciplines
+//   6 (empty)   · 7 Availability · 8 (empty) · 9 Hourly · 10 (empty) · 11 (empty)
+//   12 Past Clients · 13 Exp Level · 14 (empty) · 15 Value Prop · 16 (empty)
+//   17 Partners · 18 Status · 19 Last Updated · 20 Confirmed
+// Returns { rowNumber, range } so callers can patch other columns later.
+export async function appendBenchRow(fields) {
+  if (!process.env.SHEETS_SPREADSHEET_ID) {
+    throw new Error('SHEETS_SPREADSHEET_ID not configured');
+  }
+  const sheets = client();
+  const now = new Date().toLocaleString('en-US', { timeZone: 'UTC' });
+  const row = new Array(21).fill('');
+  row[0]  = fields.timestamp    || now;
+  row[1]  = fields.name         || '';
+  row[2]  = fields.email        || '';
+  row[3]  = fields.portfolio    || '';
+  row[4]  = fields.linkedin     || '';
+  row[5]  = fields.disciplines  || fields.discipline || '';
+  row[7]  = fields.availability || '';
+  row[9]  = String(fields.hourlyRate || '');
+  row[12] = fields.topClients   || fields.clients || '';
+  row[13] = fields.expLevel     || '';
+  row[15] = fields.summary      || fields.valueProp || '';
+  row[17] = fields.partnerEmails || '';
+  row[18] = fields.status       || 'active';
+  row[19] = now;
+  row[20] = fields.confirmed ? 'yes' : '';
+
+  const res = await sheets.spreadsheets.values.append({
+    spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+    range: RANGE_ALL,
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: [row] },
+  });
+  const updatedRange = res.data && res.data.updates && res.data.updates.updatedRange;
+  const m = updatedRange && updatedRange.match(/!A(\d+):/);
+  const rowNumber = m ? parseInt(m[1], 10) : null;
+  return { rowNumber, range: updatedRange };
+}
+
 // Patch only the columns we own. availability → col H (index 7), portfolio → col D (3).
 export async function updateBenchRow(rowNumber, { availability, portfolio }) {
   const sheets = client();
