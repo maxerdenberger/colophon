@@ -3338,7 +3338,14 @@ function Drawer({ id, active, color, onClose, compact = false, children }) {
     };
   }, [id, isMobile, isOpen]);
 
-  // ESC + outside-click closure
+  // ESC + outside-click closure.
+  // The click listener runs in the CAPTURE phase so the "is target inside
+  // the drawer?" check happens BEFORE React's onClick handlers can re-render
+  // and detach the target. Bubble-phase listeners that read e.target after
+  // a re-render see a node that is no longer a descendant of ref.current,
+  // which incorrectly closed the drawer when interacting with controls that
+  // swap large blocks of JSX (e.g. the wizard's "edit filters" link on the
+  // reveal step). Capture phase avoids the race entirely.
   useEffect(() => {
     if (!isOpen || !onClose) return;
     justOpened.current = true;
@@ -3352,11 +3359,11 @@ function Drawer({ id, active, color, onClose, compact = false, children }) {
       onClose();
     };
     window.addEventListener('keydown', onKey);
-    document.addEventListener('click', onClick);
+    document.addEventListener('click', onClick, true);
     return () => {
       clearTimeout(t1);
       window.removeEventListener('keydown', onKey);
-      document.removeEventListener('click', onClick);
+      document.removeEventListener('click', onClick, true);
     };
   }, [isOpen, onClose]);
 
