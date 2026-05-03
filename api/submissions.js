@@ -69,13 +69,18 @@ export default async function handler(req, res) {
       if (r.ok) {
         const raw = (j && (j.submissions || j.data)) || [];
         // Stamp every submission with a stable id. Formspree responses
-        // sometimes omit a top-level id, which made one-row reviews hide
-        // every other id-less row in the panel (Set treats them all as
-        // the same `undefined` value).
-        const submissions = raw.map((s, i) => {
+        // sometimes omit a top-level id; we derive one from
+        // submitted_at + email + brief excerpt, which is invariant
+        // across loads. Earlier we used positional index as part of
+        // the fallback, but Formspree doesn't guarantee response order,
+        // so the same submission could end up with a different id on a
+        // later load — that broke localStorage('colophon_reviewed') and
+        // caused already-rejected rows to reappear.
+        const submissions = raw.map((s) => {
+          if (s && s.id != null) return { ...s, id: s.id };
           const data = s && (s.data || s) || {};
-          const fallback = `${s && s.submitted_at || ''}|${data.email || ''}|${i}`;
-          return { ...s, id: s && s.id != null ? s.id : fallback };
+          const fp = `${s && s.submitted_at || ''}|${(data.email || '').toLowerCase()}|${(data.brief || data.summary || '').slice(0, 40)}`;
+          return { ...s, id: 'fp:' + simpleHash(fp) };
         });
         return res.status(200).json({ submissions, _via: { auth: a.auth.split(' ')[0], url: a.url } });
       }
@@ -94,4 +99,14 @@ export default async function handler(req, res) {
       : 'check Formspree plan + form hashid',
     submissions: [],
   });
+}
+
+// Cheap deterministic hash for fallback IDs. Same input → same output
+// across Vercel cold starts, so localStorage('colophon_reviewed') stays
+// valid for submissions that lack a Formspree-assigned id.
+function simpleHash(s) {
+  let h = 5381;
+  const str = String(s);
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  return Math.abs(h).toString(36);
 }

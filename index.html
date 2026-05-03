@@ -4648,13 +4648,21 @@ function AdminFormspreeApproval({ secret }) {
         return;
       }
       const raw = j.submissions || j.data || j || [];
-      // Defensive fallback id — same logic as the proxy. Without this, a
-      // submission lacking `id` would share `undefined` with every other
-      // id-less row, making one review hide them all.
-      const stamped = (Array.isArray(raw) ? raw : []).map((s, i) => {
+      // Defensive fallback id — must be order-independent so the
+      // localStorage 'reviewed' Set stays valid across reloads (Formspree
+      // doesn't guarantee response order). Hash submitted_at + email +
+      // a brief excerpt; same input → same id every time.
+      const fpHash = (str) => {
+        let h = 5381;
+        const s = String(str);
+        for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+        return Math.abs(h).toString(36);
+      };
+      const stamped = (Array.isArray(raw) ? raw : []).map((s) => {
+        if (s && s.id != null) return { ...s, id: s.id };
         const data = s && (s.data || s) || {};
-        const fallback = `${s && s.submitted_at || ''}|${data.email || ''}|${i}`;
-        return { ...s, id: s && s.id != null ? s.id : fallback };
+        const fp = `${s && s.submitted_at || ''}|${(data.email || '').toLowerCase()}|${(data.brief || data.summary || '').slice(0, 40)}`;
+        return { ...s, id: 'fp:' + fpHash(fp) };
       });
       setSubs(stamped);
     } catch (ex) { setError(ex.message || 'fetch failed'); }
@@ -4682,7 +4690,7 @@ function AdminFormspreeApproval({ secret }) {
           body: JSON.stringify({ action: 'add', from: 'formspree-submission', submissionId: sub.id, ...data }),
         });
         if (!r.ok) throw new Error('bench-update ' + r.status);
-        append(`✓ approved → sheet · ${data.name || sub.id}`);
+        append(`✓ approved → sheet · ${data.name || sub.id} (will appear at top of bench browser within ~2min)`);
         // Pre-stamp the new creative as approved in localStorage so the
         // public bench filter (BenchProvider.isApproved) shows them as
         // soon as the next CSV refresh lands. Mirror keys the bench
@@ -5267,7 +5275,8 @@ function AdminTeammatePairings({ secret }) {
   const [groupsText, setGroupsText] = useState(
     'merdenberger@gmail.com, greg.rutter@gmail.com\n' +
     'merdenberger@gmail.com, kaceycoburn@gmail.com\n' +
-    'russ@russrizzo.com, caseyphillips.work@gmail.com'
+    'russ@russrizzo.com, caseyphillips.work@gmail.com\n' +
+    'matthewtemple69@gmail.com, andy@partner-no-email-on-file.placeholder'
   );
   const [linkBusy, setLinkBusy] = useState(false);
   const linkTeams = async () => {
