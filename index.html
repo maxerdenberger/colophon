@@ -674,7 +674,7 @@ function parseSheetCSV(text) {
     // emails; empty by default until the post-launch follow-up email runs.
     const partners = (row[17] || '').split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
     const statusRaw = (row[18] || '').toLowerCase().trim();
-    const status = statusRaw === 'cold' ? 'cold' : 'active';
+    const status = (statusRaw === 'cold' || statusRaw === 'duplicate') ? statusRaw : 'active';
     const confRaw = (row[20] || '').toLowerCase().trim();
     const confirmed = confRaw === 'yes' || confRaw === 'true' || confRaw === '1';
     return {
@@ -688,7 +688,7 @@ function parseSheetCSV(text) {
       status, confirmed,
       paused: false, legend: false,  // admin-toggleable; persisted via /api/bench-update
     };
-  }).filter(Boolean).filter((p) => p.status !== 'cold')
+  }).filter(Boolean).filter((p) => p.status !== 'cold' && p.status !== 'duplicate')
     .filter((p) => p.realName && p.realName.replace(/\s+/g,'').length > 1)
     .filter((p) => (p.emailRaw && p.emailRaw.includes('@')) || (p.portfolio && p.portfolio.length > 4));
 }
@@ -4298,6 +4298,33 @@ function AdminSheetTools({ secret }) {
     } finally { setAuditBusy(false); }
   };
 
+  // Per-group + bulk dedup. Marks the stale rows with status='duplicate'
+  // in column S; the live bench parser filters them out automatically.
+  // Reversible — edit col S back to 'active' on the row to restore.
+  const [dedupBusy, setDedupBusy] = React.useState({}); // groupKey → bool
+  const [dedupLog, setDedupLog]   = React.useState('');
+  const dedupRows = async (rowNums, key) => {
+    if (!rowNums || !rowNums.length) return;
+    setDedupBusy((b) => ({ ...b, [key]: true }));
+    setDedupLog('');
+    try {
+      const r = await fetch('/api/dedupe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify({ rows: rowNums }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j.error || `status ${r.status}`);
+      setDedupLog(`✓ marked ${j.marked} row${j.marked === 1 ? '' : 's'} as duplicate`);
+      // Re-fetch the audit so the dedup'd group disappears.
+      runAudit();
+    } catch (ex) {
+      setDedupLog(`✗ ${ex.message}`);
+    } finally {
+      setDedupBusy((b) => ({ ...b, [key]: false }));
+    }
+  };
+
   return (
     <div style={{ marginBottom: 36, border: `1px solid ${C.rule}`, padding: 18, background: '#fff' }}>
       <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 8 }}>sheet maintenance</p>
@@ -4349,30 +4376,53 @@ function AdminSheetTools({ secret }) {
           </p>
         )}
         {audit && audit.groups && audit.groups.length > 0 && (
-          <div style={{ marginTop: 12, maxHeight: 480, overflowY: 'auto', border: `1px solid ${C.rule}`, background: '#fff' }}>
-            {audit.groups.map((g) => (
-              <div key={g.email} style={{ padding: '12px 14px', borderBottom: `1px solid ${C.rule}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 13 }}>{g.email}</span>
-                  <span style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{g.count} rows</span>
-                </div>
-                {/* Keep row */}
-                <div style={{ display: 'grid', gridTemplateColumns: '60px 80px 1fr', gap: 10, padding: '6px 0', fontFamily: GM, fontSize: 11, alignItems: 'baseline' }}>
-                  <span style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', color: '#3F7F4A', textTransform: 'uppercase' }}>keep</span>
-                  <span style={{ fontFamily: GM, fontSize: 11, color: C.ink }}>row {g.keep.rowNumber}</span>
-                  <span style={{ fontSize: 11, color: C.soft }}>{g.keep.name} · {g.keep.timestamp || '(no timestamp)'}</span>
-                </div>
-                {/* Stale rows */}
-                {g.stale.map((s) => (
-                  <div key={s.rowNumber} style={{ display: 'grid', gridTemplateColumns: '60px 80px 1fr', gap: 10, padding: '4px 0', fontFamily: GM, fontSize: 11, alignItems: 'baseline', opacity: 0.72 }}>
-                    <span style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', color: '#b04040', textTransform: 'uppercase' }}>stale</span>
-                    <span style={{ fontFamily: GM, fontSize: 11, color: C.ink, textDecoration: 'line-through' }}>row {s.rowNumber}</span>
-                    <span style={{ fontSize: 11, color: C.soft }}>{s.name} · {s.timestamp || '(no timestamp)'}</span>
+          <>
+            {/* Bulk action bar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, padding: '10px 12px', background: '#fff', border: `1px solid ${C.rule}`, borderRadius: 4 }}>
+              <button onClick={() => dedupRows(audit.groups.flatMap((g) => g.stale.map((s) => s.rowNumber)), '__all__')}
+                disabled={dedupBusy.__all__}
+                style={{ ...adminIntentBtn('approve', 'full'), padding: '7px 12px', fontSize: 11 }}>
+                {dedupBusy.__all__ ? 'marking…' : `approve all · mark ${audit.duplicateRows} stale rows as duplicate`}
+              </button>
+              <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
+                writes <code>status=duplicate</code> on every stale row in col S — reversible
+              </span>
+            </div>
+            {dedupLog && (
+              <p style={{ fontFamily: GM, fontSize: 11, color: dedupLog.startsWith('✗') ? '#b04040' : '#3F7F4A', marginTop: 8 }}>{dedupLog}</p>
+            )}
+            <div style={{ marginTop: 12, maxHeight: 480, overflowY: 'auto', border: `1px solid ${C.rule}`, background: '#fff' }}>
+              {audit.groups.map((g) => (
+                <div key={g.email} style={{ padding: '12px 14px', borderBottom: `1px solid ${C.rule}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, flexWrap: 'wrap', gap: 8 }}>
+                    <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 13 }}>{g.email}</span>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                      <span style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{g.count} rows</span>
+                      <button onClick={() => dedupRows(g.stale.map((s) => s.rowNumber), g.email)}
+                        disabled={dedupBusy[g.email]}
+                        style={{ ...adminIntentBtn('approve', 'full'), padding: '4px 10px', fontSize: 10 }}>
+                        {dedupBusy[g.email] ? 'marking…' : `approve · mark ${g.stale.length} stale`}
+                      </button>
+                    </div>
                   </div>
-                ))}
-              </div>
-            ))}
-          </div>
+                  {/* Keep row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '60px 80px 1fr', gap: 10, padding: '6px 0', fontFamily: GM, fontSize: 11, alignItems: 'baseline' }}>
+                    <span style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', color: '#3F7F4A', textTransform: 'uppercase' }}>keep</span>
+                    <span style={{ fontFamily: GM, fontSize: 11, color: C.ink }}>row {g.keep.rowNumber}</span>
+                    <span style={{ fontSize: 11, color: C.soft }}>{g.keep.name} · {g.keep.timestamp || '(no timestamp)'}</span>
+                  </div>
+                  {/* Stale rows */}
+                  {g.stale.map((s) => (
+                    <div key={s.rowNumber} style={{ display: 'grid', gridTemplateColumns: '60px 80px 1fr', gap: 10, padding: '4px 0', fontFamily: GM, fontSize: 11, alignItems: 'baseline', opacity: 0.72 }}>
+                      <span style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', color: '#b04040', textTransform: 'uppercase' }}>stale</span>
+                      <span style={{ fontFamily: GM, fontSize: 11, color: C.ink, textDecoration: 'line-through' }}>row {s.rowNumber}</span>
+                      <span style={{ fontSize: 11, color: C.soft }}>{s.name} · {s.timestamp || '(no timestamp)'}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>
