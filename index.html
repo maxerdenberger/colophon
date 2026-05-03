@@ -4734,6 +4734,30 @@ function AdminYearInquiriesPanel({ secret }) {
     try { return JSON.parse(localStorage.getItem('colophon_year_sent') || '{}') || {}; }
     catch { return {}; }
   });
+  // Per-brief lifecycle status. 'pending' (default, no entry), 'sent'
+  // (set automatically on resend), 'won' (they paid), 'lost' (they
+  // declined / went silent), 'archived' (hide from default view).
+  // Stored as briefId → status in localStorage.
+  const [statusMap, setStatusMap] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem('colophon_year_status') || '{}') || {}; }
+    catch { return {}; }
+  });
+  const setStatus = (briefId, status) => {
+    setStatusMap((m) => {
+      const next = { ...m };
+      if (status === 'pending') delete next[briefId]; else next[briefId] = status;
+      try { localStorage.setItem('colophon_year_status', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+  const [showArchived, setShowArchived] = React.useState(false);
+  const STATUS_META = {
+    pending:  { label: 'pending',  bg: 'transparent', fg: '#888580' },
+    sent:     { label: 'sent',     bg: '#3F7F4A',     fg: '#fff' },
+    won:      { label: 'won',      bg: '#FF5100',     fg: '#fff' },
+    lost:     { label: 'lost',     bg: '#B04040',     fg: '#fff' },
+    archived: { label: 'archived', bg: '#888580',     fg: '#fff' },
+  };
 
   const fetchBriefs = async () => {
     setLoading(true); setError('');
@@ -4880,7 +4904,17 @@ function AdminYearInquiriesPanel({ secret }) {
     <div style={{ marginBottom: 36, border: `1px solid ${C.rule}`, padding: 18, background: '#fff' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
         <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.16em', textTransform: 'uppercase' }}>year-tier · pricing queue</p>
-        <button onClick={fetchBriefs} style={adminIntentBtn('neutral')} disabled={loading}>{loading ? 'loading…' : 'refresh'}</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+          {(() => {
+            const archivedCount = (briefs || []).filter((s) => statusMap[s.id] === 'archived').length;
+            return archivedCount > 0 ? (
+              <button onClick={() => setShowArchived((v) => !v)} style={{ ...adminIntentBtn('neutral'), padding: '5px 10px', fontSize: 10 }}>
+                {showArchived ? 'hide archived' : `show archived (${archivedCount})`}
+              </button>
+            ) : null;
+          })()}
+          <button onClick={fetchBriefs} style={adminIntentBtn('neutral')} disabled={loading}>{loading ? 'loading…' : 'refresh'}</button>
+        </div>
       </div>
       <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 14, lineHeight: 1.6 }}>
         Inquiries from the build wizard's year tier. Suggest a price (Anthropic when configured, heuristic fallback otherwise), pick a final number, draft a proposal, send via Resend.
@@ -4891,12 +4925,18 @@ function AdminYearInquiriesPanel({ secret }) {
       {!error && briefs && briefs.length === 0 && !loading && (
         <p style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>no year-tier inquiries yet.</p>
       )}
-      {((briefs || []).slice().sort((a, b) => {
-        // Pending first, sent at the bottom (most recent send first
-        // among the sent group).
+      {((briefs || [])
+        .filter((s) => showArchived || statusMap[s.id] !== 'archived')
+        .slice().sort((a, b) => {
+        // Sort priority: pending → sent → won → lost (archived hidden
+        // unless toggle on, then to the bottom). Within each bucket,
+        // most-recent send / submit wins.
+        const STATUS_ORDER = { pending: 0, sent: 1, won: 2, lost: 3, archived: 4 };
+        const aSt = statusMap[a.id] || (sentInfo[a.id] ? 'sent' : 'pending');
+        const bSt = statusMap[b.id] || (sentInfo[b.id] ? 'sent' : 'pending');
+        if (aSt !== bSt) return (STATUS_ORDER[aSt] || 0) - (STATUS_ORDER[bSt] || 0);
         const aSent = sentInfo[a.id]?.sentAt || 0;
         const bSent = sentInfo[b.id]?.sentAt || 0;
-        if (!!aSent !== !!bSent) return aSent ? 1 : -1;
         if (aSent && bSent) return bSent - aSent;
         return 0;
       })).map((sub) => {
@@ -4905,35 +4945,59 @@ function AdminYearInquiriesPanel({ secret }) {
         const sg = suggest[sub.id];
         const dr = draft[sub.id];
         const sent = sentInfo[sub.id];
+        // Effective status — explicit setting wins; otherwise pending or
+        // sent based on whether a Resend send has happened.
+        const status = statusMap[sub.id] || (sent ? 'sent' : 'pending');
+        const meta   = STATUS_META[status] || STATUS_META.pending;
+        const isArchived = status === 'archived';
+        const isLost = status === 'lost';
+        const isWon  = status === 'won';
         return (
           <div key={sub.id} style={{
             borderTop: `1px solid ${C.rule}`,
             padding: '14px 0',
-            // Demote sent rows visually — muted opacity + green left
-            // border. Same pattern as the concierge panel above.
-            opacity: sent ? 0.62 : 1,
-            borderLeft: sent ? `3px solid #3F7F4A` : '3px solid transparent',
+            // Demote based on status: sent/archived dimmed, lost
+            // strikethrough red, won full-color with orange border.
+            opacity: (status === 'sent' || isArchived || isLost) ? 0.62 : 1,
+            borderLeft: isWon ? `3px solid #FF5100`
+                       : status === 'sent' ? `3px solid #3F7F4A`
+                       : isLost ? `3px solid #B04040`
+                       : isArchived ? `3px solid #888580`
+                       : '3px solid transparent',
             paddingLeft: 11,
             marginLeft: -14,
             transition: 'opacity 0.18s ease',
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, cursor: 'pointer' }}
-              onClick={() => setActiveId(open ? null : sub.id)}>
-              <div>
-                <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 13, textDecoration: sent ? 'line-through' : 'none', textDecorationColor: 'rgba(63,127,74,0.5)' }}>{data.name || '(no name)'}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+              <div onClick={() => setActiveId(open ? null : sub.id)} style={{ cursor: 'pointer', flex: 1 }}>
+                <span style={{
+                  fontFamily: GS, fontWeight: 600, fontSize: 13,
+                  textDecoration: (status === 'sent' || isLost) ? 'line-through' : 'none',
+                  textDecorationColor: isLost ? 'rgba(176,64,64,0.6)' : 'rgba(63,127,74,0.5)',
+                }}>{data.name || '(no name)'}</span>
                 <span style={{ marginLeft: 10, fontFamily: GM, fontSize: 10, color: C.soft }}>{data.email || ''}</span>
                 {sub.submitted_at && <span style={{ marginLeft: 10, fontFamily: GM, fontSize: 9, color: C.soft }}>· {new Date(sub.submitted_at).toLocaleString()}</span>}
               </div>
-              {sent ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 10px', borderRadius: 999, background: '#3F7F4A', color: '#fff', fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                  <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />
-                  sent · {fmt(sent.price)}
-                </span>
-              ) : (
-                <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
-                  {open ? '▾' : '▸'} {finalPrice[sub.id] ? `· ${fmt(finalPrice[sub.id])}` : ''}
-                </span>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {status !== 'pending' && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 10px', borderRadius: 999, background: meta.bg, color: meta.fg, fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                    <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: meta.fg }} />
+                    {meta.label}{sent && status === 'sent' ? ` · ${fmt(sent.price)}` : ''}{isWon && sent ? ` · ${fmt(sent.price)}` : ''}
+                  </span>
+                )}
+                <select
+                  value={status}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => setStatus(sub.id, e.target.value)}
+                  style={{ fontFamily: GM, fontSize: 10, padding: '4px 6px', border: `1px solid ${C.rule}`, borderRadius: 4, background: '#fff', color: C.ink, cursor: 'pointer' }}>
+                  <option value="pending">pending</option>
+                  <option value="sent">sent</option>
+                  <option value="won">won ✦</option>
+                  <option value="lost">lost</option>
+                  <option value="archived">archive</option>
+                </select>
+                <span onClick={() => setActiveId(open ? null : sub.id)} style={{ fontFamily: GM, fontSize: 10, color: C.soft, cursor: 'pointer' }}>{open ? '▾' : '▸'}</span>
+              </div>
             </div>
             {open && (
               <div style={{ marginTop: 12, padding: 14, background: '#FAFAF8', borderRadius: 4 }}>
