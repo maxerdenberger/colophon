@@ -892,7 +892,16 @@ const OPPS = [
 
 // ── FORM OPTIONS ──────────────────────────────────────────────────────────────
 const DISCIPLINES = ['Art Direction', 'Creative Direction', 'Design Leadership', 'Copywriting', 'Brand Strategy', 'Motion Design', 'UX / Content Design', 'Strategy', 'Other (specify below)'];
-const EXP_LEVELS = ['Junior / Mid-level (1–3 years)', 'Senior (4–7 years)', 'Lead / Principal (8–12 years)', 'Executive / Veteran (12+ years)'];
+// Match the original Google Form exactly so data flowing into the bench
+// Sheet stays consistent across the legacy form + this in-app form. The
+// regex in parseSheetCSV that derives `yoe` from this text matches all
+// four labels (junior/mid → 2, senior → 6, lead/principal → 10, exec → 15).
+const EXP_LEVELS = [
+  'Junior/Mid-level (1-3 years experience)',
+  'Senior (4-7 years experience)',
+  'Lead/Principal (8-12 years experience)',
+  'Executive/Veteran (12+ years experience)',
+];
 const AVAIL_OPTS = ['Immediate (ready to start within 1 week)', '2–4 Weeks Out', 'Available for the right thing', 'Waitlist Only (currently booked)'];
 const CATEGORIES = ['Brand Identity / Strategy', 'Campaign / Advertising', 'Content Strategy & Copy', 'Motion Graphics / Animation', 'Website / Digital Product (UI/UX)', 'Experiential / Environmental', 'Film / Directing', 'Photography', 'Other'];
 
@@ -1547,13 +1556,15 @@ function Footer({ accent, setPage }) {
 
   return (
     <footer style={{ background: C.ink, color: C.cream, borderTop: `1px solid rgba(255,255,255,0.06)` }}>
-      {/* clocks row — span the full width of the page */}
+      {/* clocks row — same side margins as the rest of the footer (max-width 1100, 40px padding) */}
       <div style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '40px 40px 36px' }}>
-        <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.14em', color: 'rgba(244,241,236,0.3)', marginBottom: 28 }}>
-          the bench spans seventeen cities.
-        </p>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
-          {CLOCKS.map((c) => <AnalogClock key={c.city} tz={c.tz} city={c.city} accent={accent} />)}
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.14em', color: 'rgba(244,241,236,0.3)', marginBottom: 28 }}>
+            the bench spans seventeen cities.
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+            {CLOCKS.map((c) => <AnalogClock key={c.city} tz={c.tz} city={c.city} accent={accent} />)}
+          </div>
         </div>
       </div>
 
@@ -1876,7 +1887,7 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
   const [form, setForm] = useState({
     name: '', email: '', portfolio: '', linkedin: '', disciplineOther: '',
     availability: '', timezone: '', hourlyRate: '', minFee: '',
-    referralContext: '', topClients: '', expLevel: '', yearsExperience: '', summary: '',
+    referralContext: '', topClients: '', expLevel: '', summary: '',
     partnerEmails: '', aiSavvy: '',
     rec1Name: '', rec1Email: '', rec2Name: '', rec2Email: '', rec3Name: '', rec3Email: '',
     buyerName: '', buyerOrg: '', buyerEmail: ''
@@ -1969,18 +1980,12 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
             </div>
           </div>
           {disciplines.includes('Other (specify below)') && <div><label style={lS}>specify discipline</label><input style={iS} value={form.disciplineOther} onChange={set('disciplineOther')} /></div>}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-            <div>
-              <label style={lS}>professional level</label>
-              <select style={iS} value={form.expLevel} onChange={set('expLevel')}>
-                <option value="" disabled>select your professional level</option>
-                {EXP_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={lS}>years of experience</label>
-              <input type="number" min="0" max="60" style={iS} value={form.yearsExperience} onChange={set('yearsExperience')} placeholder="e.g. 12" />
-            </div>
+          <div>
+            <label style={lS}>which professional level best describes your current experience?</label>
+            <select style={iS} value={form.expLevel} onChange={set('expLevel')}>
+              <option value="" disabled>select your professional level</option>
+              {EXP_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
           </div>
           <div>
             <label style={lS}>project categories — strongest expertise</label>
@@ -2505,6 +2510,12 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionF
   const matchesSessionFilters = (p) => {
     if (showAll || !sessionFilters) return true;
     const f = sessionFilters;
+    // Bespoke bench — email allowlist supplied by the token. Hard-narrows
+    // the view to exactly the curated set the admin sent.
+    if (f.emails?.length) {
+      const e = (p.emailRaw || '').toLowerCase();
+      if (!e || !f.emails.includes(e)) return false;
+    }
     if (f.disciplines?.length && !f.disciplines.includes(p.discipline)) return false;
     if (f.avail?.length && !f.avail.includes(p.availability)) return false;
     if (f.experience?.length) {
@@ -2880,10 +2891,19 @@ function AccessPage({ accent, setPage }) {
     if (s === 'valid') {
       setUnlocked(true);
       const parsed = JSON.parse(atob(t));
-      const { exp, tier: tokenTier, name, tags } = parsed;
+      const { exp, tier: tokenTier, name, tags, emails } = parsed;
       if (tokenTier) setTier(tokenTier);
       if (name) setBuyerName(name);
       if (tags && Array.isArray(tags)) setBuyerTags(tags);
+      // Bespoke-bench tier — token carries a list of emails; the
+      // unlocked view will filter the bench down to just these names.
+      // sessionFilters carries the allowlist so UnlockedBenchTable can
+      // do the filtering (added below).
+      if (Array.isArray(emails) && emails.length) {
+        const allow = emails.map((e) => String(e).toLowerCase().trim()).filter(Boolean);
+        setSessionFilters({ emails: allow });
+        setTier('bespoke');
+      }
       const tick = () => {
         const left = exp - Date.now();
         if (left <= 0) { setExpired(true); setUnlocked(false); return; }
@@ -3006,10 +3026,13 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
     } catch { return 'pay'; }
   });
   const [submitting, setSubmitting] = useState(false);
+  const [submitErr, setSubmitErr] = useState('');
+  const [sentSummary, setSentSummary] = useState(null);
 
   const submit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    setSubmitErr('');
     const fd = new FormData(e.target);
     const payload = {
       name:    fd.get('name'),
@@ -3022,21 +3045,63 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
       source:  'concierge-brief',
       _subject: 'concierge brief',
     };
-    await submitForm(payload);
-    setStage('sent');
+    const r = await submitForm(payload);
     setSubmitting(false);
+    if (r && r.ok) {
+      setSentSummary(payload);
+      setStage('sent');
+    } else {
+      // Don't advance to 'sent' on failure — surface the error so the
+      // user knows their brief didn't go through. Common causes:
+      // Formspree validation, network blip, or rate limit.
+      const msg = r && r.errors && r.errors.length
+        ? r.errors.map((e) => `${e.field || ''} ${e.message || ''}`.trim()).join(' · ')
+        : (r && r.status ? `submit failed (status ${r.status})` : 'submit failed — check connection and try again');
+      setSubmitErr(msg);
+    }
   };
 
   if (stage === 'sent') {
     try { localStorage.removeItem('concierge_paid'); } catch {}
+    const s = sentSummary || {};
+    const briefExcerpt = (s.brief || '').slice(0, 320);
     return (
-    <div style={{ background: isDrawer ? 'transparent' : C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : 'calc(100vh - 54px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: isDrawer ? '60px 40px' : 40, textAlign: 'center' }}>
-      <div style={{ width: 48, height: 48, border: `1.5px solid ${accent}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontSize: 18 }}>✓</div>
-      <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em', lineHeight: 0.95 }}>Brief received.</h2>
-      <p style={{ fontFamily: GM, fontSize: 13, color: C.soft, maxWidth: '46ch', lineHeight: 1.75 }}>
-        You'll hear back within 4 hours.
-      </p>
-      <button onClick={() => setPage('home')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', background: 'transparent', color: C.ink, border: `1px solid ${C.rule}`, padding: '12px 22px', marginTop: 8, cursor: 'pointer' }}>back to home</button>
+    <div style={{ background: isDrawer ? 'transparent' : C.cream, color: C.ink, minHeight: isDrawer ? 'auto' : 'calc(100vh - 54px)', padding: isDrawer ? '40px 40px 60px' : '52px 40px 80px' }}>
+      <div style={{ maxWidth: 640, margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+          <div style={{ width: 40, height: 40, border: `1.5px solid ${accent}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontSize: 16 }}>✓</div>
+          <div>
+            <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', color: C.soft, textTransform: 'uppercase', marginBottom: 4 }}>03 / concierge — brief received</p>
+            <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,4vw,40px)', letterSpacing: '-0.025em', lineHeight: 1 }}>You're in. We're on it.</h2>
+          </div>
+        </div>
+
+        <div style={{ border: `1px solid ${C.rule}`, padding: '18px 22px', marginBottom: 20, background: '#fff', borderRadius: 6 }}>
+          <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.16em', color: C.soft, textTransform: 'uppercase', marginBottom: 14 }}>what you sent</p>
+          {s.name && <div style={{ fontFamily: GM, fontSize: 12, color: C.ink, marginBottom: 6 }}><strong style={{ fontWeight: 600 }}>{s.name}</strong>{s.company ? ` · ${s.company}` : ''}{s.email ? ` · ${s.email}` : ''}</div>}
+          {(s.timing || s.budget) && <div style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 10 }}>{[s.timing, s.budget && `budget: ${s.budget}`].filter(Boolean).join(' · ')}</div>}
+          {briefExcerpt && (
+            <p style={{ fontFamily: GS, fontStyle: 'italic', fontSize: 14, color: C.ink, lineHeight: 1.55, marginTop: 8 }}>
+              "{briefExcerpt}{(s.brief || '').length > 320 ? '…' : ''}"
+            </p>
+          )}
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.16em', color: C.soft, textTransform: 'uppercase', marginBottom: 12 }}>what's next</p>
+          <ol style={{ fontFamily: GM, fontSize: 13, color: C.ink, lineHeight: 1.75, paddingLeft: 20, margin: 0 }}>
+            <li>We read your brief by hand and pull names from the bench that match the work, the timing, and the budget.</li>
+            <li>You get five-plus names with real rates and direct contact info — within 4 business hours.</li>
+            <li>The introduction is yours to make. No middleman, no markup.</li>
+          </ol>
+        </div>
+
+        <div style={{ padding: '14px 18px', border: `1px dashed ${C.rule}`, borderRadius: 6, fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.7, marginBottom: 24 }}>
+          A copy of this brief landed in <strong style={{ color: C.ink, fontWeight: 600 }}>bench@colophon.contact</strong>. If you don't hear back inside 4 hours, write us at the same address — your $199 is refundable if we can't match you.
+        </div>
+
+        <button onClick={() => setPage('home')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', background: 'transparent', color: C.ink, border: `1px solid ${C.rule}`, padding: '12px 22px', cursor: 'pointer' }}>back to home</button>
+      </div>
     </div>);
   }
 
@@ -3215,6 +3280,11 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
             <option value="l">L — building with AI, prompting at depth</option>
           </select>
 
+          {submitErr && (
+            <div style={{ padding: '12px 14px', border: '1px solid #b04040', background: 'rgba(176,64,64,0.08)', color: '#b04040', fontFamily: GM, fontSize: 11, borderRadius: 4, lineHeight: 1.6 }}>
+              {submitErr} — please try again, or write to <a href="mailto:bench@colophon.contact" style={{ color: '#b04040', textDecoration: 'underline' }}>bench@colophon.contact</a> directly.
+            </div>
+          )}
           <button type="submit" disabled={submitting}
             style={{ fontFamily: GM, fontSize: 12, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: 'none', padding: '18px 24px', cursor: submitting ? 'wait' : 'pointer', marginTop: 8, borderRadius: 6 }}>
             {submitting ? 'Sending…' : 'Send my brief — get 5+ names →'}
@@ -3721,6 +3791,236 @@ function AdminRevenuePanel({ secret }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── CONCIERGE MATCHING ────────────────────────────────────────────────
+// Pulls concierge-brief submissions from /api/submissions, runs each
+// through /api/match-concierge for ranking, lets admin curate + add
+// manual names, and emits a 14-day tokenized bespoke-bench URL.
+function AdminConciergePanel({ secret }) {
+  const { bench } = useBench();
+  const [briefs, setBriefs]     = React.useState(null);
+  const [loading, setLoading]   = React.useState(false);
+  const [error, setError]       = React.useState('');
+  const [activeId, setActiveId] = React.useState(null);
+  const [matches, setMatches]   = React.useState({});      // briefId → { mode, list }
+  const [picked, setPicked]     = React.useState({});      // briefId → Set<email lowercased>
+  const [manualText, setManualText] = React.useState({});  // briefId → text
+  const [busy, setBusy]         = React.useState(false);
+  const [issued, setIssued]     = React.useState({});      // briefId → { url, expAt }
+
+  const fetchBriefs = async () => {
+    setLoading(true); setError('');
+    try {
+      const r = await fetch('/api/submissions', { headers: { Authorization: `Bearer ${secret}` } });
+      const text = await r.text();
+      let j = null; try { j = text ? JSON.parse(text) : null; } catch {}
+      if (!r.ok) {
+        setError((j && (j.error || j.message)) || `status ${r.status}`);
+        return;
+      }
+      const all = (j && (j.submissions || j.data)) || [];
+      const onlyBriefs = all.filter((s) => {
+        const data = (s.data || s);
+        const src = (data.source || s.source || '').toLowerCase();
+        return src === 'concierge-brief';
+      });
+      setBriefs(onlyBriefs);
+    } catch (ex) { setError(ex.message || 'fetch failed'); }
+    finally { setLoading(false); }
+  };
+  React.useEffect(() => { fetchBriefs(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const runMatch = async (sub) => {
+    setBusy(true);
+    try {
+      const data = sub.data || sub;
+      const r = await fetch('/api/match-concierge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify({
+          brief: data.brief || '',
+          timing: data.timing || '',
+          budget: data.budget || '',
+          aiSavvy: data.aiSavvy || '',
+          candidates: bench.map((c) => ({
+            id: c.id, name: c.realName || c.name, email: c.emailRaw,
+            discipline: c.discipline, disciplines: c.disciplines,
+            availability: c.availability, hourlyRate: c.hourlyRate,
+            rate: c.rate, yoe: c.yoe, clients: c.clients, note: c.note, tz: c.tz,
+          })),
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `status ${r.status}`);
+      setMatches((m) => ({ ...m, [sub.id]: { mode: j.mode || 'keyword', list: j.matches || [] } }));
+    } catch (ex) {
+      setMatches((m) => ({ ...m, [sub.id]: { mode: 'error', error: ex.message } }));
+    } finally { setBusy(false); }
+  };
+
+  const togglePick = (briefId, email) => {
+    setPicked((p) => {
+      const cur = new Set(p[briefId] || []);
+      if (cur.has(email)) cur.delete(email); else cur.add(email);
+      return { ...p, [briefId]: cur };
+    });
+  };
+
+  const generateUrl = (sub) => {
+    const data = sub.data || sub;
+    const briefId = sub.id;
+    // Compose final email list: AI/keyword picks + manual paste lines
+    // resolved against bench by email.
+    const set = new Set(picked[briefId] || []);
+    const benchByEmail = new Map(bench.map((c) => [(c.emailRaw || '').toLowerCase(), c]));
+    const rawManual = (manualText[briefId] || '').split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+    for (const m of rawManual) {
+      if (m.includes('@')) {
+        set.add(m);
+      } else {
+        // name match — find by realName / name (case-insensitive substring).
+        for (const c of bench) {
+          const rn = (c.realName || '').toLowerCase();
+          const cn = (c.name || '').toLowerCase();
+          if (rn.includes(m) || cn.includes(m)) { if (c.emailRaw) set.add(c.emailRaw.toLowerCase()); break; }
+        }
+      }
+    }
+    const emails = [...set];
+    if (!emails.length) return null;
+    const days = 14;
+    const exp  = Date.now() + days * 86400_000;
+    const token = btoa(JSON.stringify({
+      exp, tier: 'bespoke', emails,
+      name: data.name || '',
+      brief: (data.brief || '').slice(0, 200),
+    }));
+    const base = (typeof window !== 'undefined' && window.location.origin) || 'https://colophon.contact';
+    const url = `${base}/access?t=${encodeURIComponent(token)}`;
+    setIssued((i) => ({ ...i, [briefId]: { url, expAt: exp, count: emails.length } }));
+    return url;
+  };
+
+  const copy = (text) => { try { navigator.clipboard.writeText(text); } catch {} };
+  const fmtExp = (ms) => {
+    const d = Math.max(0, Math.floor((ms - Date.now()) / 86400_000));
+    return `${d}d`;
+  };
+
+  return (
+    <div style={{ marginBottom: 36, border: `1px solid ${C.rule}`, padding: 18, background: '#fff' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+        <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.16em', textTransform: 'uppercase' }}>concierge → match queue</p>
+        <button onClick={fetchBriefs} style={adminIntentBtn('neutral')} disabled={loading}>{loading ? 'loading…' : 'refresh'}</button>
+      </div>
+      <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 14, lineHeight: 1.6 }}>
+        Briefs from <code>/concierge</code>. AI/keyword-match against the bench, curate, paste manual additions, then generate a tokenized bespoke-bench URL valid for 14 days. Send the URL in your reply email.
+      </p>
+      {error && (
+        <div style={{ padding: '12px 14px', border: '1px solid #b04040', background: 'rgba(176,64,64,0.06)', color: '#7a1818', fontFamily: GM, fontSize: 11, borderRadius: 4, marginBottom: 14 }}>{error}</div>
+      )}
+      {!error && briefs && briefs.length === 0 && !loading && (
+        <p style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>no concierge briefs yet.</p>
+      )}
+      {(briefs || []).map((sub) => {
+        const data = sub.data || sub;
+        const open = activeId === sub.id;
+        const m    = matches[sub.id];
+        const pickedSet = picked[sub.id] || new Set();
+        const out  = issued[sub.id];
+        return (
+          <div key={sub.id} style={{ borderTop: `1px solid ${C.rule}`, padding: '14px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, cursor: 'pointer' }}
+              onClick={() => setActiveId(open ? null : sub.id)}>
+              <div>
+                <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 13 }}>{data.name || '(no name)'}</span>
+                <span style={{ marginLeft: 10, fontFamily: GM, fontSize: 10, color: C.soft }}>{data.email || ''}</span>
+                {data.company && <span style={{ marginLeft: 10, fontFamily: GM, fontSize: 10, color: C.soft }}>· {data.company}</span>}
+                {sub.submitted_at && <span style={{ marginLeft: 10, fontFamily: GM, fontSize: 9, color: C.soft }}>· {new Date(sub.submitted_at).toLocaleString()}</span>}
+              </div>
+              <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>{open ? '▾' : '▸'} {pickedSet.size} picked</span>
+            </div>
+            {open && (
+              <div style={{ marginTop: 12, padding: 14, background: '#FAFAF8', borderRadius: 4 }}>
+                {/* Brief */}
+                <div style={{ marginBottom: 14 }}>
+                  <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.14em', color: C.soft, textTransform: 'uppercase', marginBottom: 6 }}>brief</p>
+                  <p style={{ fontFamily: GS, fontStyle: 'italic', fontSize: 13, color: C.ink, lineHeight: 1.55 }}>"{data.brief || ''}"</p>
+                  <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 6 }}>
+                    {[data.timing && `timing: ${data.timing}`, data.budget && `budget: ${data.budget}`, data.aiSavvy && `ai-savvy: ${data.aiSavvy}`].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+                {/* Run match */}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14 }}>
+                  <button onClick={() => runMatch(sub)} disabled={busy} style={{ ...adminIntentBtn('approve', 'full'), padding: '6px 12px', fontSize: 10 }}>
+                    {busy ? 'matching…' : (m ? 'rematch' : 'run match')}
+                  </button>
+                  {m && m.mode && (
+                    <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
+                      {m.mode === 'ai' ? '✦ AI ranking' : m.mode === 'keyword' ? 'keyword scoring (set ANTHROPIC_API_KEY for AI)' : `error: ${m.error}`}
+                    </span>
+                  )}
+                </div>
+                {/* Match list */}
+                {m && Array.isArray(m.list) && (
+                  <div style={{ marginBottom: 14, maxHeight: 320, overflowY: 'auto', border: `1px solid ${C.rule}` }}>
+                    {m.list.map((row) => {
+                      const c = bench.find((b) => b.id === row.id);
+                      if (!c) return null;
+                      const email = (c.emailRaw || '').toLowerCase();
+                      const isPicked = pickedSet.has(email);
+                      return (
+                        <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '40px 1.4fr 1fr 70px auto', gap: 10, padding: '8px 12px', borderBottom: `1px solid ${C.rule}`, alignItems: 'center', fontFamily: GM, fontSize: 11, background: isPicked ? 'rgba(63,127,74,0.08)' : 'transparent' }}>
+                          <span style={{ fontFamily: GS, fontWeight: 700, fontSize: 13 }}>{row.score}</span>
+                          <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 13 }}>{c.realName || c.name}</span>
+                          <span style={{ fontSize: 10, color: C.soft }}>{(row.reasons || []).join(' · ')}</span>
+                          <span style={{ fontSize: 10, color: C.soft }}>{c.discipline}</span>
+                          <button onClick={() => togglePick(sub.id, email)}
+                            style={{ ...adminIntentBtn('approve', isPicked ? 'full' : 'empty'), padding: '4px 10px', fontSize: 10 }}>
+                            {isPicked ? '✓ picked' : '+ pick'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {m.list.length === 0 && (
+                      <p style={{ padding: 12, fontFamily: GM, fontSize: 11, color: C.soft }}>no matches found.</p>
+                    )}
+                  </div>
+                )}
+                {/* Manual additions */}
+                <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.14em', color: C.soft, textTransform: 'uppercase', marginBottom: 6 }}>add manually (paste names or emails)</p>
+                <textarea
+                  value={manualText[sub.id] || ''}
+                  onChange={(e) => setManualText((mt) => ({ ...mt, [sub.id]: e.target.value }))}
+                  placeholder="ada voss&#10;marc.olu@example.com&#10;Imani Reed"
+                  rows={3}
+                  style={{ width: '100%', fontFamily: GM, fontSize: 11, padding: 10, border: `1px solid ${C.rule}`, borderRadius: 4, background: '#fff', resize: 'vertical', lineHeight: 1.5, marginBottom: 12 }} />
+                {/* Generate URL */}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button onClick={() => generateUrl(sub)} style={{ ...adminIntentBtn('approve', 'full'), padding: '8px 14px', fontSize: 11 }}>
+                    generate bespoke bench →
+                  </button>
+                  {out && (
+                    <>
+                      <span style={{ fontFamily: GM, fontSize: 10, color: '#3F7F4A' }}>{out.count} names · expires in {fmtExp(out.expAt)}</span>
+                      <button onClick={() => copy(out.url)} style={{ ...adminIntentBtn('neutral'), padding: '6px 10px', fontSize: 10 }}>copy URL</button>
+                      <a href={out.url} target="_blank" rel="noreferrer" style={{ fontFamily: GM, fontSize: 10, color: C.ink, textDecoration: 'underline' }}>preview ↗</a>
+                    </>
+                  )}
+                </div>
+                {out && (
+                  <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 8, wordBreak: 'break-all', background: '#fff', padding: '8px 10px', border: `1px solid ${C.rule}`, borderRadius: 4 }}>
+                    {out.url}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -4816,6 +5116,9 @@ function AdminPage({ accent, setPage }) {
 
         {/* ── Formspree → bench approval queue. ─────────────────────────── */}
         <AdminFormspreeApproval secret={secret} />
+
+        {/* ── Concierge brief → bespoke bench match queue. ───────────────── */}
+        <AdminConciergePanel secret={secret} />
 
         {/* ── Quick links ──────────────────────────────────────────────── */}
         <AdminQuickLinks />
