@@ -4258,6 +4258,127 @@ function AdminConciergePanel({ secret }) {
   );
 }
 
+// ── SHEET MAINTENANCE ─────────────────────────────────────────────────
+// Two ops bundled: write the column-header labels for the cols we
+// added (Partners / Status / Last Updated / Confirmed), and pull a
+// duplicate audit list grouped by email. Both read-only / minimal-
+// mutation; the merge happens manually in the user's Sheet UI.
+function AdminSheetTools({ secret }) {
+  const [headerBusy, setHeaderBusy] = React.useState(false);
+  const [headerLog, setHeaderLog]   = React.useState('');
+  const [audit, setAudit]           = React.useState(null);
+  const [auditBusy, setAuditBusy]   = React.useState(false);
+  const [auditErr, setAuditErr]     = React.useState('');
+
+  const writeHeaders = async () => {
+    setHeaderBusy(true); setHeaderLog('');
+    try {
+      const r = await fetch('/api/sheet-headers', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${secret}` },
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j.error || `status ${r.status}`);
+      setHeaderLog(`✓ wrote ${j.updated} header cells: ${j.headers.map((h) => `${h.col}=${h.label}`).join(', ')}`);
+    } catch (ex) {
+      setHeaderLog(`✗ ${ex.message}`);
+    } finally { setHeaderBusy(false); }
+  };
+
+  const runAudit = async () => {
+    setAuditBusy(true); setAuditErr(''); setAudit(null);
+    try {
+      const r = await fetch('/api/audit-duplicates', { headers: { Authorization: `Bearer ${secret}` } });
+      const text = await r.text();
+      let j = null; try { j = text ? JSON.parse(text) : null; } catch {}
+      if (!r.ok) throw new Error((j && j.error) || `status ${r.status}`);
+      setAudit(j);
+    } catch (ex) {
+      setAuditErr(ex.message || 'audit failed');
+    } finally { setAuditBusy(false); }
+  };
+
+  return (
+    <div style={{ marginBottom: 36, border: `1px solid ${C.rule}`, padding: 18, background: '#fff' }}>
+      <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 8 }}>sheet maintenance</p>
+
+      {/* Header writer */}
+      <div style={{ padding: 14, border: `1px dashed rgba(13,13,11,0.18)`, borderRadius: 4, marginBottom: 14, background: 'rgba(168,196,184,0.08)' }}>
+        <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', color: '#3F7F4A', textTransform: 'uppercase', marginBottom: 6 }}>
+          set column headers
+        </p>
+        <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 10, lineHeight: 1.6 }}>
+          writes labels to row 1 for the columns we added: <code>R · Partners</code>, <code>S · Status</code>, <code>T · Last Updated</code>, <code>U · Confirmed</code>. idempotent.
+        </p>
+        <button onClick={writeHeaders} disabled={headerBusy}
+          style={{ ...adminIntentBtn('approve', 'full'), padding: '8px 14px', fontSize: 11 }}>
+          {headerBusy ? 'writing…' : 'write headers →'}
+        </button>
+        {headerLog && (
+          <p style={{ fontFamily: GM, fontSize: 11, color: headerLog.startsWith('✗') ? '#b04040' : '#3F7F4A', marginTop: 10, lineHeight: 1.6 }}>
+            {headerLog}
+          </p>
+        )}
+      </div>
+
+      {/* Duplicate audit */}
+      <div style={{ padding: 14, border: `1px dashed rgba(13,13,11,0.18)`, borderRadius: 4, background: 'rgba(255,81,0,0.04)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+          <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', color: '#ff5100', textTransform: 'uppercase' }}>
+            duplicate audit
+          </p>
+          {audit && (
+            <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
+              {audit.duplicateGroups} duplicate email{audit.duplicateGroups === 1 ? '' : 's'} · {audit.duplicateRows} stale rows · {audit.totalRows} total
+            </span>
+          )}
+        </div>
+        <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 10, lineHeight: 1.6 }}>
+          groups bench rows by lowercased email. most-recent timestamp wins; older entries flagged as stale. read-only — you merge manually in the Sheet using this list as a guide.
+        </p>
+        <button onClick={runAudit} disabled={auditBusy}
+          style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.06em', padding: '8px 14px', background: '#ff5100', color: '#fff', border: 'none', cursor: auditBusy ? 'wait' : 'pointer', borderRadius: 4 }}>
+          {auditBusy ? 'auditing…' : 'scan for duplicates →'}
+        </button>
+        {auditErr && (
+          <p style={{ fontFamily: GM, fontSize: 11, color: '#b04040', marginTop: 10 }}>✗ {auditErr}</p>
+        )}
+        {audit && audit.groups && audit.groups.length === 0 && (
+          <p style={{ fontFamily: GM, fontSize: 11, color: '#3F7F4A', marginTop: 10 }}>
+            ✓ no duplicates — every email is unique across {audit.totalRows} rows.
+          </p>
+        )}
+        {audit && audit.groups && audit.groups.length > 0 && (
+          <div style={{ marginTop: 12, maxHeight: 480, overflowY: 'auto', border: `1px solid ${C.rule}`, background: '#fff' }}>
+            {audit.groups.map((g) => (
+              <div key={g.email} style={{ padding: '12px 14px', borderBottom: `1px solid ${C.rule}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 13 }}>{g.email}</span>
+                  <span style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{g.count} rows</span>
+                </div>
+                {/* Keep row */}
+                <div style={{ display: 'grid', gridTemplateColumns: '60px 80px 1fr', gap: 10, padding: '6px 0', fontFamily: GM, fontSize: 11, alignItems: 'baseline' }}>
+                  <span style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', color: '#3F7F4A', textTransform: 'uppercase' }}>keep</span>
+                  <span style={{ fontFamily: GM, fontSize: 11, color: C.ink }}>row {g.keep.rowNumber}</span>
+                  <span style={{ fontSize: 11, color: C.soft }}>{g.keep.name} · {g.keep.timestamp || '(no timestamp)'}</span>
+                </div>
+                {/* Stale rows */}
+                {g.stale.map((s) => (
+                  <div key={s.rowNumber} style={{ display: 'grid', gridTemplateColumns: '60px 80px 1fr', gap: 10, padding: '4px 0', fontFamily: GM, fontSize: 11, alignItems: 'baseline', opacity: 0.72 }}>
+                    <span style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', color: '#b04040', textTransform: 'uppercase' }}>stale</span>
+                    <span style={{ fontFamily: GM, fontSize: 11, color: C.ink, textDecoration: 'line-through' }}>row {s.rowNumber}</span>
+                    <span style={{ fontSize: 11, color: C.soft }}>{s.name} · {s.timestamp || '(no timestamp)'}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AdminQuickLinks() {
   const Item = ({ href, label, sub }) => (
     <a href={href} target="_blank" rel="noreferrer"
@@ -5412,6 +5533,9 @@ function AdminPage({ accent, setPage }) {
 
         {/* ── Teammate pairings — drives the bench-builder 'teams' filter. */}
         <AdminTeammatePairings secret={secret} />
+
+        {/* ── Sheet maintenance — column headers + duplicate audit. ─────── */}
+        <AdminSheetTools secret={secret} />
 
         {/* ── Quick links ──────────────────────────────────────────────── */}
         <AdminQuickLinks />
