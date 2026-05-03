@@ -4,13 +4,31 @@
   "outputDirectory": ".",
   "installCommand": "npm install",
   "crons": [
-    { "path": "/api/ping", "schedule": "0 9 */20 * *" }
+    {
+      "path": "/api/ping",
+      "schedule": "0 9 */20 * *"
+    },
+    {
+      "path": "/api/concierge-dispatch",
+      "schedule": "*/30 * * * *"
+    }
   ],
   "redirects": [
-    { "source": "/pricing",   "destination": "/look",  "permanent": true },
-    { "source": "/dashboard", "destination": "/bench", "permanent": true }
+    {
+      "source": "/pricing",
+      "destination": "/look",
+      "permanent": true
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/bench",
+      "permanent": true
+    }
   ],
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
