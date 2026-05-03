@@ -4267,6 +4267,294 @@ function AdminConciergePanel({ secret }) {
   );
 }
 
+// ── YEAR-TIER INQUIRIES ──────────────────────────────────────────────
+// Pulls year-tier-inquiry submissions from Formspree, suggests an
+// annual price band via Anthropic (or heuristic fallback), lets admin
+// choose a final price, drafts a proposal email, sends via Resend.
+function AdminYearInquiriesPanel({ secret }) {
+  const [briefs, setBriefs]   = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError]     = React.useState('');
+  const [activeId, setActiveId] = React.useState(null);
+  // Per-brief state
+  const [suggest, setSuggest] = React.useState({});      // briefId → { suggestion, low, high, rationale, mode }
+  const [suggestBusy, setSuggestBusy] = React.useState({});
+  const [finalPrice, setFinalPrice]   = React.useState({}); // briefId → number
+  const [draft, setDraft]      = React.useState({});     // briefId → { subject, body, mode }
+  const [draftBusy, setDraftBusy] = React.useState({});
+  const [sendBusy, setSendBusy]   = React.useState({});
+  const [sentInfo, setSentInfo]   = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem('colophon_year_sent') || '{}') || {}; }
+    catch { return {}; }
+  });
+
+  const fetchBriefs = async () => {
+    setLoading(true); setError('');
+    try {
+      const r = await fetch('/api/submissions', { headers: { Authorization: `Bearer ${secret}` } });
+      const text = await r.text();
+      let j = null; try { j = text ? JSON.parse(text) : null; } catch {}
+      if (!r.ok) {
+        setError((j && (j.error || j.message)) || `status ${r.status}`);
+        return;
+      }
+      const all = (j && (j.submissions || j.data)) || [];
+      const onlyYear = all.filter((s) => {
+        const data = (s.data || s);
+        return ((data.source || s.source || '').toLowerCase() === 'year-tier-inquiry');
+      });
+      setBriefs(onlyYear);
+    } catch (ex) { setError(ex.message || 'fetch failed'); }
+    finally { setLoading(false); }
+  };
+  React.useEffect(() => { fetchBriefs(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const fmt = (n) => `$${Math.round(n).toLocaleString('en-US')}`;
+
+  const runSuggest = async (sub) => {
+    const briefId = sub.id;
+    const data = sub.data || sub;
+    setSuggestBusy((b) => ({ ...b, [briefId]: true }));
+    try {
+      const r = await fetch('/api/suggest-year-price', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify({
+          buyer: { name: data.name, email: data.email, company: data.company },
+          filters: data.filters || '',
+          matched: data.matched || 0,
+          filtersAvail: data.filtersAvail || 0,
+        }),
+      });
+      const j = await r.json();
+      if (r.ok && j.suggestion) {
+        setSuggest((s) => ({ ...s, [briefId]: j }));
+        setFinalPrice((p) => ({ ...p, [briefId]: j.suggestion }));
+      } else {
+        setSuggest((s) => ({ ...s, [briefId]: { error: j.error || `status ${r.status}` } }));
+      }
+    } catch (ex) {
+      setSuggest((s) => ({ ...s, [briefId]: { error: ex.message } }));
+    } finally {
+      setSuggestBusy((b) => ({ ...b, [briefId]: false }));
+    }
+  };
+
+  const draftEmail = async (sub) => {
+    const briefId = sub.id;
+    const data = sub.data || sub;
+    const price = finalPrice[briefId];
+    if (!price) return;
+    setDraftBusy((b) => ({ ...b, [briefId]: true }));
+    try {
+      const r = await fetch('/api/draft-year-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify({
+          buyer: { name: data.name, email: data.email, company: data.company },
+          filters: data.filters || '',
+          matched: data.matched || 0,
+          price,
+        }),
+      });
+      const j = await r.json();
+      if (r.ok && j.subject && j.body) {
+        setDraft((d) => ({ ...d, [briefId]: { subject: j.subject, body: j.body, mode: j.mode || 'template' } }));
+      } else {
+        setDraft((d) => ({ ...d, [briefId]: { error: j.error || `status ${r.status}` } }));
+      }
+    } catch (ex) {
+      setDraft((d) => ({ ...d, [briefId]: { error: ex.message } }));
+    } finally {
+      setDraftBusy((b) => ({ ...b, [briefId]: false }));
+    }
+  };
+
+  const updateDraft = (briefId, patch) => setDraft((d) => ({ ...d, [briefId]: { ...(d[briefId] || {}), ...patch } }));
+
+  const sendEmail = async (sub) => {
+    const briefId = sub.id;
+    const data = sub.data || sub;
+    const d = draft[briefId];
+    if (!d || !d.subject || !d.body) return;
+    setSendBusy((b) => ({ ...b, [briefId]: true }));
+    try {
+      const r = await fetch('/api/concierge-send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify({
+          to: data.email,
+          subject: d.subject,
+          body: d.body,
+          submissionId: briefId,
+          submittedAt: sub.submitted_at ? Date.parse(sub.submitted_at) : 0,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j.error || `status ${r.status}`);
+      const next = { ...sentInfo, [briefId]: { sentAt: Date.now(), price: finalPrice[briefId], resendId: j.id || '' } };
+      setSentInfo(next);
+      try { localStorage.setItem('colophon_year_sent', JSON.stringify(next)); } catch {}
+    } catch (ex) {
+      updateDraft(briefId, { sendError: ex.message || 'send failed' });
+    } finally {
+      setSendBusy((b) => ({ ...b, [briefId]: false }));
+    }
+  };
+
+  const copy = (text) => { try { navigator.clipboard.writeText(text); } catch {} };
+  const mailtoFor = (briefId, to) => {
+    const d = draft[briefId] || {};
+    return `mailto:${to}?subject=${encodeURIComponent(d.subject || '')}&body=${encodeURIComponent(d.body || '')}`;
+  };
+
+  return (
+    <div style={{ marginBottom: 36, border: `1px solid ${C.rule}`, padding: 18, background: '#fff' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+        <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.16em', textTransform: 'uppercase' }}>year-tier · pricing queue</p>
+        <button onClick={fetchBriefs} style={adminIntentBtn('neutral')} disabled={loading}>{loading ? 'loading…' : 'refresh'}</button>
+      </div>
+      <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 14, lineHeight: 1.6 }}>
+        Inquiries from the build wizard's year tier. Suggest a price (Anthropic when configured, heuristic fallback otherwise), pick a final number, draft a proposal, send via Resend.
+      </p>
+      {error && (
+        <div style={{ padding: '12px 14px', border: '1px solid #b04040', background: 'rgba(176,64,64,0.06)', color: '#7a1818', fontFamily: GM, fontSize: 11, borderRadius: 4, marginBottom: 14 }}>{error}</div>
+      )}
+      {!error && briefs && briefs.length === 0 && !loading && (
+        <p style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>no year-tier inquiries yet.</p>
+      )}
+      {(briefs || []).map((sub) => {
+        const data = sub.data || sub;
+        const open = activeId === sub.id;
+        const sg = suggest[sub.id];
+        const dr = draft[sub.id];
+        const sent = sentInfo[sub.id];
+        return (
+          <div key={sub.id} style={{ borderTop: `1px solid ${C.rule}`, padding: '14px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, cursor: 'pointer' }}
+              onClick={() => setActiveId(open ? null : sub.id)}>
+              <div>
+                <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 13 }}>{data.name || '(no name)'}</span>
+                <span style={{ marginLeft: 10, fontFamily: GM, fontSize: 10, color: C.soft }}>{data.email || ''}</span>
+                {sub.submitted_at && <span style={{ marginLeft: 10, fontFamily: GM, fontSize: 9, color: C.soft }}>· {new Date(sub.submitted_at).toLocaleString()}</span>}
+              </div>
+              <span style={{ fontFamily: GM, fontSize: 10, color: sent ? '#3F7F4A' : C.soft }}>
+                {sent ? `✓ sent · ${fmt(sent.price)}` : (open ? '▾' : '▸')} {!sent && finalPrice[sub.id] ? `· ${fmt(finalPrice[sub.id])}` : ''}
+              </span>
+            </div>
+            {open && (
+              <div style={{ marginTop: 12, padding: 14, background: '#FAFAF8', borderRadius: 4 }}>
+                <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.14em', color: C.soft, textTransform: 'uppercase', marginBottom: 6 }}>filters at submit</p>
+                <p style={{ fontFamily: GM, fontSize: 12, color: C.ink, marginBottom: 4 }}>{data.filters || '(none)'}</p>
+                <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginBottom: 14 }}>matched {data.matched || 0} candidates · {data.filtersAvail || 0} immediately available</p>
+
+                {/* Step 1 — suggest */}
+                <div style={{ marginBottom: 14 }}>
+                  <button onClick={() => runSuggest(sub)} disabled={suggestBusy[sub.id]}
+                    style={{ ...adminIntentBtn('approve', 'full'), padding: '7px 12px', fontSize: 11 }}>
+                    {suggestBusy[sub.id] ? 'thinking…' : (sg && sg.suggestion ? 'rerun suggestion' : 'suggest annual price →')}
+                  </button>
+                  {sg && sg.error && <p style={{ fontFamily: GM, fontSize: 11, color: '#b04040', marginTop: 8 }}>✗ {sg.error}</p>}
+                  {sg && sg.suggestion && (
+                    <div style={{ marginTop: 10, padding: '10px 14px', background: '#fff', border: `1px solid ${C.rule}`, borderRadius: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: GS, fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em' }}>{fmt(sg.suggestion)}</span>
+                        <span style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>band: {fmt(sg.low)} – {fmt(sg.high)}</span>
+                        <span style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.1em', textTransform: 'uppercase', marginLeft: 'auto' }}>
+                          {sg.mode === 'ai' ? '✦ ai ranking' : 'heuristic'}
+                        </span>
+                      </div>
+                      {sg.rationale && (
+                        <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginTop: 6, fontStyle: 'italic' }}>{sg.rationale}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Step 2 — final price */}
+                {sg && sg.suggestion && (
+                  <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <label style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', color: C.soft, textTransform: 'uppercase' }}>final price</label>
+                    <span style={{ fontFamily: GM, fontSize: 14, color: C.ink }}>$</span>
+                    <input type="number" min="0" step="100"
+                      value={finalPrice[sub.id] || ''}
+                      onChange={(e) => setFinalPrice((p) => ({ ...p, [sub.id]: parseInt(e.target.value, 10) || 0 }))}
+                      style={{ fontFamily: GM, fontSize: 14, padding: '6px 10px', border: `1px solid ${C.rule}`, borderRadius: 4, width: 120 }} />
+                    <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>per year</span>
+                    {[sg.low, sg.suggestion, sg.high].map((v) => (
+                      <button key={v} onClick={() => setFinalPrice((p) => ({ ...p, [sub.id]: v }))}
+                        style={{ ...adminIntentBtn('neutral'), padding: '4px 9px', fontSize: 10 }}>
+                        {fmt(v)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Step 3 — draft + send */}
+                {sg && sg.suggestion && finalPrice[sub.id] > 0 && (
+                  <div style={{ padding: 14, border: `1px solid ${C.rule}`, background: '#fff', borderRadius: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', flexWrap: 'wrap', marginBottom: 10 }}>
+                      <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.16em', color: '#3F7F4A', textTransform: 'uppercase' }}>
+                        proposal email · pre-loaded
+                      </p>
+                      <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
+                        {dr && dr.mode === 'ai' ? '✦ AI drafted' : dr && dr.mode === 'template' ? 'template' : ''}
+                      </span>
+                    </div>
+                    {!dr && (
+                      <button onClick={() => draftEmail(sub)} disabled={draftBusy[sub.id]}
+                        style={{ ...adminIntentBtn('approve', 'full'), padding: '8px 14px', fontSize: 11 }}>
+                        {draftBusy[sub.id] ? 'drafting…' : `draft proposal at ${fmt(finalPrice[sub.id])} →`}
+                      </button>
+                    )}
+                    {dr && dr.error && (
+                      <p style={{ fontFamily: GM, fontSize: 11, color: '#b04040' }}>✗ {dr.error}</p>
+                    )}
+                    {dr && !dr.error && (
+                      <div>
+                        <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginBottom: 4 }}>to</div>
+                        <input type="email" readOnly value={data.email || ''} style={{ width: '100%', fontFamily: GM, fontSize: 12, padding: 8, border: `1px solid ${C.rule}`, borderRadius: 4, background: '#FAFAF8', marginBottom: 10 }} />
+                        <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginBottom: 4 }}>subject</div>
+                        <input value={dr.subject} onChange={(e) => updateDraft(sub.id, { subject: e.target.value })}
+                          style={{ width: '100%', fontFamily: GM, fontSize: 12, padding: 8, border: `1px solid ${C.rule}`, borderRadius: 4, marginBottom: 10 }} />
+                        <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginBottom: 4 }}>body</div>
+                        <textarea rows={14} value={dr.body} onChange={(e) => updateDraft(sub.id, { body: e.target.value })}
+                          style={{ width: '100%', fontFamily: GM, fontSize: 12, padding: 10, border: `1px solid ${C.rule}`, borderRadius: 4, lineHeight: 1.55, resize: 'vertical', whiteSpace: 'pre-wrap' }} />
+                        {dr.sendError && <p style={{ fontFamily: GM, fontSize: 11, color: '#b04040', marginTop: 8 }}>{dr.sendError}</p>}
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
+                          {!sent && (
+                            <button onClick={() => sendEmail(sub)} disabled={sendBusy[sub.id]}
+                              style={{ ...adminIntentBtn('approve', 'full'), padding: '10px 16px', fontSize: 11 }}>
+                              {sendBusy[sub.id] ? 'sending…' : `send proposal at ${fmt(finalPrice[sub.id])} →`}
+                            </button>
+                          )}
+                          {sent && (
+                            <span style={{ fontFamily: GM, fontSize: 11, color: '#3F7F4A' }}>
+                              ● sent {new Date(sent.sentAt).toLocaleString()} · {fmt(sent.price)}
+                            </span>
+                          )}
+                          <button onClick={() => draftEmail(sub)} disabled={draftBusy[sub.id]}
+                            style={{ ...adminIntentBtn('neutral'), padding: '6px 10px', fontSize: 10 }}>
+                            {draftBusy[sub.id] ? 'redrafting…' : 'redraft'}
+                          </button>
+                          <button onClick={() => copy(dr.body)} style={{ ...adminIntentBtn('neutral'), padding: '6px 10px', fontSize: 10 }}>copy body</button>
+                          <a href={mailtoFor(sub.id, data.email)} style={{ ...adminIntentBtn('neutral'), padding: '6px 10px', fontSize: 10, textDecoration: 'none', display: 'inline-block' }}>
+                            open in mail client ↗
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── SHEET MAINTENANCE ─────────────────────────────────────────────────
 // Two ops bundled: write the column-header labels for the cols we
 // added (Partners / Status / Last Updated / Confirmed), and pull a
@@ -5628,6 +5916,9 @@ function AdminPage({ accent, setPage }) {
 
         {/* ── Concierge brief → bespoke bench match queue. ───────────────── */}
         <AdminConciergePanel secret={secret} />
+
+        {/* ── Year-tier inquiries → AI-suggested pricing → proposal email. */}
+        <AdminYearInquiriesPanel secret={secret} />
 
         {/* ── Teammate pairings — drives the bench-builder 'teams' filter. */}
         <AdminTeammatePairings secret={secret} />
