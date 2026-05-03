@@ -592,7 +592,23 @@ const PHIL_POOL = [
 
 
 const RATES = ['$$', '$$$', '$$$', '$$$$'];
-const TZS = ['UTC−8', 'UTC−7', 'UTC−6', 'UTC−5', 'UTC−3', 'UTC+0', 'UTC+1', 'UTC+2'];
+// TZ pool covers all three regions so the synth fallback can place rows
+// anywhere on the map (no real tz column on the Sheet means we cycle by
+// index for unknown rows; explicit values from col G or TZ_OVERRIDES win).
+const TZS = ['UTC−8', 'UTC−7', 'UTC−6', 'UTC−5', 'UTC−3', 'UTC+0', 'UTC+1', 'UTC+2', 'UTC+5', 'UTC+7', 'UTC+8', 'UTC+9', 'UTC+10', 'UTC+12'];
+
+// Region-word → representative UTC string. Apply form posts the
+// region key ('americas'/'europe'/'asia'); when /api/bench-update
+// writes that into the Sheet col G, parseSheetCSV maps it back to a
+// concrete UTC string for display + filter detection.
+const REGION_TO_TZ = {
+  'americas':       'UTC−5',  // NYC
+  'europe':         'UTC+1',  // BER
+  'europe-africa':  'UTC+1',
+  'asia':           'UTC+8',  // HKG / SIN
+  'asia-pacific':   'UTC+8',
+  'pacific':        'UTC+10', // SYD
+};
 
 // Per-email tz overrides. The Sheet has no real tz column so the parser
 // otherwise cycles through TZS by row index — fine for the long tail,
@@ -689,7 +705,21 @@ function parseSheetCSV(text) {
     return {
       id: i+1, name, realName, firstName, emailRaw, emailEnc, portfolio, linkedin, updatedAt,
       discipline: disc, disciplines: disciplinesFinal, rawDisciplines, availability, hourlyRate,
-      tz: TZ_OVERRIDES[(emailRaw || '').toLowerCase()] || TZS[i % TZS.length], // synthesized unless overridden by email
+      // Timezone resolution chain (highest priority first):
+      //   1. Sheet col G (index 6)        — explicit value the form / admin set
+      //   2. TZ_OVERRIDES[email]           — manual pins for known creatives
+      //   3. TZS[index]                    — synthesized fallback
+      // Col G can hold either a UTC string ('UTC+8', 'UTC−5') OR a region
+      // key ('americas'|'europe'|'asia'); REGION_TO_TZ maps the latter.
+      tz: (() => {
+        const colG = String(row[6] || '').trim();
+        if (colG) {
+          const norm = colG.toLowerCase().replace(/[\s/–]+/g, '-');
+          if (REGION_TO_TZ[norm]) return REGION_TO_TZ[norm];
+          if (/^utc[−\-+]\d+$/i.test(colG.replace(/\s+/g, ''))) return colG;
+        }
+        return TZ_OVERRIDES[(emailRaw || '').toLowerCase()] || TZS[i % TZS.length];
+      })(),
       rate, yoe,
       clients: clients.length ? clients : ['portfolio available'],
       note,

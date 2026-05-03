@@ -79,6 +79,10 @@ export async function appendBenchRow(fields) {
   row[3]  = fields.portfolio    || '';
   row[4]  = fields.linkedin     || '';
   row[5]  = fields.disciplines  || fields.discipline || '';
+  // col G (index 6) — Timezone. Accepts a region word ('americas'|
+  // 'europe'|'asia') or a UTC string ('UTC+8', 'UTC−5'). parseSheetCSV
+  // resolves region words via REGION_TO_TZ on read.
+  row[6]  = fields.timezone     || '';
   row[7]  = fields.availability || '';
   row[9]  = String(fields.hourlyRate || '');
   row[12] = fields.topClients   || fields.clients || '';

@@ -18,6 +18,7 @@ import { google } from 'googleapis';
 const TAB_NAME = process.env.SHEETS_TAB_NAME || 'Form Responses 1';
 
 const HEADERS = [
+  { col: 'G', label: 'Timezone' },
   { col: 'R', label: 'Partners' },
   { col: 'S', label: 'Status' },
   { col: 'T', label: 'Last Updated' },

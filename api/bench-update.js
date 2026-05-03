@@ -49,6 +49,7 @@ export default async function handler(req, res) {
         portfolio:     body.portfolio,
         linkedin:      body.linkedin,
         disciplines:   body.disciplines || body.discipline,
+        timezone:      body.timezone || body.tz,
         availability:  body.availability,
         hourlyRate:    body.hourlyRate,
         topClients:    body.topClients || body.clients,
