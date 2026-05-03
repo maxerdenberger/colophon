@@ -594,6 +594,15 @@ const PHIL_POOL = [
 const RATES = ['$$', '$$$', '$$$', '$$$$'];
 const TZS = ['UTC−8', 'UTC−7', 'UTC−6', 'UTC−5', 'UTC−3', 'UTC+0', 'UTC+1', 'UTC+2'];
 
+// Per-email tz overrides. The Sheet has no real tz column so the parser
+// otherwise cycles through TZS by row index — fine for the long tail,
+// but creatives whose tz we know explicitly should be pinned. Keyed by
+// lowercased email; values must match TZS strings (or any UTC±N format
+// the region detector understands).
+const TZ_OVERRIDES = {
+  'rachel.gogel@gmail.com': 'UTC+1',  // berlin
+};
+
 function parseSheetCSV(text) {
   const lines = text.split('\n').filter((l) => l.trim());
   const parseRow = (row) => {
@@ -680,7 +689,7 @@ function parseSheetCSV(text) {
     return {
       id: i+1, name, realName, firstName, emailRaw, emailEnc, portfolio, linkedin, updatedAt,
       discipline: disc, disciplines: disciplinesFinal, rawDisciplines, availability, hourlyRate,
-      tz: TZS[i % TZS.length], // tz still synthesized — no city/tz column in form
+      tz: TZ_OVERRIDES[(emailRaw || '').toLowerCase()] || TZS[i % TZS.length], // synthesized unless overridden by email
       rate, yoe,
       clients: clients.length ? clients : ['portfolio available'],
       note,
