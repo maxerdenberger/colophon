@@ -3965,7 +3965,11 @@ function AdminBenchLinks({ secret }) {
             <p style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>nothing sent yet. send a concierge reply or year-tier proposal first.</p>
           ) : (
             <div style={{ maxHeight: 480, overflowY: 'auto', border: `1px solid ${C.rule}` }}>
-              {links.map((l) => {
+              {links
+                // /api/email-events returns { hidden: true } for sends to
+                // OPERATOR_EMAIL — drop them from the tracking list.
+                .filter((l) => !(events[l.resendId] && events[l.resendId].hidden))
+                .map((l) => {
                 const e = events[l.resendId] || null;
                 return (
                   <div key={l.kind + ':' + l.submissionId} style={{ padding: '10px 14px', borderBottom: `1px solid ${C.rule}`, fontFamily: GM, fontSize: 11 }}>

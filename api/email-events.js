@@ -43,6 +43,13 @@ export default async function handler(req, res) {
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   const events = {};
+  // Drop emails sent to the operator (their own test sends shouldn't
+  // pollute the tracking dashboard). Configurable via OPERATOR_EMAIL —
+  // comma-separated list, defaults to merdenberger@gmail.com.
+  const OPERATOR_EMAILS = new Set(
+    (process.env.OPERATOR_EMAIL || 'merdenberger@gmail.com')
+      .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+  );
   // Resend's API doesn't support batch retrieval — fetch in parallel,
   // capped at 200/request to keep us within Vercel's serverless timeout.
   await Promise.all(ids.map(async (id) => {
@@ -58,6 +65,13 @@ export default async function handler(req, res) {
       //     created_at, to, subject,
       //     events?: [{ type, created_at, ... }]   // some plans include event log
       //   }
+      const recipient = (Array.isArray(data.to) ? data.to[0] : data.to) || '';
+      // Skip operator's own emails — admin doesn't need to track their
+      // own test sends. Marker so the client knows to hide the row.
+      if (recipient && OPERATOR_EMAILS.has(String(recipient).toLowerCase())) {
+        events[id] = { hidden: true, reason: 'operator-email' };
+        return;
+      }
       const list = Array.isArray(data.events) ? data.events : [];
       const opens   = list.filter((e) => e.type === 'email.opened').length;
       const clicks  = list.filter((e) => e.type === 'email.clicked').length;
@@ -66,7 +80,7 @@ export default async function handler(req, res) {
       events[id] = {
         status: data.last_event || 'unknown',
         created_at: data.created_at || null,
-        to: Array.isArray(data.to) ? data.to[0] : data.to,
+        to: recipient,
         subject: data.subject || '',
         opens,
         clicks,
