@@ -1876,7 +1876,7 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
   const [form, setForm] = useState({
     name: '', email: '', portfolio: '', linkedin: '', disciplineOther: '',
     availability: '', timezone: '', hourlyRate: '', minFee: '',
-    referralContext: '', topClients: '', expLevel: '', summary: '',
+    referralContext: '', topClients: '', expLevel: '', yearsExperience: '', summary: '',
     partnerEmails: '', aiSavvy: '',
     rec1Name: '', rec1Email: '', rec2Name: '', rec2Email: '', rec3Name: '', rec3Email: '',
     buyerName: '', buyerOrg: '', buyerEmail: ''
@@ -1969,12 +1969,18 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
             </div>
           </div>
           {disciplines.includes('Other (specify below)') && <div><label style={lS}>specify discipline</label><input style={iS} value={form.disciplineOther} onChange={set('disciplineOther')} /></div>}
-          <div>
-            <label style={lS}>professional level</label>
-            <select style={iS} value={form.expLevel} onChange={set('expLevel')}>
-              <option value="" disabled>select your professional level</option>
-              {EXP_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-            </select>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+            <div>
+              <label style={lS}>professional level</label>
+              <select style={iS} value={form.expLevel} onChange={set('expLevel')}>
+                <option value="" disabled>select your professional level</option>
+                {EXP_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lS}>years of experience</label>
+              <input type="number" min="0" max="60" style={iS} value={form.yearsExperience} onChange={set('yearsExperience')} placeholder="e.g. 12" />
+            </div>
           </div>
           <div>
             <label style={lS}>project categories — strongest expertise</label>
@@ -3073,7 +3079,7 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
             rather skip the browsing?
           </h1>
           <p style={{ fontFamily: GM, fontSize: 13, color: C.soft, lineHeight: 1.7, marginBottom: 32, maxWidth: '54ch' }}>
-            tell us what you need. we'll come back with five names from the top 1% of the industry. you email them yourself.
+            tell us what you need. we'll come back with five names from the top 1% of the industry — real availability, real rates, direct contact info. the introduction is yours to make, on your timeline.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 40 }}>
             <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.8, margin: 0 }}>
@@ -3108,7 +3114,7 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
               {[
                 ['Pay $199', 'Stripe checkout. Refundable if we can\u2019t match you.'],
                 ['Send your brief', 'After payment you\u2019ll be returned here to fill in a short brief.'],
-                ['Get 5+ names in 4h', 'Real names, real rates, real contact info. You email them yourself.'],
+                ['Get 5+ names in 4h', 'Real names, real rates, direct contact info. The introduction is yours to make.'],
               ].map(([t, d], i) => (
                 <div key={i} style={{ display: 'grid', gridTemplateColumns: '36px 1fr', gap: 14, padding: '18px 0', borderTop: `1px solid ${C.rule}`, borderBottom: i === 2 ? `1px solid ${C.rule}` : 'none' }}>
                   <div style={{ fontFamily: GM, fontSize: 11, color: C.ink, letterSpacing: '0.1em' }}>0{i+1}</div>
@@ -3546,6 +3552,175 @@ function AdminStatsPanel({ accent }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ── REVENUE + SUNK COSTS ──────────────────────────────────────────────────
+// Editable monthly + one-time costs. Update these as your stack changes.
+// `monthly` accrues per month over the selected window; `oneTime` is a
+// flat hit applied once. All numbers in dollars.
+const SUNK_COSTS = {
+  monthly: [
+    { label: 'Vercel (Pro plan)',   amount: 20 },
+    { label: 'Formspree (API)',     amount: 30 },
+    { label: 'Resend (transactional emails)', amount: 0 },
+    { label: 'Domain (colophon.contact)',     amount: 12/12 },  // ~$12/yr → $1/mo
+  ],
+  oneTime: [
+    // Add one-off line items here, e.g. design tools, contractors, etc.
+    // { label: 'Logo / brand mark', amount: 0 },
+  ],
+};
+
+function AdminRevenuePanel({ secret }) {
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const [days, setDays] = React.useState(90);
+
+  const fetchSummary = async (n = days) => {
+    setLoading(true); setError('');
+    try {
+      const r = await fetch(`/api/revenue?days=${n}`, { headers: { Authorization: `Bearer ${secret}` } });
+      const text = await r.text();
+      let j = null; try { j = text ? JSON.parse(text) : null; } catch {}
+      if (!r.ok) {
+        setError((j && (j.error || j.message)) || (
+          r.status === 401 ? 'unauthorized — check ADMIN_KEY on Vercel.' :
+          r.status === 501 ? 'STRIPE_SECRET_KEY not set on Vercel.' :
+          r.status === 404 ? '/api/revenue not deployed yet — push latest main.' :
+          `status ${r.status}`));
+        return;
+      }
+      setData(j);
+    } catch (ex) { setError(ex.message || 'fetch failed'); }
+    finally { setLoading(false); }
+  };
+  React.useEffect(() => { fetchSummary(days); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [days]);
+
+  const fmt = (n) => `$${(Math.round(n * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
+  // Sunk-cost math, scaled to the selected window.
+  const monthsInWindow = days / 30;
+  const monthlyTotal  = SUNK_COSTS.monthly.reduce((s, c) => s + c.amount, 0);
+  const monthlyOverWindow = monthlyTotal * monthsInWindow;
+  const oneTimeTotal  = SUNK_COSTS.oneTime.reduce((s, c) => s + c.amount, 0);
+  const totalCosts    = monthlyOverWindow + oneTimeTotal;
+  const gross   = data?.totals?.gross   || 0;
+  const fees    = data?.totals?.fees    || 0;
+  const refunds = data?.totals?.refunds || 0;
+  const stripeNet = data?.totals?.net   || 0;       // post-Stripe-fees
+  const trueNet   = stripeNet - totalCosts;          // post-fees and post-sunk-costs
+  const aov     = (data && data.totals && data.totals.count) ? gross / data.totals.count : 0;
+
+  // Daily sparkline — width-normalized bar chart.
+  const daily = data?.daily || [];
+  const maxDay = Math.max(1, ...daily.map((d) => d.gross));
+
+  const tile = (label, value, sub, color) => (
+    <div style={{ padding: '18px 20px', borderRight: `1px solid ${C.rule}` }}>
+      <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 28, letterSpacing: '-0.045em', lineHeight: 1, color: color || C.ink }}>{value}</div>
+      <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 8 }}>{label}</div>
+      {sub && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+
+  return (
+    <div style={{ marginTop: 22, marginBottom: 32, border: `1px solid ${C.rule}`, background: C.paper }}>
+      <div style={{ padding: '10px 20px', borderBottom: `1px solid ${C.rule}`, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ff5100' }} />
+          <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.ink }}>revenue · stripe</span>
+          <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>{loading ? 'loading…' : `last ${days}d`}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {[7, 30, 90, 365].map((n) => (
+            <button key={n} onClick={() => setDays(n)}
+              style={{
+                fontFamily: GM, fontSize: 10, letterSpacing: '0.05em',
+                padding: '5px 9px', cursor: 'pointer', borderRadius: 4,
+                background: days === n ? C.ink : 'transparent',
+                color: days === n ? C.cream : C.ink,
+                border: `1px solid ${days === n ? C.ink : 'rgba(13,13,11,0.18)'}`,
+              }}>
+              {n}d
+            </button>
+          ))}
+          <button onClick={() => fetchSummary(days)} style={{ ...adminIntentBtn('neutral'), padding: '5px 9px', fontSize: 10, marginLeft: 6 }}>
+            refresh
+          </button>
+        </div>
+      </div>
+      {error && (
+        <div style={{ padding: '12px 20px', color: '#7a1818', fontFamily: GM, fontSize: 11, lineHeight: 1.6, background: 'rgba(176,64,64,0.06)' }}>{error}</div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        {tile('gross', fmt(gross), `${data?.totals?.count || 0} txns`)}
+        {tile('stripe net', fmt(stripeNet), `−${fmt(fees)} fees · −${fmt(refunds)} refunds`)}
+        {tile('sunk costs', fmt(totalCosts), `${SUNK_COSTS.monthly.length} monthly · ${monthsInWindow.toFixed(1)}mo window`)}
+        {tile('true net', fmt(trueNet), 'after Stripe + costs', trueNet >= 0 ? '#3F7F4A' : '#b04040')}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: `1px solid ${C.rule}` }}>
+        {/* Per-product breakdown */}
+        <div style={{ padding: '14px 20px', borderRight: `1px solid ${C.rule}` }}>
+          <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>by product</div>
+          {data?.byProduct ? (
+            Object.entries(data.byProduct).sort((a, b) => b[1].gross - a[1].gross).map(([k, v]) => (
+              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0', fontFamily: GM, fontSize: 12 }}>
+                <span>{k}</span>
+                <span style={{ color: C.soft }}>{v.count}× · <strong style={{ color: C.ink, fontWeight: 600 }}>{fmt(v.gross)}</strong></span>
+              </div>
+            ))
+          ) : (
+            <div style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>no data</div>
+          )}
+          <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 12, lineHeight: 1.6 }}>
+            avg order: <strong style={{ color: C.ink, fontWeight: 600 }}>{fmt(aov)}</strong>
+          </div>
+        </div>
+
+        {/* Cost lines */}
+        <div style={{ padding: '14px 20px' }}>
+          <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>sunk costs</div>
+          {SUNK_COSTS.monthly.map((c) => (
+            <div key={c.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontFamily: GM, fontSize: 12 }}>
+              <span>{c.label}</span>
+              <span style={{ color: C.soft }}>{fmt(c.amount)}/mo · {fmt(c.amount * monthsInWindow)}</span>
+            </div>
+          ))}
+          {SUNK_COSTS.oneTime.length > 0 && SUNK_COSTS.oneTime.map((c) => (
+            <div key={c.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontFamily: GM, fontSize: 12 }}>
+              <span>{c.label} <span style={{ fontSize: 9, color: C.soft, letterSpacing: '0.1em', textTransform: 'uppercase', marginLeft: 4 }}>once</span></span>
+              <span style={{ color: C.soft }}>{fmt(c.amount)}</span>
+            </div>
+          ))}
+          <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 12, lineHeight: 1.6 }}>
+            edit <code>SUNK_COSTS</code> in index.html to adjust.
+          </div>
+        </div>
+      </div>
+
+      {/* Daily sparkline */}
+      {daily.length > 0 && (
+        <div style={{ padding: '14px 20px', borderTop: `1px solid ${C.rule}` }}>
+          <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>daily gross · last {days}d</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: 56 }}>
+            {daily.map((d) => (
+              <div key={d.day}
+                title={`${d.day} · ${fmt(d.gross)} · ${d.count} txns`}
+                style={{
+                  flex: 1,
+                  height: `${Math.max(1, (d.gross / maxDay) * 100)}%`,
+                  background: d.gross > 0 ? '#ff5100' : 'rgba(13,13,11,0.06)',
+                  minHeight: 2,
+                }} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4632,6 +4807,9 @@ function AdminPage({ accent, setPage }) {
 
         {/* ── Live stats — derived from the in-memory bench. ───────────── */}
         <AdminStatsPanel accent={accent} />
+
+        {/* ── Revenue + sunk costs (Stripe summary). ───────────────────── */}
+        <AdminRevenuePanel secret={secret} />
 
         {/* ── Bench browser — approve / deny / revoke / add. ───────────── */}
         <AdminBenchBrowser secret={secret} />
