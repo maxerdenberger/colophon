@@ -4908,6 +4908,8 @@ function AdminTestFlows({ secret }) {
 const ADMIN_INTENT = {
   approve:  { bg: '#3F7F4A', fg: '#FAFAF8' },
   deny:     { bg: '#B04040', fg: '#FAFAF8' },
+  reject:   { bg: '#B04040', fg: '#FAFAF8' },  // alias of deny — used by formspree queue
+  skip:     { bg: '#888580', fg: '#FAFAF8' },  // grey moderation op — defer, not decide
   pause:    { bg: '#C87C18', fg: '#FAFAF8' },
   resume:   { bg: '#3F7F4A', fg: '#FAFAF8' },
   legend:   { bg: '#FF5100', fg: '#FFFFFF' },
@@ -5085,6 +5087,19 @@ function AdminFormspreeApproval({ secret }) {
   });
   const pending = filtered.filter((s) => !reviewed.has(s.id));
 
+  // Visual purge — when an action runs we hold the row briefly with a
+  // fade-out before adding to the reviewed Set (which removes it from
+  // pending). Gives the operator a moment of "yes, that registered" so
+  // approve/reject feels deliberate, not instant-gone.
+  const [purging, setPurging] = React.useState(new Set());
+  const removeFromQueue = (id) => {
+    setPurging((p) => { const n = new Set(p); n.add(id); return n; });
+    setTimeout(() => {
+      setReviewed((s) => { const n = new Set(s); n.add(id); persist(n); return n; });
+      setPurging((p) => { const n = new Set(p); n.delete(id); return n; });
+    }, 320);
+  };
+
   const act = async (sub, op) => {
     append(`→ ${op} · ${sub.id}`);
     recordAction(sub.id, op);
@@ -5116,7 +5131,9 @@ function AdminFormspreeApproval({ secret }) {
     } else {
       append(`✓ ${op} (local) · ${sub.id}`);
     }
-    setReviewed((s) => { const n = new Set(s); n.add(sub.id); persist(n); return n; });
+    // Fade then remove. Approve, skip, reject all clear from the queue —
+    // this panel only shows what hasn't been actioned yet.
+    removeFromQueue(sub.id);
   };
   const clearReviewed = () => { setReviewed(new Set()); persist(new Set()); append('cleared local reviewed list'); };
 
@@ -5150,8 +5167,17 @@ function AdminFormspreeApproval({ secret }) {
         <div style={{ maxHeight: 480, overflowY: 'auto', border: `1px solid rgba(13,13,11,0.08)` }}>
           {pending.map((s) => {
             const data = s.data || s;
+            const isPurging = purging.has(s.id);
             return (
-              <div key={s.id} style={cellRow}>
+              <div key={s.id} style={{
+                ...cellRow,
+                // Brief fade-out before the row drops out of the list,
+                // so approve / skip / reject feel deliberate, not abrupt.
+                opacity: isPurging ? 0.2 : 1,
+                transform: isPurging ? 'translateX(8px)' : 'translateX(0)',
+                transition: 'opacity 0.28s ease, transform 0.28s ease',
+                pointerEvents: isPurging ? 'none' : 'auto',
+              }}>
                 <div>
                   <div style={{ display: 'flex', gap: 10, marginBottom: 4, flexWrap: 'wrap', alignItems: 'baseline' }}>
                     <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 13 }}>{data.name || '(no name)'}</span>
@@ -5188,8 +5214,8 @@ function AdminFormspreeApproval({ secret }) {
                 </div>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                   <button onClick={() => act(s, 'approve')} style={adminIntentBtn('approve', stateFor(s.id, 'approve'))}>approve → sheet</button>
-                  <button onClick={() => act(s, 'skip')}    style={adminIntentBtn('neutral')}>skip</button>
-                  <button onClick={() => act(s, 'reject')}  style={adminIntentBtn('deny', stateFor(s.id, 'reject'))}>reject</button>
+                  <button onClick={() => act(s, 'skip')}    style={adminIntentBtn('skip',    stateFor(s.id, 'skip'))}>skip</button>
+                  <button onClick={() => act(s, 'reject')}  style={adminIntentBtn('reject',  stateFor(s.id, 'reject'))}>reject</button>
                 </div>
               </div>
             );
