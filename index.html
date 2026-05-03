@@ -4058,6 +4058,10 @@ function AdminConciergePanel({ secret }) {
       const next = { ...sentInfo, [briefId]: { sentAt, responseMs, resendId: j.id || '', logged: !!j.logged } };
       setSentInfo(next);
       try { localStorage.setItem('colophon_concierge_sent', JSON.stringify(next)); } catch {}
+      // Auto-collapse — sent rows minimize so the queue stays focused on
+      // what's still pending. The row's still in the list (sorted to the
+      // bottom), just no longer expanded.
+      setActiveId((id) => (id === briefId ? null : id));
     } catch (ex) {
       updateDraft(briefId, { sendError: ex.message || 'send failed' });
     } finally {
@@ -4087,7 +4091,16 @@ function AdminConciergePanel({ secret }) {
       {!error && briefs && briefs.length === 0 && !loading && (
         <p style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>no concierge briefs yet.</p>
       )}
-      {(briefs || []).map((sub) => {
+      {((briefs || []).slice().sort((a, b) => {
+        // Pending rows first; sent ones drop to the bottom, ordered by
+        // most-recent send descending (so the latest reply is the first
+        // sent row you see).
+        const aSent = sentInfo[a.id]?.sentAt || 0;
+        const bSent = sentInfo[b.id]?.sentAt || 0;
+        if (!!aSent !== !!bSent) return aSent ? 1 : -1;
+        if (aSent && bSent) return bSent - aSent;
+        return 0;
+      })).map((sub) => {
         const data = sub.data || sub;
         const open = activeId === sub.id;
         const m    = matches[sub.id];
@@ -4106,20 +4119,38 @@ function AdminConciergePanel({ secret }) {
           ? `sent · responded in ${fmtElapsed(sent.responseMs)}`
           : submittedAt ? `${fmtElapsed(elapsed)} since submitted` : 'no timestamp';
         return (
-          <div key={sub.id} style={{ borderTop: `1px solid ${C.rule}`, padding: '14px 0' }}>
+          <div key={sub.id} style={{
+            borderTop: `1px solid ${C.rule}`,
+            padding: '14px 0',
+            // Visual demotion for sent rows: muted, slim left border in
+            // green so the eye skips them but they're still scannable.
+            opacity: sent ? 0.62 : 1,
+            borderLeft: sent ? `3px solid #3F7F4A` : '3px solid transparent',
+            paddingLeft: 11,
+            marginLeft: -14,
+            transition: 'opacity 0.18s ease',
+          }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, cursor: 'pointer' }}
               onClick={() => setActiveId(open ? null : sub.id)}>
               <div>
-                <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 13 }}>{data.name || '(no name)'}</span>
+                <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 13, textDecoration: sent ? 'line-through' : 'none', textDecorationColor: 'rgba(63,127,74,0.5)' }}>{data.name || '(no name)'}</span>
                 <span style={{ marginLeft: 10, fontFamily: GM, fontSize: 10, color: C.soft }}>{data.email || ''}</span>
                 {data.company && <span style={{ marginLeft: 10, fontFamily: GM, fontSize: 10, color: C.soft }}>· {data.company}</span>}
                 {sub.submitted_at && <span style={{ marginLeft: 10, fontFamily: GM, fontSize: 9, color: C.soft }}>· {new Date(sub.submitted_at).toLocaleString()}</span>}
               </div>
-              <span style={{ fontFamily: GM, fontSize: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: slaColor }} />
-                <span style={{ color: slaColor, fontWeight: sent ? 600 : 400 }}>{slaLabel}</span>
-                <span style={{ color: C.soft }}>· {open ? '▾' : '▸'} {pickedSet.size} picked</span>
-              </span>
+              {sent ? (
+                /* Sent state — solid green pill, no chevron / pick count noise. */
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 10px', borderRadius: 999, background: '#3F7F4A', color: '#fff', fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                  <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />
+                  sent · {fmtElapsed(sent.responseMs)}
+                </span>
+              ) : (
+                <span style={{ fontFamily: GM, fontSize: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: slaColor }} />
+                  <span style={{ color: slaColor, fontWeight: 400 }}>{slaLabel}</span>
+                  <span style={{ color: C.soft }}>· {open ? '▾' : '▸'} {pickedSet.size} picked</span>
+                </span>
+              )}
             </div>
             {open && (
               <div style={{ marginTop: 12, padding: 14, background: '#FAFAF8', borderRadius: 4 }}>
@@ -4395,6 +4426,10 @@ function AdminYearInquiriesPanel({ secret }) {
       const next = { ...sentInfo, [briefId]: { sentAt: Date.now(), price: finalPrice[briefId], resendId: j.id || '' } };
       setSentInfo(next);
       try { localStorage.setItem('colophon_year_sent', JSON.stringify(next)); } catch {}
+      // Auto-collapse the row — keeps the queue focused on what's still
+      // waiting for a price. Sent ones still visible at the bottom of
+      // the list, just minimized.
+      setActiveId((id) => (id === briefId ? null : id));
     } catch (ex) {
       updateDraft(briefId, { sendError: ex.message || 'send failed' });
     } finally {
@@ -4423,24 +4458,49 @@ function AdminYearInquiriesPanel({ secret }) {
       {!error && briefs && briefs.length === 0 && !loading && (
         <p style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>no year-tier inquiries yet.</p>
       )}
-      {(briefs || []).map((sub) => {
+      {((briefs || []).slice().sort((a, b) => {
+        // Pending first, sent at the bottom (most recent send first
+        // among the sent group).
+        const aSent = sentInfo[a.id]?.sentAt || 0;
+        const bSent = sentInfo[b.id]?.sentAt || 0;
+        if (!!aSent !== !!bSent) return aSent ? 1 : -1;
+        if (aSent && bSent) return bSent - aSent;
+        return 0;
+      })).map((sub) => {
         const data = sub.data || sub;
         const open = activeId === sub.id;
         const sg = suggest[sub.id];
         const dr = draft[sub.id];
         const sent = sentInfo[sub.id];
         return (
-          <div key={sub.id} style={{ borderTop: `1px solid ${C.rule}`, padding: '14px 0' }}>
+          <div key={sub.id} style={{
+            borderTop: `1px solid ${C.rule}`,
+            padding: '14px 0',
+            // Demote sent rows visually — muted opacity + green left
+            // border. Same pattern as the concierge panel above.
+            opacity: sent ? 0.62 : 1,
+            borderLeft: sent ? `3px solid #3F7F4A` : '3px solid transparent',
+            paddingLeft: 11,
+            marginLeft: -14,
+            transition: 'opacity 0.18s ease',
+          }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, cursor: 'pointer' }}
               onClick={() => setActiveId(open ? null : sub.id)}>
               <div>
-                <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 13 }}>{data.name || '(no name)'}</span>
+                <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 13, textDecoration: sent ? 'line-through' : 'none', textDecorationColor: 'rgba(63,127,74,0.5)' }}>{data.name || '(no name)'}</span>
                 <span style={{ marginLeft: 10, fontFamily: GM, fontSize: 10, color: C.soft }}>{data.email || ''}</span>
                 {sub.submitted_at && <span style={{ marginLeft: 10, fontFamily: GM, fontSize: 9, color: C.soft }}>· {new Date(sub.submitted_at).toLocaleString()}</span>}
               </div>
-              <span style={{ fontFamily: GM, fontSize: 10, color: sent ? '#3F7F4A' : C.soft }}>
-                {sent ? `✓ sent · ${fmt(sent.price)}` : (open ? '▾' : '▸')} {!sent && finalPrice[sub.id] ? `· ${fmt(finalPrice[sub.id])}` : ''}
-              </span>
+              {sent ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 10px', borderRadius: 999, background: '#3F7F4A', color: '#fff', fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                  <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />
+                  sent · {fmt(sent.price)}
+                </span>
+              ) : (
+                <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
+                  {open ? '▾' : '▸'} {finalPrice[sub.id] ? `· ${fmt(finalPrice[sub.id])}` : ''}
+                </span>
+              )}
             </div>
             {open && (
               <div style={{ marginTop: 12, padding: 14, background: '#FAFAF8', borderRadius: 4 }}>
