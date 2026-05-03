@@ -39,10 +39,35 @@ export default async function handler(req, res) {
   const since = Math.floor((Date.now() - days * 86400_000) / 1000);
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+  // The Stripe account may carry transactions from other products
+  // (subscriptions, one-offs unrelated to Colophon). Match only what's
+  // ours: description starts with 'Colophon' OR metadata.product/.tier
+  // is one of our SKUs. Then exclude the operator's own test purchases.
+  const KNOWN_PRODUCTS = new Set(['day-pass','week-pass','month-pass','year-pass','concierge']);
+  const KNOWN_TIERS    = new Set(['year']);
+  const OPERATOR_EMAILS = new Set(
+    (process.env.OPERATOR_EMAIL || 'merdenberger@gmail.com')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+  );
+  const isColophonCharge = (c) => {
+    const desc = String(c.description || '').toLowerCase();
+    if (desc.startsWith('colophon')) return true;
+    const md = c.metadata || {};
+    if (md.product && KNOWN_PRODUCTS.has(md.product)) return true;
+    if (md.tier && KNOWN_TIERS.has(md.tier)) return true;
+    return false;
+  };
+  const isOperator = (c) => {
+    const e = ((c.billing_details && c.billing_details.email) || c.receipt_email || '').toLowerCase();
+    return e && OPERATOR_EMAILS.has(e);
+  };
+
   try {
     // Walk charges (not payment_intents) — charges include fees/net via
     // balance_transaction expansion. Cap at 1000 in case of high volume.
-    const all = [];
+    const allRaw = [];
     let starting_after;
     for (let page = 0; page < 10; page++) {
       const r = await stripe.charges.list({
@@ -50,10 +75,11 @@ export default async function handler(req, res) {
         created: { gte: since },
         starting_after,
       });
-      all.push(...r.data);
+      allRaw.push(...r.data);
       if (!r.has_more) break;
       starting_after = r.data[r.data.length - 1].id;
     }
+    const all = allRaw.filter((c) => isColophonCharge(c) && !isOperator(c));
 
     // Pull each charge's balance_transaction in parallel for fee/net.
     // Skip if not yet available (charge.balance_transaction may be null

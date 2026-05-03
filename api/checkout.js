@@ -80,6 +80,11 @@ export default async function handler(req, res) {
       cancel_url: cancelUrl,
       customer_email: email || undefined,
       metadata,
+      // Charges don't inherit session metadata. Set it on the
+      // payment_intent so the resulting charge carries product info,
+      // making /api/revenue + /api/recent-activity filters reliable
+      // even if descriptions ever change.
+      payment_intent_data: { metadata },
     });
 
     return res.status(200).json({ url: session.url });

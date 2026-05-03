@@ -74,6 +74,29 @@ export default async function handler(req, res) {
   if (process.env.STRIPE_SECRET_KEY) {
     try {
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+      // Filter to Colophon charges only, exclude operator's own test
+      // purchases — same logic as /api/revenue keeps in sync.
+      const KNOWN_PRODUCTS = new Set(['day-pass','week-pass','month-pass','year-pass','concierge']);
+      const KNOWN_TIERS    = new Set(['year']);
+      const OPERATOR_EMAILS = new Set(
+        (process.env.OPERATOR_EMAIL || 'merdenberger@gmail.com')
+          .split(',')
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean)
+      );
+      const isColophonCharge = (c) => {
+        const desc = String(c.description || '').toLowerCase();
+        if (desc.startsWith('colophon')) return true;
+        const md = c.metadata || {};
+        if (md.product && KNOWN_PRODUCTS.has(md.product)) return true;
+        if (md.tier && KNOWN_TIERS.has(md.tier)) return true;
+        return false;
+      };
+      const isOperator = (c) => {
+        const e = ((c.billing_details && c.billing_details.email) || c.receipt_email || '').toLowerCase();
+        return e && OPERATOR_EMAILS.has(e);
+      };
+
       const all = [];
       let starting_after;
       for (let page = 0; page < 5; page++) {
@@ -86,7 +109,8 @@ export default async function handler(req, res) {
         if (!r.has_more) break;
         starting_after = r.data[r.data.length - 1].id;
       }
-      const succeeded = all.filter((c) => c.paid && c.status === 'succeeded');
+      const succeeded = all.filter((c) =>
+        c.paid && c.status === 'succeeded' && isColophonCharge(c) && !isOperator(c));
       const productOf = (c) => (c.metadata && c.metadata.product)
         || (c.description && c.description.toLowerCase().includes('day') ? 'day-pass'
           : c.description && c.description.toLowerCase().includes('week') ? 'week-pass'
