@@ -4850,6 +4850,23 @@ function AdminBenchBrowser({ secret }) {
   // logic but collapsed to a boolean.
   const wasApproved = (row) => stateFor(row, 'approve') !== 'empty';
 
+  // Auto-hide stale denials. If a row was denied >36hrs ago AND has no
+  // newer counter-action (approve clears deny via the action-group
+  // logic, so a denial only persists if it's still the latest mod state),
+  // the row drops out of the bench browser. The 'all' status filter
+  // still shows them so the operator can recover one explicitly.
+  const HIDE_DENIED_AFTER_MS = 36 * 60 * 60 * 1000;
+  const isStaleDeny = (row) => {
+    const keys = keysForRow(row);
+    let mostRecentDeny = 0;
+    for (const k of keys) {
+      const stamp = (pastActions[k] && pastActions[k].deny) || 0;
+      if (stamp > mostRecentDeny) mostRecentDeny = stamp;
+    }
+    if (!mostRecentDeny) return false;
+    return (Date.now() - mostRecentDeny) > HIDE_DENIED_AFTER_MS;
+  };
+
   // Counts for the status pills (calculated against the search-filtered list
   // so the numbers reflect what the user is actually narrowing through).
   const searchHit = (p) =>
@@ -4858,15 +4875,20 @@ function AdminBenchBrowser({ secret }) {
     p.name.toLowerCase().includes(filter.toLowerCase()) ||
     (p.discipline || '').toLowerCase().includes(filter.toLowerCase()) ||
     (p.emailRaw || '').toLowerCase().includes(filter.toLowerCase());
+  const visible = (p) => searchHit(p) && !isStaleDeny(p);
+  const hiddenStaleDenies = bench.filter((p) => searchHit(p) && isStaleDeny(p)).length;
   const counts = {
     all:        bench.filter(searchHit).length,
-    unapproved: bench.filter((p) => searchHit(p) && !wasApproved(p)).length,
-    approved:   bench.filter((p) => searchHit(p) &&  wasApproved(p)).length,
+    unapproved: bench.filter((p) => visible(p) && !wasApproved(p)).length,
+    approved:   bench.filter((p) => visible(p) &&  wasApproved(p)).length,
   };
 
   const filtered = bench
     .filter(searchHit)
     .filter((p) => {
+      // 'all' shows every search hit, including stale-denied rows so the
+      // operator can recover any of them. The other two views auto-hide.
+      if (statusFilter !== 'all' && isStaleDeny(p)) return false;
       if (statusFilter === 'unapproved') return !wasApproved(p);
       if (statusFilter === 'approved')   return  wasApproved(p);
       return true;
@@ -5135,7 +5157,15 @@ function AdminBenchBrowser({ secret }) {
         )}
       </div>
       <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
-        <span>showing {filtered.length} of {bench.length} · {statusFilter} · sorted by {sortBy === 'newest' ? 'newest' : 'rate'}</span>
+        <span>
+          showing {filtered.length} of {bench.length} · {statusFilter} · sorted by {sortBy === 'newest' ? 'newest' : 'rate'}
+          {hiddenStaleDenies > 0 && statusFilter !== 'all' && (
+            <span style={{ marginLeft: 6 }}>
+              · <span style={{ color: '#b04040' }}>{hiddenStaleDenies} denied {hiddenStaleDenies === 1 ? 'row' : 'rows'} auto-hidden after 36hrs</span>
+              <button onClick={() => setStatusFilter('all')} style={{ ...miniBtn, padding: '2px 8px', marginLeft: 6, fontSize: 9 }}>show all</button>
+            </span>
+          )}
+        </span>
         <span style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
           <span>{Object.keys(pastActions).length} past-action keys in storage</span>
           <button onClick={() => {
