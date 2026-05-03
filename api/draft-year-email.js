@@ -30,6 +30,7 @@ export default async function handler(req, res) {
   const filters = String(body.filters || '');
   const matched = Number(body.matched) || 0;
   const price   = Number(body.price) || 0;
+  const buyUrl  = String(body.buyUrl || '').trim();   // signed checkout URL
   if (!buyer.email || !price) {
     return res.status(400).json({ error: 'missing buyer.email / price' });
   }
@@ -58,16 +59,20 @@ What an annual subscription includes:
 - Quarterly bench reports — who joined, who's open, who's booked
 - Direct introduction support — say the word, we facilitate
 - No markup on any creative they hire
+- Auto-renews annually; we'll remind them 60 days out and they can cancel anytime
+
+Purchase link to include verbatim: ${buyUrl || '(no buyUrl provided)'}
 
 Write the reply with these properties:
 - Plain text. Newlines as \\n.
 - Open with one sentence acknowledging the inquiry.
 - Propose ${fmt(price)}/year explicitly, in one clear sentence.
 - Brief bulleted list of what's included (3-5 bullets, each a single short line, prefix each with "· ").
-- One sentence on starting (we send a Stripe invoice, access is provisioned the same day).
+- A line that says: "Confirm and start here:" followed by the purchase link on its own line.
+- One sentence noting auto-renewal in 12 months (we'll remind 60 days out).
 - Close with: "— Max"
 - Tone: warm, direct, low ego, no marketing language. Lowercase is fine. Write like a peer reaching out.
-- Keep it tight: 12-16 lines total in the body.
+- Keep it tight: 13-18 lines total in the body.
 
 Return strictly JSON, nothing else, in this exact shape:
 { "subject": "...", "body": "..." }`;
@@ -116,13 +121,20 @@ Return strictly JSON, nothing else, in this exact shape:
     `· Direct introduction support whenever it helps`,
     `· No markup on anyone you hire`,
     '',
-    `Say the word and I'll send a Stripe invoice; access goes live the same day.`,
+    ...(buyUrl ? [
+      `Confirm and start here:`,
+      buyUrl,
+      ``,
+      `Auto-renews in 12 months at the same price; we'll remind you 60 days before the renewal date and you can cancel anytime.`,
+    ] : [
+      `Reply yes and I'll send a Stripe invoice; access goes live the same day.`,
+    ]),
     '',
     `— Max`,
   ];
   return res.status(200).json({
     mode: 'template',
-    subject: `Your annual Colophon proposal — ${fmt(price)}`,
+    subject: `Your annual Colophon proposal`,
     body: lines.join('\n'),
   });
 }

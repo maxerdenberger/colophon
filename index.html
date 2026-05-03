@@ -3586,6 +3586,119 @@ function SuccessPage({ accent, setPage }) {
     </div>);
 }
 
+// ── YEAR BUY (signed proposal token → Stripe checkout) ──────────────
+// Buyer lands here from the email link with ?t=<signed-token>. We POST
+// the token to /api/year-checkout, get a Stripe Checkout session URL,
+// redirect. No login, no extra inputs — the token carries the price.
+function YearBuyPage({ accent, setPage }) {
+  const [stage, setStage] = useState('verifying'); // 'verifying' | 'redirecting' | 'error'
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const u = new URLSearchParams(window.location.search);
+    const t = u.get('t');
+    if (!t) { setErr('missing proposal token'); setStage('error'); return; }
+    fetch('/api/year-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: t }),
+    })
+      .then((r) => r.json().then((j) => ({ status: r.status, j })))
+      .then(({ status, j }) => {
+        if (j.url) {
+          setStage('redirecting');
+          setTimeout(() => { window.location.href = j.url; }, 600);
+          return;
+        }
+        throw new Error(j.error || `error ${status}`);
+      })
+      .catch((e) => { setErr(e.message || 'verification failed'); setStage('error'); });
+  }, []);
+
+  if (stage === 'error') {
+    return (
+      <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 60px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 40, textAlign: 'center' }}>
+        <div style={{ width: 48, height: 48, border: `1.5px solid #b04040`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b04040', fontSize: 20 }}>!</div>
+        <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,4vw,44px)', letterSpacing: '-0.03em' }}>Couldn't open checkout.</h2>
+        <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '46ch', lineHeight: 1.75 }}>{err}</p>
+        <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '46ch', lineHeight: 1.75 }}>Reply to your proposal email or write <a href="mailto:bench@colophon.contact" style={{ color: C.ink }}>bench@colophon.contact</a> and we'll get you set up directly.</p>
+        <button onClick={() => setPage('home')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', background: 'transparent', color: C.ink, border: `1px solid ${C.rule}`, padding: '12px 22px', marginTop: 8, cursor: 'pointer' }}>back to home</button>
+      </div>);
+  }
+
+  return (
+    <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 60px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: 40, textAlign: 'center' }}>
+      <div style={{ width: 56, height: 56, border: `1.5px solid ${accent}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontSize: 22 }}>
+        <span style={{ display: 'inline-block', width: 18, height: 18, borderRadius: '50%', border: `2px solid ${accent}`, borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+      </div>
+      <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(36px,5vw,56px)', letterSpacing: '-0.03em', lineHeight: 0.95 }}>
+        {stage === 'redirecting' ? 'opening checkout.' : 'verifying proposal.'}
+      </h2>
+      <p style={{ fontFamily: GM, fontSize: 13, color: C.soft, maxWidth: '46ch', lineHeight: 1.75 }}>secure handoff to Stripe.</p>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>);
+}
+
+// ── YEAR SUCCESS (Stripe redirect after subscription pays) ───────────
+// Calls /api/year-redeem to verify the session, mints a 365-day access
+// token, redirects to /access?t=<token>. Buyer lands on their unlocked
+// bench. Subscription auto-renews via Stripe; the renewal-check cron
+// pings them 60 days before each anniversary.
+function YearSuccessPage({ accent, setPage }) {
+  const [stage, setStage] = useState('verifying'); // 'verifying' | 'opening' | 'error'
+  const [err, setErr] = useState('');
+  const [name, setName] = useState('');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const u = new URLSearchParams(window.location.search);
+    const sid = u.get('session_id');
+    if (!sid) { setErr('missing session id'); setStage('error'); return; }
+    fetch('/api/year-redeem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sid }),
+    })
+      .then((r) => r.json().then((j) => ({ status: r.status, j })))
+      .then(({ status, j }) => {
+        if (j.accessUrl) {
+          setName(j.name || '');
+          setStage('opening');
+          setTimeout(() => { window.location.href = j.accessUrl; }, 1200);
+          return;
+        }
+        throw new Error(j.error || `error ${status}`);
+      })
+      .catch((e) => { setErr(e.message || 'verification failed'); setStage('error'); });
+  }, []);
+
+  if (stage === 'error') {
+    return (
+      <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 60px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 40, textAlign: 'center' }}>
+        <div style={{ width: 48, height: 48, border: `1.5px solid #b04040`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b04040', fontSize: 20 }}>!</div>
+        <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(28px,4vw,44px)', letterSpacing: '-0.03em' }}>Could not verify the payment.</h2>
+        <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '46ch', lineHeight: 1.75 }}>{err}</p>
+        <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '46ch', lineHeight: 1.75 }}>If you've been charged, write to <a href="mailto:bench@colophon.contact" style={{ color: C.ink }}>bench@colophon.contact</a> with the session id from your receipt and we'll open the directory for you by hand.</p>
+        <button onClick={() => setPage('home')} style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', background: 'transparent', color: C.ink, border: `1px solid ${C.rule}`, padding: '12px 22px', marginTop: 8, cursor: 'pointer' }}>back to home</button>
+      </div>);
+  }
+
+  return (
+    <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 60px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: 40, textAlign: 'center' }}>
+      <div style={{ width: 56, height: 56, border: `1.5px solid ${accent}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontSize: 22 }}>
+        {stage === 'opening' ? '✓' : <span style={{ display: 'inline-block', width: 18, height: 18, borderRadius: '50%', border: `2px solid ${accent}`, borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />}
+      </div>
+      <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(36px,5vw,56px)', letterSpacing: '-0.03em', lineHeight: 0.95 }}>
+        {stage === 'opening' ? `welcome${name ? `, ${name.split(' ')[0]}` : ''}.` : 'confirming payment.'}
+      </h2>
+      <p style={{ fontFamily: GM, fontSize: 13, color: C.soft, maxWidth: '46ch', lineHeight: 1.75 }}>
+        {stage === 'opening' ? 'opening your bench. access for the next 12 months. auto-renews; we’ll remind you 60 days out.' : 'one moment.'}
+      </p>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>);
+}
+
 // ── ADMIN PAGE (Bearer-gated console for sending invite batches) ──────────
 // Client-side admin gate. The same secret is also passed as Bearer to
 // /api/send-invites — keep ADMIN_SECRET on Vercel matched to this value.
@@ -4378,6 +4491,22 @@ function AdminYearInquiriesPanel({ secret }) {
     if (!price) return;
     setDraftBusy((b) => ({ ...b, [briefId]: true }));
     try {
+      // Step 1 — get a signed proposal token + Stripe-bound buy URL.
+      // The token carries the agreed price (HMAC-signed with ADMIN_KEY)
+      // so /api/year-checkout can't be tampered to charge a different
+      // amount.
+      const prep = await fetch('/api/year-prepare-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify({
+          email: data.email, name: data.name, company: data.company, price,
+        }),
+      });
+      const pj = await prep.json();
+      if (!prep.ok || !pj.url) throw new Error(pj.error || 'failed to prepare checkout link');
+      const buyUrl = pj.url;
+
+      // Step 2 — draft the email with the buy URL injected.
       const r = await fetch('/api/draft-year-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
@@ -4386,11 +4515,12 @@ function AdminYearInquiriesPanel({ secret }) {
           filters: data.filters || '',
           matched: data.matched || 0,
           price,
+          buyUrl,
         }),
       });
       const j = await r.json();
       if (r.ok && j.subject && j.body) {
-        setDraft((d) => ({ ...d, [briefId]: { subject: j.subject, body: j.body, mode: j.mode || 'template' } }));
+        setDraft((d) => ({ ...d, [briefId]: { subject: j.subject, body: j.body, mode: j.mode || 'template', buyUrl } }));
       } else {
         setDraft((d) => ({ ...d, [briefId]: { error: j.error || `status ${r.status}` } }));
       }
@@ -6825,6 +6955,8 @@ function App() {
     const p = (path || '').replace(/\/$/, '').toLowerCase();
     if (p === '/access')   return { page: 'access',  drawer: null };
     if (p === '/emerging') return { page: 'emerging',drawer: null };
+    if (p === '/year-buy')     return { page: 'year-buy',     drawer: null };
+    if (p === '/year-success') return { page: 'year-success', drawer: null };
     if (p === '/admin')    return { page: 'admin',   drawer: null };
     if (p === '/invite')   return { page: 'invite',  drawer: null };
     if (p === '/success')  return { page: 'success', drawer: null };
@@ -7006,6 +7138,8 @@ function App() {
       {page === 'invite' && <InvitePage accent={accent} setPage={setPage} />}
       {page === 'admin' && <AdminPage accent={accent} setPage={setPage} />}
       {page === 'success' && <SuccessPage accent={accent} setPage={setPage} />}
+      {page === 'year-buy' && <YearBuyPage accent={accent} setPage={setPage} />}
+      {page === 'year-success' && <YearSuccessPage accent={accent} setPage={setPage} />}
 
       <Footer accent={accent} setPage={setPage} />
       {showBriefBar && <MobileBriefBar page={page} setPage={setPage} />}
