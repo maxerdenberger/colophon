@@ -742,7 +742,10 @@ function parseSheetCSV(text) {
 function deriveCounts(rows) {
   const rawTotal = rows.length;
   const total = rawTotal;
-  const rawAvailable = rows.filter((r) => r.availability === 'available').length;
+  // "Open for projects" — anyone not actively booked. Matches the
+  // build-wizard tally bar so the homepage + filter screen agree.
+  // Includes 'available' + 'soon' + 'selective'; excludes 'booked'.
+  const rawAvailable = rows.filter((r) => r.availability !== 'booked').length;
   const availableNow = rawAvailable;
 
   const yoes = rows.map((r) => r.yoe).filter((y) => y > 0).sort((a, b) => a - b);
@@ -2385,7 +2388,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
           flexWrap: 'wrap',
         }}>
           <span style={{ fontFamily: GS, fontWeight: 700, fontSize: 22, letterSpacing: '-0.045em' }}>{matchedAvail}</span>
-          <span>available now &middot; {matched.length} match total</span>
+          <span>open for projects &middot; {matched.length} match total</span>
           {filterCount > 0 && (
             <span style={{ color: accent, marginLeft: 'auto' }}>
               {rawFilterCount} filter{rawFilterCount > 1 ? 's' : ''} &middot; {Math.round(discount*100)}% off
@@ -2442,7 +2445,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
         <hr style={{ border: 'none', borderTop: `1px solid ${C.rule}`, margin: '40px 0 18px' }} />
         <p style={{ fontFamily: GM, fontSize: 13, color: C.ink, lineHeight: 1.55 }}>
           <span style={{ fontFamily: GS, fontWeight: 700, fontSize: 26, letterSpacing: '-0.045em', verticalAlign: 'baseline', marginRight: 8 }}>{matchedAvail}</span>
-          {matchedAvail === 1 ? 'creative' : 'creatives'} available now &middot; {matched.length} match total
+          {matchedAvail === 1 ? 'creative' : 'creatives'} open for projects &middot; {matched.length} match total
         </p>
         {(serverCount != null && serverCount <= 2 && rawFilterCount > 0) && (
           <p style={{ fontFamily: GM, fontSize: 12, color: '#7a4a0e', marginTop: 8 }}>
@@ -4034,7 +4037,7 @@ function AdminStatsPanel({ accent }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
         {tile(stats.total, 'in directory', 'live count · public bench drops 1–4 over time')}
-        {tile(stats.availableNow, 'available now', 'this week')}
+        {tile(stats.availableNow, 'open for projects', 'not booked')}
         {tile(stats.medianExp + 'yr', 'median exp', 'range: 2–15 yrs')}
         {tile(engagedThisWeek, 'engaged this week', `${engagedPct}% of bench · updated avail in last 7d`)}
       </div>
