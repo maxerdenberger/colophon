@@ -2737,7 +2737,7 @@ function EmergingPage({ accent, setPage }) {
           one to three years of recognized work. by referral only. each name confirms they're available and updates their profile before they appear here — no auto-include, no resume mining.
         </p>
         <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.7, maxWidth: '60ch', marginBottom: 18 }}>
-          <strong>{emergingBench.length}</strong> active right now · <strong>{candidates}</strong> invited and pending. nothing to pay; reach out direct.
+          <strong>{emergingBench.length}</strong> active right now{candidates > 5 ? <> · <strong>{candidates}</strong> pending</> : null}. nothing to pay; reach out direct.
         </p>
         {/* Inline sign-up — the page leads with confirmations-only language,
             but anyone qualifying should still have a path in. */}
