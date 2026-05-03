@@ -5103,6 +5103,43 @@ function AdminTeammatePairings({ secret }) {
     finally { setBusy(false); }
   };
 
+  // ── Team-link form ────────────────────────────────────────────────────
+  // Paste 2+ emails per line, each line is one team. Hits /api/link-teams
+  // which writes the partners column reciprocally. Pre-loaded with the
+  // user's three current teams; they can edit, add lines, save.
+  const [groupsText, setGroupsText] = useState(
+    'merdenberger@gmail.com, greg.rutter@gmail.com\n' +
+    'merdenberger@gmail.com, kaceycoburn@gmail.com\n' +
+    'russ@russrizzo.com, caseyphillips.work@gmail.com'
+  );
+  const [linkBusy, setLinkBusy] = useState(false);
+  const linkTeams = async () => {
+    const groups = groupsText.split('\n').map((line) => {
+      return line.split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@'));
+    }).filter((g) => g.length >= 2);
+    if (!groups.length) { append('no valid groups (need 2+ emails per line)'); return; }
+    setLinkBusy(true);
+    append(`→ linking ${groups.length} team${groups.length === 1 ? '' : 's'}…`);
+    try {
+      const r = await fetch('/api/link-teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify({ groups }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j.error || `status ${r.status}`);
+      append(`✓ updated ${j.updated.length} rows`);
+      for (const u of j.updated) append(`  ${u.email} → partners: ${u.partners.join(', ')}`);
+      if (j.missing && j.missing.length) {
+        append(`✗ missing rows for: ${j.missing.join(', ')}`);
+      }
+    } catch (ex) {
+      append(`✗ link-teams — ${ex.message}`);
+    } finally {
+      setLinkBusy(false);
+    }
+  };
+
   return (
     <div style={{ marginBottom: 36, border: `1px solid ${C.rule}`, padding: 18, background: '#fff' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
@@ -5116,6 +5153,26 @@ function AdminTeammatePairings({ secret }) {
         style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.06em', padding: '10px 16px', background: C.ink, color: C.cream, border: 'none', cursor: busy ? 'wait' : 'pointer', borderRadius: 6, marginBottom: 14 }}>
         {busy ? 'sending…' : 'send partner-ask to all bench →'}
       </button>
+
+      {/* ── Direct team linker ────────────────────────────────────────── */}
+      <div style={{ padding: 14, border: `1px dashed rgba(13,13,11,0.2)`, borderRadius: 4, marginBottom: 14, background: 'rgba(255,81,0,0.04)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+          <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', color: '#ff5100', textTransform: 'uppercase' }}>link teams directly</p>
+          <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>writes partners reciprocally to the Sheet</span>
+        </div>
+        <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 10, lineHeight: 1.6 }}>
+          one team per line, 2+ emails per line (comma, semicolon, or whitespace separated). idempotent — re-running merges with whatever's already on each row.
+        </p>
+        <textarea
+          value={groupsText}
+          onChange={(e) => setGroupsText(e.target.value)}
+          rows={5}
+          style={{ width: '100%', fontFamily: GM, fontSize: 11, padding: 10, border: `1px solid ${C.rule}`, borderRadius: 4, background: '#fff', resize: 'vertical', lineHeight: 1.5, marginBottom: 10 }} />
+        <button onClick={linkTeams} disabled={linkBusy}
+          style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.06em', padding: '8px 14px', background: '#ff5100', color: '#fff', border: 'none', cursor: linkBusy ? 'wait' : 'pointer', borderRadius: 4 }}>
+          {linkBusy ? 'linking…' : 'link teams in Sheet →'}
+        </button>
+      </div>
       {withPartners.length === 0 ? (
         <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, padding: '12px 0', borderTop: `1px solid ${C.rule}` }}>
           no pairings yet — partner emails arrive via the apply form (talent intake).
@@ -5346,6 +5403,9 @@ function AdminPage({ accent, setPage }) {
 
         {/* ── Concierge brief → bespoke bench match queue. ───────────────── */}
         <AdminConciergePanel secret={secret} />
+
+        {/* ── Teammate pairings — drives the bench-builder 'teams' filter. */}
+        <AdminTeammatePairings secret={secret} />
 
         {/* ── Quick links ──────────────────────────────────────────────── */}
         <AdminQuickLinks />

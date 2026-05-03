@@ -102,8 +102,12 @@ export async function appendBenchRow(fields) {
   return { rowNumber, range: updatedRange };
 }
 
-// Patch only the columns we own. availability → col H (index 7), portfolio → col D (3).
-export async function updateBenchRow(rowNumber, { availability, portfolio }) {
+// Patch only the columns we own.
+//   availability → col H (index 7)
+//   portfolio    → col D (3)
+//   partners     → col R (17) — comma-joined emails
+//   status       → col S (18)
+export async function updateBenchRow(rowNumber, { availability, portfolio, partners, status }) {
   const sheets = client();
   const data = [];
   if (availability) {
@@ -116,6 +120,19 @@ export async function updateBenchRow(rowNumber, { availability, portfolio }) {
     data.push({
       range: `${TAB_NAME}!D${rowNumber}`,
       values: [[portfolio.trim()]],
+    });
+  }
+  if (partners != null) {
+    const value = Array.isArray(partners) ? partners.filter(Boolean).join(', ') : String(partners);
+    data.push({
+      range: `${TAB_NAME}!R${rowNumber}`,
+      values: [[value]],
+    });
+  }
+  if (status) {
+    data.push({
+      range: `${TAB_NAME}!S${rowNumber}`,
+      values: [[status]],
     });
   }
   if (!data.length) return { updated: 0 };
