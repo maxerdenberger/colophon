@@ -12,7 +12,7 @@
 //   }
 
 import Stripe from 'stripe';
-import { fetchFormspreeSubmissions } from './_utils/formspree.js';
+import { fetchFormspreeSubmissions, isTestOrOperatorSubmission } from './_utils/formspree.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -39,7 +39,8 @@ export default async function handler(req, res) {
   try {
     const fp = await fetchFormspreeSubmissions();
     if (fp.ok) {
-      const all = fp.submissions || [];
+      // Skip operator's own self-tests + any source tagged 'test'.
+      const all = (fp.submissions || []).filter((s) => !isTestOrOperatorSubmission(s));
       const recent = all
         .map((s) => ({
           submitted_at: s.submitted_at || s.created_at || '',

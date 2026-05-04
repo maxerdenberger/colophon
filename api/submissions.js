@@ -2,6 +2,9 @@
 //
 // Admin-only proxy for Formspree submissions. The bench dashboard
 // (AdminFormspreeApproval) calls this to populate the approval queue.
+
+import { isTestOrOperatorSubmission } from './_utils/formspree.js';
+
 //
 // Why proxy: Formspree's API is auth'd with a personal API key that
 // must not ride in client JS. The browser sends our admin Bearer
@@ -76,12 +79,17 @@ export default async function handler(req, res) {
         // so the same submission could end up with a different id on a
         // later load — that broke localStorage('colophon_reviewed') and
         // caused already-rejected rows to reappear.
-        const submissions = raw.map((s) => {
-          if (s && s.id != null) return { ...s, id: s.id };
-          const data = s && (s.data || s) || {};
-          const fp = `${s && s.submitted_at || ''}|${(data.email || '').toLowerCase()}|${(data.brief || data.summary || '').slice(0, 40)}`;
-          return { ...s, id: 'fp:' + simpleHash(fp) };
-        });
+        const submissions = raw
+          // Drop test sources + operator's own submissions before
+          // they reach the queue. Same rule used by the activity feed,
+          // so all admin counters agree.
+          .filter((s) => !isTestOrOperatorSubmission(s))
+          .map((s) => {
+            if (s && s.id != null) return { ...s, id: s.id };
+            const data = s && (s.data || s) || {};
+            const fp = `${s && s.submitted_at || ''}|${(data.email || '').toLowerCase()}|${(data.brief || data.summary || '').slice(0, 40)}`;
+            return { ...s, id: 'fp:' + simpleHash(fp) };
+          });
         return res.status(200).json({ submissions, _via: { auth: a.auth.split(' ')[0], url: a.url } });
       }
       lastStatus = r.status;

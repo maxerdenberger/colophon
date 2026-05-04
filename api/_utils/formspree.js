@@ -63,3 +63,22 @@ function simpleHash(s) {
   for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
   return Math.abs(h).toString(36);
 }
+
+// Test/operator filter — keeps the activity feed + admin queue zeroed
+// out for the operator's own self-tests. Two rules:
+//   1. source name contains 'test' (catches 'apply (test)',
+//      'admin-test-concierge-brief', etc.)
+//   2. submitter email matches OPERATOR_EMAIL (Max's own submissions)
+// Used by /api/recent-activity, /api/submissions, /api/audit-duplicates.
+export function isTestOrOperatorSubmission(submission) {
+  const data = (submission && (submission.data || submission)) || {};
+  const source = String((data.source || submission.source || '')).toLowerCase();
+  if (source.includes('test')) return true;
+  const operators = new Set(
+    (process.env.OPERATOR_EMAIL || 'merdenberger@gmail.com')
+      .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+  );
+  const email = String(data.email || submission.email || '').toLowerCase();
+  if (email && operators.has(email)) return true;
+  return false;
+}
