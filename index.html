@@ -3819,6 +3819,11 @@ function AdminActivityFeed({ secret }) {
           <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 30, letterSpacing: '-0.045em', lineHeight: 1, marginBottom: 12 }}>
             {data?.applications?.total ?? '—'}
           </div>
+          {data?.applications?.error && (
+            <div style={{ padding: '8px 10px', fontFamily: GM, fontSize: 10, color: '#7a1818', background: 'rgba(176,64,64,0.06)', borderRadius: 4, marginBottom: 8, lineHeight: 1.5 }}>
+              {data.applications.error}
+            </div>
+          )}
           {data?.applications?.bySource && Object.keys(data.applications.bySource).length > 0 && (
             <div>
               {Object.entries(data.applications.bySource).sort((a, b) => b[1] - a[1]).map(([src, n]) => (

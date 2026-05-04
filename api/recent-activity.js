@@ -12,6 +12,7 @@
 //   }
 
 import Stripe from 'stripe';
+import { fetchFormspreeSubmissions } from './_utils/formspree.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -34,21 +35,11 @@ export default async function handler(req, res) {
     sales:        { total: 0, gross: 0, byProduct: {}, recent: [] },
   };
 
-  // ── Formspree submissions ────────────────────────────────────────────
-  const fpKey = process.env.FORMSPREE_API_KEY;
-  const formId = process.env.FORMSPREE_FORM_ID || 'xqenzjew';
-  if (fpKey) {
-    try {
-      const looksFormLevel = /^[0-9a-f]{16,}$/i.test(fpKey);
-      const authHeader = looksFormLevel
-        ? `Basic ${Buffer.from(`${fpKey}:`).toString('base64')}`
-        : `Bearer ${fpKey}`;
-      const r = await fetch(`https://formspree.io/api/0/forms/${encodeURIComponent(formId)}/submissions`, {
-        headers: { Authorization: authHeader, Accept: 'application/json' },
-      });
-      const text = await r.text();
-      let j = null; try { j = text ? JSON.parse(text) : null; } catch {}
-      const all = (j && (j.submissions || j.data)) || [];
+  // ── Formspree submissions (shared multi-auth fetcher) ────────────────
+  try {
+    const fp = await fetchFormspreeSubmissions();
+    if (fp.ok) {
+      const all = fp.submissions || [];
       const recent = all
         .map((s) => ({
           submitted_at: s.submitted_at || s.created_at || '',
@@ -58,6 +49,8 @@ export default async function handler(req, res) {
           email:   (s.data && s.data.email) || s.email || '',
           summary: ((s.data && (s.data.brief || s.data.summary)) || s.brief || s.summary || '').slice(0, 120),
         }))
+        // Drop entries with parseable timestamps before the window;
+        // entries without timestamps are kept conservatively.
         .filter((s) => !s.ts || s.ts >= since);
       recent.sort((a, b) => b.ts - a.ts);
       const bySource = {};
@@ -67,7 +60,12 @@ export default async function handler(req, res) {
         bySource,
         recent: recent.slice(0, 25),
       };
-    } catch {}
+    } else {
+      // Surface the upstream error so the dashboard isn't silently empty.
+      out.applications.error = fp.error || `status ${fp.status || ''}`.trim();
+    }
+  } catch (ex) {
+    out.applications.error = ex.message || 'formspree fetch failed';
   }
 
   // ── Stripe charges ───────────────────────────────────────────────────
