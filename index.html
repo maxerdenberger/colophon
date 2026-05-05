@@ -2056,6 +2056,21 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
 
 // ── APPLY PAGE ────────────────────────────────────────────────────────────────
 function ApplyPage({ accent, onDone, isDrawer = false }) {
+  // Pull the live approved bench so the referral input can autocomplete
+  // against actual member names. Datalist works against either bench (the
+  // public approved-only list) or allBench (everyone in the Sheet). We
+  // use bench so applicants only see names that are currently visible
+  // on the public site — no leaking pending applicants.
+  const { bench: liveBenchForReferral } = useBench();
+  const referralSuggestions = React.useMemo(() => {
+    return (liveBenchForReferral || [])
+      .map((p) => ({
+        name: p.realName || p.name,
+        discipline: (p.disciplines && p.disciplines[0]) || p.discipline || '',
+      }))
+      .filter((p) => p.name && p.name.length > 1)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [liveBenchForReferral]);
   const [done, setDone] = useState(false);
   // Top three disciplines, in rank order. disc1 is the primary (required);
   // disc2 + disc3 are optional. The ordered list is stored in the Sheet
@@ -2268,7 +2283,21 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
 
           <h3 style={sH}>background</h3>
           <div><label style={lS}>top 3 most relevant past clients / brands</label><input style={iS} value={form.topClients} onChange={set('topClients')} placeholder="apple, google, nike" /></div>
-          <div><label style={lS}>referral context — who referred you</label><input style={iS} value={form.referralContext} onChange={set('referralContext')} /></div>
+          <div>
+            <label style={lS}>referral context — who referred you</label>
+            <input list="colophon-bench-names" style={iS} value={form.referralContext} onChange={set('referralContext')}
+              placeholder="start typing — names on the bench will suggest" autoComplete="off" />
+            <datalist id="colophon-bench-names">
+              {referralSuggestions.map((p, i) => (
+                <option key={i} value={p.discipline ? `${p.name} (${p.discipline})` : p.name} />
+              ))}
+            </datalist>
+            <p style={{ fontFamily: GM, fontSize: 10, color: 'rgba(13,13,11,0.5)', lineHeight: 1.55, marginTop: 4 }}>
+              {referralSuggestions.length > 0
+                ? `${referralSuggestions.length} names on the current bench — type two letters to filter.`
+                : 'free text — name + how they referred you.'}
+            </p>
+          </div>
           <div>
             <label style={lS}>partners you team up with — emails, one per line</label>
             <textarea style={{ ...iS, minHeight: 84, resize: 'vertical' }} value={form.partnerEmails} onChange={set('partnerEmails')}
