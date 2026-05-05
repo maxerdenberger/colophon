@@ -713,6 +713,9 @@ function parseSheetCSV(text) {
       'pending';
     const confRaw = (row[20] || '').toLowerCase().trim();
     const confirmed = confRaw === 'yes' || confRaw === 'true' || confRaw === '1';
+    // Col 21 — social-specialist flag, set by the apply form's heart toggle.
+    const socialRaw = (row[21] || '').toLowerCase().trim();
+    const isSocial = socialRaw === 'yes' || socialRaw === 'true' || socialRaw === '1' || socialRaw === '♥';
     return {
       id: i+1, name, realName, firstName, emailRaw, emailEnc, portfolio, linkedin, updatedAt,
       discipline: disc, disciplines: disciplinesFinal, rawDisciplines, availability, hourlyRate,
@@ -735,7 +738,7 @@ function parseSheetCSV(text) {
       clients: clients.length ? clients : ['portfolio available'],
       note,
       partners,
-      status, confirmed,
+      status, confirmed, isSocial,
       paused: false, legend: false,  // admin-toggleable; persisted via /api/bench-update
     };
   }).filter(Boolean).filter((p) => p.status !== 'cold' && p.status !== 'duplicate')
@@ -2061,6 +2064,10 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
   const [disc2, setDisc2] = useState('');
   const [disc3, setDisc3] = useState('');
   const [categories, setCategories] = useState([]);
+  // Social-specialist toggle. Surfaced as a fillable heart in the form
+  // (empty = no, filled = yes), like a social-platform like button.
+  // Stored on the Sheet in col 21 ('yes' / '').
+  const [isSocial, setIsSocial] = useState(false);
   const [form, setForm] = useState({
     name: '', email: '', portfolio: '', linkedin: '', disciplineOther: '',
     availability: '', timezone: '', hourlyRate: '', minFee: '',
@@ -2133,6 +2140,7 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
             disciplineSecondary:  disc2 || '',
             disciplineTertiary:   disc3 || '',
             categories: categories.join(', '),
+            social: isSocial ? 'yes' : '',
             source: 'apply-bench',
             _subject: 'bench application',
           });
@@ -2211,6 +2219,29 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
                 );
               })}
             </div>
+          </div>
+
+          {/* Social-specialist heart. Tap to fill — same pattern as a
+              social-platform like button. Empty heart = "I don't focus on
+              social"; filled = "I'm a social-first creative". Saved on
+              the Sheet's social column. */}
+          <div>
+            <label style={lS}>social-first creative</label>
+            <button type="button" onClick={() => setIsSocial((v) => !v)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 12, background: 'transparent', border: 'none', padding: '8px 0 8px 22px', cursor: 'pointer', userSelect: 'none' }}
+              aria-pressed={isSocial}>
+              <svg width="26" height="24" viewBox="0 0 24 22" xmlns="http://www.w3.org/2000/svg"
+                style={{ transition: 'transform 0.18s ease', transform: isSocial ? 'scale(1.08)' : 'scale(1)' }}>
+                <path d="M12 21s-7-4.5-9-9.5C1.5 7 4 4 7 4c2 0 3.5 1 5 3 1.5-2 3-3 5-3 3 0 5.5 3 4 7.5-2 5-9 9.5-9 9.5z"
+                  fill={isSocial ? '#FF5100' : 'none'}
+                  stroke={isSocial ? '#FF5100' : C.ink}
+                  strokeWidth="1.5"
+                  strokeLinejoin="round" />
+              </svg>
+              <span style={{ fontFamily: GM, fontSize: 13, color: C.ink, lineHeight: 1.55 }}>
+                {isSocial ? 'yes — i specialize in social-platform-native creative' : 'tap the heart if you specialize in social'}
+              </span>
+            </button>
           </div>
 
           <h3 style={sH}>rates + availability</h3>
@@ -6510,6 +6541,13 @@ josh@appliedambition.com`);
               }
               {stateFor(p, 'welcome') !== 'empty' && (
                 <span style={{ marginLeft: 8, fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.1em', textTransform: 'uppercase' }} title="welcome email sent">✉ welcomed</span>
+              )}
+              {p.isSocial && (
+                <span style={{ marginLeft: 8, display: 'inline-flex', verticalAlign: 'middle' }} title="social-first creative">
+                  <svg width="12" height="11" viewBox="0 0 24 22" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 21s-7-4.5-9-9.5C1.5 7 4 4 7 4c2 0 3.5 1 5 3 1.5-2 3-3 5-3 3 0 5.5 3 4 7.5-2 5-9 9.5-9 9.5z" fill="#FF5100" stroke="#FF5100" strokeWidth="1.5" strokeLinejoin="round" />
+                  </svg>
+                </span>
               )}
               {p.updatedAt > 0 && (
                 <span style={{ marginLeft: 8, fontFamily: GM, fontSize: 9, color: C.soft, opacity: 0.6 }}>

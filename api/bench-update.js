@@ -50,6 +50,7 @@ export default async function handler(req, res) {
         expLevel:      body.expLevel,
         summary:       body.summary || body.valueProp,
         partnerEmails: body.partnerEmails,
+        social:        body.social,
         // Default new rows from the formspree queue to 'approved' so they
         // appear on the public bench immediately. The operator already
         // vetted them by clicking "approve → sheet". Pass status='pending'

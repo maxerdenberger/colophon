@@ -72,7 +72,7 @@ export async function appendBenchRow(fields) {
   }
   const sheets = client();
   const now = new Date().toLocaleString('en-US', { timeZone: 'UTC' });
-  const row = new Array(21).fill('');
+  const row = new Array(22).fill('');
   row[0]  = fields.timestamp    || now;
   row[1]  = fields.name         || '';
   row[2]  = fields.email        || '';
@@ -92,6 +92,8 @@ export async function appendBenchRow(fields) {
   row[18] = fields.status       || 'active';
   row[19] = now;
   row[20] = fields.confirmed ? 'yes' : '';
+  // Col 21 — social-specialist flag from the apply form's heart toggle.
+  row[21] = fields.social ? 'yes' : '';
 
   const res = await sheets.spreadsheets.values.append({
     spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
