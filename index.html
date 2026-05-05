@@ -2767,6 +2767,17 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
           </button>
         )}
 
+        {isReturning && (
+          <div style={{ marginTop: 16, padding: '12px 16px', border: `1px solid ${accent}`, background: 'rgba(255,81,0,0.06)', borderRadius: 6 }}>
+            <p style={{ fontFamily: GM, fontSize: 11, color: accent, letterSpacing: '0.14em', textTransform: 'uppercase', margin: '0 0 4px' }}>
+              welcome back
+            </p>
+            <p style={{ fontFamily: GM, fontSize: 12, color: C.ink, lineHeight: 1.6, margin: 0 }}>
+              your {returningTier ? `${returningTier} pass` : 'pass'} is still active. renew now and your term resets to a full {duration === 'day' ? '24 hours' : duration === 'week' ? '7 days' : duration === 'month' ? '30 days' : 'duration'} from purchase — plus <strong>10% loyalty off</strong>, stacked with any filter savings.
+            </p>
+          </div>
+        )}
+
         <p style={groupHeader}>[ F ]&nbsp;&nbsp;duration</p>
         <div style={{ paddingLeft: 22 }}>
           {[
