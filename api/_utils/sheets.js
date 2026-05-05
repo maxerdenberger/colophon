@@ -146,3 +146,80 @@ export async function updateBenchRow(rowNumber, { availability, portfolio, partn
   });
   return { updated: res.data.totalUpdatedCells || 0 };
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// Status-only updates. The single source of truth for whether a row is on
+// the public bench. Values used:
+//   'approved'   — visible on the public bench (the only state that shows).
+//   'pending'    — submitted/imported, not yet reviewed. Hidden from public.
+//   'denied'     — explicitly rejected. Hidden.
+//   'cold'       — auto-archived after 99 days of no update. Hidden.
+//   'duplicate'  — merged into another row. Hidden.
+// (Legacy 'active' is treated as 'approved' by the parser for backward compat,
+// but new writes always use the explicit values above.)
+
+// Update one row's status by email. Returns { updated, rowNumber } or
+// { updated: 0, rowNumber: null } if the email wasn't found.
+export async function updateBenchStatusByEmail(email, newStatus) {
+  const target = String(email || '').trim().toLowerCase();
+  if (!target.includes('@')) throw new Error('email required');
+  const VALID = ['approved', 'pending', 'denied', 'cold', 'duplicate'];
+  if (!VALID.includes(newStatus)) throw new Error(`invalid status: ${newStatus}`);
+  const found = await findBenchRowByEmail(target);
+  if (!found) return { updated: 0, rowNumber: null };
+  const r = await updateBenchRow(found.rowNumber, { status: newStatus });
+  return { updated: r.updated, rowNumber: found.rowNumber };
+}
+
+// Bulk migration. Reads the entire bench, sets every row's status:
+//   - emails listed in `approvedEmails` (case-insensitive) → 'approved'
+//   - everything else currently 'active' or empty           → 'pending'
+//   - existing 'cold'/'duplicate'/'denied' rows are untouched
+// One batchUpdate call → fast even on hundreds of rows.
+export async function migrateApprovalsBulk(approvedEmails) {
+  if (!process.env.SHEETS_SPREADSHEET_ID) throw new Error('SHEETS_SPREADSHEET_ID not configured');
+  const sheets = client();
+  const approvedSet = new Set((approvedEmails || []).map((e) => String(e || '').trim().toLowerCase()).filter(Boolean));
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+    range: RANGE_ALL,
+  });
+  const rows = res.data.values || [];
+  const data = [];
+  let approvedCount = 0, pendingCount = 0, untouchedCount = 0;
+  // i=1 skips header row
+  for (let i = 1; i < rows.length; i++) {
+    const email = String(rows[i][2] || '').trim().toLowerCase();
+    const currentStatus = String(rows[i][18] || '').trim().toLowerCase();
+    let nextStatus = null;
+    if (approvedSet.has(email)) {
+      if (currentStatus !== 'approved') nextStatus = 'approved';
+      approvedCount++;
+    } else if (currentStatus === 'cold' || currentStatus === 'duplicate' || currentStatus === 'denied') {
+      untouchedCount++;
+    } else {
+      // 'active', '', 'approved' (orphaned), or unknown → 'pending'
+      if (currentStatus !== 'pending') nextStatus = 'pending';
+      pendingCount++;
+    }
+    if (nextStatus) {
+      data.push({
+        range: `${TAB_NAME}!S${i + 1}`,
+        values: [[nextStatus]],
+      });
+    }
+  }
+  if (data.length) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+      requestBody: { valueInputOption: 'RAW', data },
+    });
+  }
+  return {
+    cellsUpdated: data.length,
+    approvedRows: approvedCount,
+    pendingRows: pendingCount,
+    untouchedRows: untouchedCount,
+    totalRows: rows.length - 1,
+  };
+}

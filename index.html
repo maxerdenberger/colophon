@@ -700,7 +700,17 @@ function parseSheetCSV(text) {
     // emails; empty by default until the post-launch follow-up email runs.
     const partners = (row[17] || '').split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
     const statusRaw = (row[18] || '').toLowerCase().trim();
-    const status = (statusRaw === 'cold' || statusRaw === 'duplicate') ? statusRaw : 'active';
+    // New schema: pending|approved|denied|cold|duplicate. Legacy 'active'
+    // maps to 'approved' for backward compat (pre-migration rows). Empty
+    // → 'pending' so unreviewed rows don't accidentally show on the bench.
+    const status =
+      statusRaw === 'approved'  ? 'approved'  :
+      statusRaw === 'pending'   ? 'pending'   :
+      statusRaw === 'denied'    ? 'denied'    :
+      statusRaw === 'cold'      ? 'cold'      :
+      statusRaw === 'duplicate' ? 'duplicate' :
+      statusRaw === 'active'    ? 'approved'  :  // legacy
+      'pending';
     const confRaw = (row[20] || '').toLowerCase().trim();
     const confirmed = confRaw === 'yes' || confRaw === 'true' || confRaw === '1';
     return {
@@ -810,46 +820,20 @@ function BenchProvider({ children }) {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
-  // Approval allow-list: read the admin past-actions (same key the bench
-  // browser writes). If the current browser has any approvals on file, the
-  // public bench is filtered to only those creatives on this browser. No
-  // actions = show all. Per-browser. Server-side approved-status column
-  // takes over once /api/bench-update lands.
-  const approvedKeys = useMemo(() => {
-    try {
-      const raw = (typeof window !== 'undefined') ? localStorage.getItem('colophon_admin_actions') : null;
-      const data = raw ? JSON.parse(raw) : {};
-      const set = new Set();
-      Object.entries(data || {}).forEach(([k, ops]) => {
-        if (ops && ops.approve) set.add(String(k).toLowerCase());
-      });
-      return set;
-    } catch { return new Set(); }
-  }, [allBench]);
-  const isApproved = (p) => {
-    if (approvedKeys.size === 0) return true;
-    const keys = [
-      String(p.id),
-      p.realName ? `n:${p.realName.toLowerCase()}` : null,
-      p.name     ? `n:${p.name.toLowerCase()}`     : null,
-      p.emailRaw ? `e:${p.emailRaw.toLowerCase()}` : null,
-    ].filter(Boolean);
-    return keys.some((k) => approvedKeys.has(k));
-  };
-  // Split by years of experience: 4+ on the paid public bench;
-  // 1–3 quietly available on the free emerging-talent path
-  // (/access?jr=1). Anyone with 0 years or no input is filtered
-  // out upstream by parseSheetCSV.
+  // Approval is now a Sheet column — single source of truth, same for every
+  // visitor + every device. The /admin panel writes the status; the public
+  // bench reads it via the CSV. No more per-browser localStorage gates.
+  // Status values: 'approved' (visible) | 'pending' | 'denied' | 'cold' |
+  // 'duplicate'. Anything but 'approved' is hidden from the public bench.
   const { bench, emergingBench, noDataBench } = useMemo(() => ({
-    // Paid public bench — 4+ yrs experience, admin-approved.
-    bench:         allBench.filter((p) => (p.yoe || 0) >= 4 && isApproved(p)),
+    // Paid public bench — 4+ yrs experience, status='approved' on the Sheet.
+    bench:         allBench.filter((p) => (p.yoe || 0) >= 4 && p.status === 'approved'),
     // Emerging — 1-3 yrs, must have explicitly confirmed (col 20 of the
     // Sheet flips this true after they engage with the referral email).
-    // Empty until confirmations roll in.
-    emergingBench: allBench.filter((p) => (p.yoe || 0) >= 1 && (p.yoe || 0) < 4 && p.confirmed && isApproved(p)),
+    emergingBench: allBench.filter((p) => (p.yoe || 0) >= 1 && (p.yoe || 0) < 4 && p.confirmed && p.status === 'approved'),
     // Admin-only — 0-yoe rows that need a data-update follow-up email.
     noDataBench:   allBench.filter((p) => (p.yoe || 0) === 0),
-  }), [allBench, approvedKeys]);
+  }), [allBench]);
   const stats = useMemo(() => deriveCounts(bench), [bench]);
   return <BenchCtx.Provider value={{ bench, allBench, emergingBench, noDataBench, stats, loading }}>{children}</BenchCtx.Provider>;
 }
@@ -5840,10 +5824,11 @@ function AdminBenchBrowser({ secret }) {
     });
   };
 
-  // Convenience: has this row been approved in any session (past or current)?
-  // Used for the unapproved/approved status filter below. Mirrors stateFor()
-  // logic but collapsed to a boolean.
-  const wasApproved = (row) => stateFor(row, 'approve') !== 'empty';
+  // Sheet-driven approval. The localStorage stamps still drive the button
+  // tint state ('this session' vs 'prior session'), but visibility on the
+  // public bench is dictated entirely by row.status === 'approved' from
+  // the Sheet — same for every browser, every device.
+  const wasApproved = (row) => row.status === 'approved';
 
   // Auto-hide stale denials. If a row was denied >36hrs ago AND has no
   // newer counter-action (approve clears deny via the action-group
@@ -5916,8 +5901,20 @@ function AdminBenchBrowser({ secret }) {
   const act = async (row, op) => {
     append(`→ ${op} · ${row.realName || row.name}`);
     recordAction(row, op);
-    try { await post({ action: op, id: row.id, name: row.realName || row.name }); append(`✓ ${op} · ${row.realName || row.name}`); }
-    catch (ex) { append(`✗ ${op} · ${row.realName || row.name} — ${ex.message}`); }
+    // Pass email — the Sheet lookup uses it to find the row and write the
+    // new status. Without an email, server-side moderation actions return
+    // 400 (the localStorage tint still applies for visual feedback).
+    try {
+      await post({
+        action: op,
+        id:     row.id,
+        name:   row.realName || row.name,
+        email:  row.emailRaw || '',
+      });
+      append(`✓ ${op} · ${row.realName || row.name}`);
+    } catch (ex) {
+      append(`✗ ${op} · ${row.realName || row.name} — ${ex.message}`);
+    }
 
     // On approve, also send the "you're on the bench" email if this row
     // hasn't been welcomed yet. The welcome op lives outside the
@@ -6018,136 +6015,57 @@ function AdminBenchBrowser({ secret }) {
     setBulkBusy(false);
   };
 
-  // ── Sync approvals from Sheet ──────────────────────────────────────────
-  // Recovery tool. The persistence bug in AdminFormspreeApproval.act used
-  // to clobber e:/n: approve stamps in localStorage every time a new row
-  // was approved (raw localStorage write bypassing React state). Rows
-  // already on the bench would silently lose their approve stamps and
-  // disappear from the public bench (which uses BenchProvider.isApproved
-  // → checks localStorage approve keys). Sheet-side these rows are still
-  // status=active; only the operator's per-browser approval gate
-  // forgot them.
-  //
-  // This button walks every row in `bench` (the full Sheet, parsed) and
-  // stamps 'approve' on each row's keys (id, n:realName, n:name,
-  // e:emailRaw) in one setPastActions call. Idempotent — already-approved
-  // rows pass through untouched. After running once, the public bench +
-  // bench browser counts return to parity with the Sheet.
-  const [syncBusy, setSyncBusy] = useState(false);
-  const syncApprovalsFromSheet = () => {
-    if (syncBusy) return;
-    setSyncBusy(true);
-    const stamp = Date.now();
-    let stamped = 0, alreadyApproved = 0, skippedNoStatus = 0;
-    // Capture stamps in a single batched update so we touch localStorage
-    // exactly once (avoids the same N-renders thrash the bug used to
-    // cause). We do NOT clear sibling moderation ops (deny/revoke) for
-    // already-stamped rows — if you'd previously denied someone, the
-    // sync shouldn't auto-reverse that. We only stamp `approve` on rows
-    // that have no current moderation state.
-    setPastActions((p) => {
-      const next = { ...p };
-      for (const row of bench) {
-        // Skip cold/duplicate rows — those were intentionally moved off
-        // the bench and shouldn't be re-approved by a bulk recovery.
-        if (row.status && row.status !== 'active') { skippedNoStatus++; continue; }
-        const keys = [
-          row && row.id != null ? String(row.id) : null,
-          row && row.realName  ? `n:${row.realName.toLowerCase()}` : null,
-          row && row.name      ? `n:${row.name.toLowerCase()}` : null,
-          row && row.emailRaw  ? `e:${row.emailRaw.toLowerCase()}` : null,
-        ].filter(Boolean);
-        if (!keys.length) continue;
-        // Skip if any sibling moderation op is already set (deny / revoke
-        // were intentional; don't stomp them).
-        const hasDeny = keys.some((k) => next[k] && (next[k].deny || next[k].revoke || next[k].reject));
-        if (hasDeny) { skippedNoStatus++; continue; }
-        // Skip if all keys are already approved.
-        const allAlready = keys.every((k) => next[k] && next[k].approve);
-        if (allAlready) { alreadyApproved++; continue; }
-        for (const k of keys) next[k] = { ...(next[k] || {}), approve: stamp };
-        stamped++;
+  // ── Migration: seed the Sheet's approval column ───────────────────────
+  // One-time bridge from the old localStorage-gate world to the new
+  // Sheet-driven world. Calls /api/migrate-approvals with a list of seed
+  // emails; the server normalizes the Sheet's status column:
+  //   - listed emails       → 'approved'
+  //   - everything else     → 'pending'   (ignored on the public bench)
+  //   - existing 'cold' / 'duplicate' / 'denied' rows are left alone
+  // After running once, the public bench reflects the Sheet exactly.
+  const [migrateBusy, setMigrateBusy] = useState(false);
+  const [migrateEmails, setMigrateEmails] = useState(`torlemhag@gmail.com
+sarafbecker@gmail.com
+scott@helllogoodsports.com
+jwgreynolds@gmail.com
+michaelrosenau@gmail.com
+perryfair@gmail.com
+shira.bogart@gmail.com
+andrewlreed@mac.com
+lindquist.diane@gmail.com
+matti@yawn-son.com
+josh@appliedambition.com`);
+  const migrateOpen = useState(false);
+  const [migrateOpenState, setMigrateOpenState] = migrateOpen;
+  const runMigration = async () => {
+    if (migrateBusy) return;
+    const emails = String(migrateEmails || '')
+      .split(/[\s,;]+/)
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.includes('@'));
+    if (!emails.length) { append('migrate · no valid emails'); return; }
+    if (!window.confirm(`Migrate the Sheet: set status='approved' on ${emails.length} matching rows, set everything else to 'pending'. Existing cold/duplicate/denied rows stay untouched. Continue?`)) return;
+    setMigrateBusy(true);
+    append(`→ migrate · seeding ${emails.length} approved emails`);
+    try {
+      const r = await fetch('/api/migrate-approvals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify({ emails }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) {
+        append(`✗ migrate · ${(j && j.error) || 'failed'}`);
+      } else {
+        append(`✓ migrate · ${j.cellsUpdated} cells updated · ${j.approvedRows} approved · ${j.pendingRows} pending · ${j.untouchedRows} untouched`);
       }
-      saveAdminActions(next);
-      return next;
-    });
-    // Mirror to session state so the UI reflects the rescue immediately
-    // (otherwise the row buttons stay 'empty' until the next reload).
-    setSessionActions((s) => {
-      const next = { ...s };
-      for (const row of bench) {
-        if (row.status && row.status !== 'active') continue;
-        const keys = [
-          row && row.id != null ? String(row.id) : null,
-          row && row.realName  ? `n:${row.realName.toLowerCase()}` : null,
-          row && row.name      ? `n:${row.name.toLowerCase()}` : null,
-          row && row.emailRaw  ? `e:${row.emailRaw.toLowerCase()}` : null,
-        ].filter(Boolean);
-        if (!keys.length) continue;
-        const hasDeny = keys.some((k) => next[k] && (next[k].deny || next[k].revoke || next[k].reject));
-        if (hasDeny) continue;
-        for (const k of keys) next[k] = { ...(next[k] || {}), approve: stamp };
-      }
-      return next;
-    });
-    append(`✓ sync from Sheet · ${stamped} stamped · ${alreadyApproved} already approved · ${skippedNoStatus} skipped (denied/cold/duplicate)`);
-    setSyncBusy(false);
+    } catch (ex) {
+      append(`✗ migrate · ${ex.message || 'network'}`);
+    }
+    setMigrateBusy(false);
   };
 
-  // ── Roll back last bulk sync ───────────────────────────────────────────
-  // Surgical undo for syncApprovalsFromSheet. The sync stamps every row's
-  // keys with one Date.now() value, so all sync-created stamps share an
-  // identical timestamp. Real per-click approvals are scattered in time
-  // (each click → a unique ms timestamp). We find the most-common approve
-  // timestamp; if it accounts for >= 20 stamps, treat it as a sync and
-  // remove just those keys. Hand-clicked approvals from earlier sessions
-  // stay intact.
-  const [rollbackBusy, setRollbackBusy] = useState(false);
-  const rollbackLastSync = () => {
-    if (rollbackBusy) return;
-    const tallies = new Map();
-    for (const [k, ops] of Object.entries(pastActions || {})) {
-      if (ops && ops.approve) tallies.set(ops.approve, (tallies.get(ops.approve) || 0) + 1);
-    }
-    if (tallies.size === 0) { append('rollback · no approvals to roll back'); return; }
-    let modeTs = 0, modeCount = 0;
-    for (const [ts, count] of tallies) {
-      if (count > modeCount) { modeTs = ts; modeCount = count; }
-    }
-    if (modeCount < 20) {
-      append(`rollback · no obvious bulk sync detected (largest cluster: ${modeCount} stamps). use the global reset to clear everything if needed.`);
-      return;
-    }
-    const modeDate = new Date(modeTs).toLocaleString();
-    if (!window.confirm(`Roll back ${modeCount} approve stamps from the bulk sync at ${modeDate}? Hand-clicked approvals from before that sync will be preserved.`)) {
-      return;
-    }
-    setRollbackBusy(true);
-    let removedKeys = 0;
-    setPastActions((p) => {
-      const next = {};
-      for (const [k, ops] of Object.entries(p)) {
-        const cleanOps = { ...ops };
-        if (cleanOps.approve === modeTs) { delete cleanOps.approve; removedKeys++; }
-        if (Object.keys(cleanOps).length > 0) next[k] = cleanOps;
-      }
-      saveAdminActions(next);
-      return next;
-    });
-    setSessionActions((s) => {
-      const next = {};
-      for (const [k, ops] of Object.entries(s)) {
-        const cleanOps = { ...ops };
-        if (cleanOps.approve === modeTs) delete cleanOps.approve;
-        if (Object.keys(cleanOps).length > 0) next[k] = cleanOps;
-      }
-      return next;
-    });
-    append(`✓ rollback · removed ${removedKeys} approve stamps from sync at ${modeDate} · prior approvals preserved`);
-    setRollbackBusy(false);
-  };
-
-  const intentBtn = adminIntentBtn;
+    const intentBtn = adminIntentBtn;
   const miniBtn = adminIntentBtn('neutral');
 
   return (
@@ -6212,35 +6130,42 @@ function AdminBenchBrowser({ secret }) {
           </>
         )}
       </div>
-      {/* Bulk recovery — sync stamps every active Sheet row as approved;
-          rollback finds the bulk timestamp and removes only those stamps,
-          preserving any hand-clicked approvals from before. */}
+      {/* Sheet migration — one-time bridge from localStorage gate to Sheet
+          status column. After running, the public bench reads visibility
+          from the Sheet directly; localStorage is just for UI tint. */}
       <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px dashed rgba(255,81,0,0.35)', background: 'rgba(255,81,0,0.05)' }}>
-        <div style={{ marginBottom: 10 }}>
-          <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#FF5100', display: 'block', marginBottom: 4 }}>
-            bulk recovery — danger
+        <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#FF5100' }}>
+            seed approvals into the Sheet
           </span>
-          <span style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.6 }}>
-            <strong>sync</strong> stamps every active Sheet row as approved (use only if all rows in the Sheet are meant to be on the public bench).
-            <strong> roll back last sync</strong> finds the bulk-stamp timestamp and removes those stamps, preserving any hand-clicked approvals from before.
-          </span>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <button type="button" onClick={() => {
-              const n = bench.filter((r) => !r.status || r.status === 'active').length;
-              if (!window.confirm(`Stamp all ${n} active rows as approved? This will mark every Sheet row as visible on the public bench. If only some should be approved, click cancel and approve them individually instead.`)) return;
-              syncApprovalsFromSheet();
-            }} disabled={syncBusy}
-            style={{ ...intentBtn('approve', 'full'), padding: '7px 12px', fontSize: 10, opacity: syncBusy ? 0.5 : 1, cursor: syncBusy ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
-            {syncBusy ? 'syncing…' : `sync ${bench.filter((r) => !r.status || r.status === 'active').length} rows →`}
-          </button>
-          <button type="button" onClick={rollbackLastSync} disabled={rollbackBusy}
-            style={{ ...intentBtn('revoke', 'full'), padding: '7px 12px', fontSize: 10, opacity: rollbackBusy ? 0.5 : 1, cursor: rollbackBusy ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
-            {rollbackBusy ? 'rolling back…' : 'roll back last sync ↶'}
+          <button type="button" onClick={() => setMigrateOpenState((b) => !b)}
+            style={{ ...miniBtn, padding: '5px 10px', fontSize: 10 }}>
+            {migrateOpenState ? 'close' : 'open editor →'}
           </button>
         </div>
+        <span style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.6, display: 'block' }}>
+          paste the emails that should be 'approved' (one per line). everything else in the Sheet flips to 'pending' (hidden from the public bench). cold / duplicate / denied rows stay untouched. running it twice with the same list is a no-op.
+        </span>
+        {migrateOpenState && (
+          <>
+            <textarea
+              value={migrateEmails}
+              onChange={(e) => setMigrateEmails(e.target.value)}
+              rows={10}
+              style={{ width: '100%', fontFamily: GM, fontSize: 11, padding: 10, border: '1px solid rgba(13,13,11,0.2)', borderRadius: 4, background: '#fff', marginTop: 8, resize: 'vertical', lineHeight: 1.5, color: C.ink }} />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+              <button type="button" onClick={runMigration} disabled={migrateBusy || !migrateEmails.trim()}
+                style={{ ...intentBtn('approve', 'full'), padding: '7px 12px', fontSize: 10, opacity: (migrateBusy || !migrateEmails.trim()) ? 0.5 : 1, cursor: (migrateBusy || !migrateEmails.trim()) ? 'default' : 'pointer' }}>
+                {migrateBusy ? 'migrating…' : 'run migration →'}
+              </button>
+              <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
+                {String(migrateEmails || '').split(/[\s,;]+/).filter((e) => e.includes('@')).length} emails · writes Sheet status column · check log below
+              </span>
+            </div>
+          </>
+        )}
       </div>
-      <input
+            <input
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
         placeholder="filter by name, email, or discipline…"
