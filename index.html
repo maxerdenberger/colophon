@@ -813,13 +813,89 @@ const BenchCtx = React.createContext(null);
 function BenchProvider({ children }) {
   const [allBench, setAllBench] = useState(BENCH);
   const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    fetch(SHEETS_CSV)
+  // Re-fetch the source CSV. Cache-bust with a timestamp so the browser /
+  // edge layer don't serve a stale copy. Note: Google's publish-to-web
+  // re-renders the CSV every ~5min from the underlying Sheet, so very
+  // recent writes still won't appear instantly — that's what
+  // injectOptimisticRow is for.
+  const refreshBench = () => {
+    setLoading(true);
+    return fetch(SHEETS_CSV + '&_=' + Date.now())
       .then((r) => r.text())
-      .then((t) => { const p = parseSheetCSV(t); if (p.length > 5) setAllBench(p); })
+      .then((t) => {
+        const p = parseSheetCSV(t);
+        if (p.length > 5) {
+          setAllBench((prev) => {
+            // Keep optimistic rows whose email hasn't yet appeared on the
+            // Sheet (Google's 5-min CSV regen lag). When their email finally
+            // shows up in the parsed Sheet, drop the optimistic dup.
+            const sheetEmails = new Set(p.map((r) => (r.emailRaw || '').toLowerCase()).filter(Boolean));
+            const optsKept = (prev || []).filter((r) =>
+              typeof r.id === 'string' && String(r.id).startsWith('opt:') &&
+              !sheetEmails.has((r.emailRaw || '').toLowerCase())
+            );
+            return [...optsKept, ...p];
+          });
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  };
+  useEffect(() => { refreshBench(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  // Optimistic insertion. Called by AdminFormspreeApproval after a
+  // successful 'approve → sheet'. Builds a parseSheetCSV-shaped row from
+  // the formspree submission data and prepends it to allBench, so it
+  // appears in the bench browser + on the public bench instantly.
+  // The row's id is 'opt:<ts>' (string) — refreshBench drops it when
+  // the real Sheet row arrives with a matching email.
+  const injectOptimisticRow = (data) => {
+    if (!data || !data.email) return;
+    const expText = String(data.expLevel || '').toLowerCase();
+    const yoe = /12\+|veteran|executive/.test(expText) ? 15
+              : /lead|principal|8.{0,3}12/.test(expText) ? 10
+              : /senior|established|4.{0,3}7/.test(expText) ? 6
+              : /junior|mid|1.{0,3}3/.test(expText) ? 2
+              : 0;
+    const fullName = String(data.name || '').trim();
+    const disciplinesStr = String(data.disciplines || data.discipline || '').trim();
+    const discList = disciplinesStr.split(',').map((s) => s.trim()).filter(Boolean);
+    const newRow = {
+      id: 'opt:' + Date.now(),
+      name: fullName.toLowerCase() || (data.email || '').split('@')[0],
+      realName: fullName,
+      firstName: fullName.split(/\s+/)[0] || '',
+      emailRaw: data.email || '',
+      emailEnc: encodeURIComponent(data.email || ''),
+      portfolio: data.portfolio || '',
+      linkedin: data.linkedin || '',
+      updatedAt: Date.now(),
+      discipline: discList[0] || (disciplinesStr || '—'),
+      disciplines: discList.length ? discList : (disciplinesStr ? [disciplinesStr] : []),
+      rawDisciplines: disciplinesStr,
+      availability: 'available',
+      hourlyRate: parseInt(String(data.hourlyRate || '').replace(/[^0-9]/g, ''), 10) || 0,
+      tz: data.timezone || data.tz || 'UTC',
+      rate: '$$',
+      yoe,
+      clients: data.topClients ? String(data.topClients).split(/[,;]/).map((s) => s.trim()).filter(Boolean).slice(0, 8) : ['portfolio available'],
+      note: '',
+      partners: [],
+      status: 'approved',  // formspree queue defaults to one-click approval
+      confirmed: false,
+      paused: false,
+      legend: false,
+    };
+    setAllBench((prev) => {
+      // Skip if the same email is already present (avoid duplicates if the
+      // operator clicks approve twice in quick succession).
+      const targetEmail = (newRow.emailRaw || '').toLowerCase();
+      if (targetEmail && (prev || []).some((r) => (r.emailRaw || '').toLowerCase() === targetEmail)) {
+        return prev;
+      }
+      return [newRow, ...(prev || [])];
+    });
+  };
   // Approval is now a Sheet column — single source of truth, same for every
   // visitor + every device. The /admin panel writes the status; the public
   // bench reads it via the CSV. No more per-browser localStorage gates.
@@ -835,12 +911,12 @@ function BenchProvider({ children }) {
     noDataBench:   allBench.filter((p) => (p.yoe || 0) === 0),
   }), [allBench]);
   const stats = useMemo(() => deriveCounts(bench), [bench]);
-  return <BenchCtx.Provider value={{ bench, allBench, emergingBench, noDataBench, stats, loading }}>{children}</BenchCtx.Provider>;
+  return <BenchCtx.Provider value={{ bench, allBench, emergingBench, noDataBench, stats, loading, refreshBench, injectOptimisticRow }}>{children}</BenchCtx.Provider>;
 }
 
 function useBench() {
   const ctx = React.useContext(BenchCtx);
-  return ctx || { bench: BENCH, stats: deriveCounts(BENCH), loading: false };
+  return ctx || { bench: BENCH, stats: deriveCounts(BENCH), loading: false, refreshBench: () => {}, injectOptimisticRow: () => {} };
 }
 
 // useLiveDrop — schedules a few small drops in the visible bench number
@@ -5483,6 +5559,7 @@ const clearSiblingOps = (actions, keys, op) => {
 // POSTs the payload to /api/bench-update with action='add' so the
 // server can append it to the source Sheet.
 function AdminFormspreeApproval({ secret }) {
+  const { injectOptimisticRow } = useBench();
   const [subs, setSubs] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -5599,7 +5676,12 @@ function AdminFormspreeApproval({ secret }) {
           body: JSON.stringify({ action: 'add', from: 'formspree-submission', submissionId: sub.id, ...data }),
         });
         if (!r.ok) throw new Error('bench-update ' + r.status);
-        append(`✓ approved → sheet · ${data.name || sub.id} (will appear at top of bench browser within ~2min)`);
+        // Optimistically prepend to the bench so the row shows up in the
+        // bench browser + public bench instantly. The Sheet's published-CSV
+        // takes ~5 min to regenerate; without this the operator would
+        // refresh and see nothing for a while.
+        injectOptimisticRow(data);
+        append(`✓ approved → sheet · ${data.name || sub.id} (live in bench browser; Sheet CSV reconciles within ~5min)`);
         // Stamp the new creative as approved under the keys the bench
         // browser looks up (e:<email>, n:<name>). Both setSession and
         // setPast — keeping React state in sync with localStorage so a
@@ -5771,7 +5853,7 @@ function AdminFormspreeApproval({ secret }) {
 // Action buttons POST to /api/bench-update (server-side endpoint must
 // implement the Sheets write-back). Failures surface in the inline log.
 function AdminBenchBrowser({ secret }) {
-  const { allBench, noDataBench } = useBench();
+  const { allBench, noDataBench, refreshBench, loading: benchLoading } = useBench();
   const bench = allBench;
   const [filter, setFilter] = useState('');
   // 'all' | 'unapproved' | 'approved' — filters the row list by past+session
@@ -5921,6 +6003,11 @@ function AdminBenchBrowser({ secret }) {
     // moderation group so deny/revoke won't clear it — once we've told
     // someone they're on the bench, we shouldn't accidentally tell them
     // again.
+    // After a successful approve in the bench browser, briefly switch the
+    // status filter so the operator sees the row that just moved.
+    if (op === 'approve' && statusFilter === 'unapproved') {
+      setStatusFilter('approved');
+    }
     if (op === 'approve' && row.emailRaw && stateFor(row, 'welcome') === 'empty') {
       try {
         const r = await fetch('/api/send-approval-email', {
@@ -6070,9 +6157,15 @@ josh@appliedambition.com`);
 
   return (
     <div style={{ marginBottom: 36, border: `1px solid ${C.rule}`, padding: 18, background: '#fff' }}>
-      <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 8 }}>bench browser</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+        <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.16em', textTransform: 'uppercase', margin: 0 }}>bench browser · {bench.length} rows</p>
+        <button onClick={refreshBench} disabled={benchLoading}
+          style={{ ...miniBtn, padding: '4px 10px', fontSize: 9, opacity: benchLoading ? 0.5 : 1 }}>
+          {benchLoading ? 'refreshing…' : 'refresh from Sheet ↻'}
+        </button>
+      </div>
       <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 10, lineHeight: 1.6 }}>
-        Actions POST to <code>/api/bench-update</code> which writes back to the source CSV / Sheets. Filter, approve, deny, revoke, or add manually.
+        Approve / deny / revoke writes the row's <code>status</code> column on the Sheet via <code>/api/bench-update</code>. The public bench reads visibility from that column. Approvals from the formspree queue inject instantly here; the published CSV reconciles every ~5 min.
       </p>
       {/* Three-state button legend — confirms what the colours mean.
           Empty outline = never acted on. Tinted fill = acted in a
