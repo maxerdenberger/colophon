@@ -911,12 +911,27 @@ function BenchProvider({ children }) {
     noDataBench:   allBench.filter((p) => (p.yoe || 0) === 0),
   }), [allBench]);
   const stats = useMemo(() => deriveCounts(bench), [bench]);
-  return <BenchCtx.Provider value={{ bench, allBench, emergingBench, noDataBench, stats, loading, refreshBench, injectOptimisticRow }}>{children}</BenchCtx.Provider>;
+  // Update a row's status in-place. Called by AdminBenchBrowser after a
+  // successful /api/bench-update so the local row reflects the new status
+  // before the (5-min-cached) Sheet CSV catches up. Matches by id and/or
+  // email so the same call works for both fresh optimistic rows and
+  // long-lived Sheet-derived rows.
+  const updateBenchRowStatus = ({ id, email }, newStatus) => {
+    const targetEmail = String(email || '').toLowerCase();
+    setAllBench((prev) => (prev || []).map((r) => {
+      const idMatch = id != null && r.id === id;
+      const emailMatch = targetEmail && (r.emailRaw || '').toLowerCase() === targetEmail;
+      if (idMatch || emailMatch) return { ...r, status: newStatus };
+      return r;
+    }));
+  };
+
+  return <BenchCtx.Provider value={{ bench, allBench, emergingBench, noDataBench, stats, loading, refreshBench, injectOptimisticRow, updateBenchRowStatus }}>{children}</BenchCtx.Provider>;
 }
 
 function useBench() {
   const ctx = React.useContext(BenchCtx);
-  return ctx || { bench: BENCH, stats: deriveCounts(BENCH), loading: false, refreshBench: () => {}, injectOptimisticRow: () => {} };
+  return ctx || { bench: BENCH, stats: deriveCounts(BENCH), loading: false, refreshBench: () => {}, injectOptimisticRow: () => {}, updateBenchRowStatus: () => {} };
 }
 
 // useLiveDrop — schedules a few small drops in the visible bench number
@@ -5853,13 +5868,12 @@ function AdminFormspreeApproval({ secret }) {
 // Action buttons POST to /api/bench-update (server-side endpoint must
 // implement the Sheets write-back). Failures surface in the inline log.
 function AdminBenchBrowser({ secret }) {
-  const { allBench, noDataBench, refreshBench, loading: benchLoading } = useBench();
+  const { allBench, noDataBench, refreshBench, loading: benchLoading, updateBenchRowStatus } = useBench();
   const bench = allBench;
   const [filter, setFilter] = useState('');
-  // 'all' | 'unapproved' | 'approved' — filters the row list by past+session
-  // approval state. Default 'unapproved' so the queue is in front of you on
-  // every load.
-  const [statusFilter, setStatusFilter] = useState('unapproved');
+  // 'pending' | 'approved' | 'archived' — exclusive Sheet-status buckets.
+  // Default 'pending' so the in-review queue is in front of you on load.
+  const [statusFilter, setStatusFilter] = useState('pending');
   // 'newest' = by Sheet-row timestamp desc (col 0 of the source CSV).
   // 'rate'   = original behavior: hourly desc, then yoe desc.
   const [sortBy, setSortBy] = useState('newest');
@@ -5912,47 +5926,35 @@ function AdminBenchBrowser({ secret }) {
   // the Sheet — same for every browser, every device.
   const wasApproved = (row) => row.status === 'approved';
 
-  // Auto-hide stale denials. If a row was denied >36hrs ago AND has no
-  // newer counter-action (approve clears deny via the action-group
-  // logic, so a denial only persists if it's still the latest mod state),
-  // the row drops out of the bench browser. The 'all' status filter
-  // still shows them so the operator can recover one explicitly.
-  const HIDE_DENIED_AFTER_MS = 36 * 60 * 60 * 1000;
-  const isStaleDeny = (row) => {
-    const keys = keysForRow(row);
-    let mostRecentDeny = 0;
-    for (const k of keys) {
-      const stamp = (pastActions[k] && pastActions[k].deny) || 0;
-      if (stamp > mostRecentDeny) mostRecentDeny = stamp;
-    }
-    if (!mostRecentDeny) return false;
-    return (Date.now() - mostRecentDeny) > HIDE_DENIED_AFTER_MS;
-  };
+  // Sheet-driven buckets. Three exclusive states the operator cares about:
+  //   pending  — in review queue. Action: approve or deny.
+  //   approved — on the public bench. Action: revoke (back to denied).
+  //   archived — denied / cold / duplicate. Hidden by default; collapsed
+  //              under an explicit pill so an accidental deny is recoverable.
+  // Every Sheet row falls into exactly one of those three buckets.
+  const isPending  = (p) => p.status === 'pending';
+  const isApprovedSheet = (p) => p.status === 'approved';
+  const isArchived = (p) => ['denied', 'cold', 'duplicate'].includes(p.status);
 
-  // Counts for the status pills (calculated against the search-filtered list
-  // so the numbers reflect what the user is actually narrowing through).
   const searchHit = (p) =>
     !filter ||
     (p.realName || '').toLowerCase().includes(filter.toLowerCase()) ||
     p.name.toLowerCase().includes(filter.toLowerCase()) ||
     (p.discipline || '').toLowerCase().includes(filter.toLowerCase()) ||
     (p.emailRaw || '').toLowerCase().includes(filter.toLowerCase());
-  const visible = (p) => searchHit(p) && !isStaleDeny(p);
-  const hiddenStaleDenies = bench.filter((p) => searchHit(p) && isStaleDeny(p)).length;
+
   const counts = {
-    all:        bench.filter(searchHit).length,
-    unapproved: bench.filter((p) => visible(p) && !wasApproved(p)).length,
-    approved:   bench.filter((p) => visible(p) &&  wasApproved(p)).length,
+    pending:  bench.filter((p) => searchHit(p) && isPending(p)).length,
+    approved: bench.filter((p) => searchHit(p) && isApprovedSheet(p)).length,
+    archived: bench.filter((p) => searchHit(p) && isArchived(p)).length,
   };
 
   const filtered = bench
     .filter(searchHit)
     .filter((p) => {
-      // 'all' shows every search hit, including stale-denied rows so the
-      // operator can recover any of them. The other two views auto-hide.
-      if (statusFilter !== 'all' && isStaleDeny(p)) return false;
-      if (statusFilter === 'unapproved') return !wasApproved(p);
-      if (statusFilter === 'approved')   return  wasApproved(p);
+      if (statusFilter === 'pending')  return isPending(p);
+      if (statusFilter === 'approved') return isApprovedSheet(p);
+      if (statusFilter === 'archived') return isArchived(p);
       return true;
     })
     .slice()
@@ -5980,12 +5982,29 @@ function AdminBenchBrowser({ secret }) {
     if (!r.ok) throw new Error('status ' + r.status);
     return r.json().catch(() => ({}));
   };
+  // Map admin actions → Sheet status values. Drives the optimistic local
+  // update so a clicked row leaves the current view immediately, before
+  // the 5-min CSV cache catches up.
+  const STATUS_FOR_OP = {
+    approve: 'approved',
+    deny:    'denied',
+    revoke:  'denied',
+    reject:  'denied',
+    pending: 'pending',
+    cold:    'cold',
+  };
+
   const act = async (row, op) => {
     append(`→ ${op} · ${row.realName || row.name}`);
     recordAction(row, op);
-    // Pass email — the Sheet lookup uses it to find the row and write the
-    // new status. Without an email, server-side moderation actions return
-    // 400 (the localStorage tint still applies for visual feedback).
+    // Optimistic local status flip — fires before the network call so the
+    // row leaves its current filter bucket immediately. If the server
+    // rejects, we revert below.
+    const newStatus = STATUS_FOR_OP[op];
+    const priorStatus = row.status;
+    if (newStatus) {
+      updateBenchRowStatus({ id: row.id, email: row.emailRaw }, newStatus);
+    }
     try {
       await post({
         action: op,
@@ -5993,9 +6012,13 @@ function AdminBenchBrowser({ secret }) {
         name:   row.realName || row.name,
         email:  row.emailRaw || '',
       });
-      append(`✓ ${op} · ${row.realName || row.name}`);
+      append(`✓ ${op} · ${row.realName || row.name}${newStatus ? ` → ${newStatus}` : ''}`);
     } catch (ex) {
       append(`✗ ${op} · ${row.realName || row.name} — ${ex.message}`);
+      // Revert the optimistic update if the server call failed.
+      if (newStatus && priorStatus !== undefined) {
+        updateBenchRowStatus({ id: row.id, email: row.emailRaw }, priorStatus);
+      }
     }
 
     // On approve, also send the "you're on the bench" email if this row
@@ -6003,11 +6026,6 @@ function AdminBenchBrowser({ secret }) {
     // moderation group so deny/revoke won't clear it — once we've told
     // someone they're on the bench, we shouldn't accidentally tell them
     // again.
-    // After a successful approve in the bench browser, briefly switch the
-    // status filter so the operator sees the row that just moved.
-    if (op === 'approve' && statusFilter === 'unapproved') {
-      setStatusFilter('approved');
-    }
     if (op === 'approve' && row.emailRaw && stateFor(row, 'welcome') === 'empty') {
       try {
         const r = await fetch('/api/send-approval-email', {
@@ -6271,9 +6289,9 @@ josh@appliedambition.com`);
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           <span style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.14em', color: C.soft, textTransform: 'uppercase', marginRight: 6 }}>status</span>
           {[
-            ['unapproved', `not yet approved (${counts.unapproved})`],
-            ['approved',   `approved (${counts.approved})`],
-            ['all',        `all (${counts.all})`],
+            ['pending',  `in review (${counts.pending})`],
+            ['approved', `on the bench (${counts.approved})`],
+            ['archived', `archived (${counts.archived})`],
           ].map(([key, label]) => {
             const active = statusFilter === key;
             return (
@@ -6379,12 +6397,6 @@ josh@appliedambition.com`);
       <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
         <span>
           showing {filtered.length} of {bench.length} · {statusFilter} · sorted by {sortBy === 'newest' ? 'newest' : 'rate'}
-          {hiddenStaleDenies > 0 && statusFilter !== 'all' && (
-            <span style={{ marginLeft: 6 }}>
-              · <span style={{ color: '#b04040' }}>{hiddenStaleDenies} denied {hiddenStaleDenies === 1 ? 'row' : 'rows'} auto-hidden after 36hrs</span>
-              <button onClick={() => setStatusFilter('all')} style={{ ...miniBtn, padding: '2px 8px', marginLeft: 6, fontSize: 9 }}>show all</button>
-            </span>
-          )}
         </span>
         <span style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
           <span>{Object.keys(pastActions).length} past-action keys in storage</span>
