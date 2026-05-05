@@ -99,15 +99,26 @@ const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').
 
 function emailShell(bodyHtml) {
   // Aligns with the latest palette: cream surface, ink type, accent dot logo.
+  // Wordmark stack: Space Grotesk (loaded via the <link> below — Gmail web,
+  // Apple Mail, iOS Mail support web fonts) with Helvetica/Arial fallbacks
+  // for clients that don't (Outlook desktop). Never falls back to serif.
   return `
 <!doctype html>
 <html lang="en">
+<head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+</head>
 <body style="margin:0;background:#FAFAF8;font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;color:#0d0d0b;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAFAF8;padding:32px 16px;">
     <tr><td align="center">
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="background:#FAFAF8;border:1px solid rgba(13,13,11,0.08);max-width:560px;">
-        <tr><td style="padding:24px 28px;border-bottom:1px solid rgba(13,13,11,0.08);">
-          <span style="display:inline-block;width:18px;height:18px;background:#f4f1ec;border:1.5px solid #0d0d0b;border-radius:50%;text-align:center;line-height:14px;vertical-align:-3px;margin-right:8px;"><span style="display:inline-block;width:6px;height:6px;background:#FF5100;border-radius:50%;vertical-align:1px;"></span></span><span style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;letter-spacing:-0.02em;color:#0d0d0b;">colo<span style="color:#FF5100;">phon</span></span>
+        <tr><td style="padding:24px 28px;border-bottom:1px solid rgba(13,13,11,0.08);text-align:left;">
+          <div style="margin:0 0 10px;line-height:0;">
+            <span style="display:inline-block;width:22px;height:22px;background:#f4f1ec;border:1.5px solid #0d0d0b;border-radius:50%;box-sizing:border-box;text-align:center;line-height:18px;"><span style="display:inline-block;width:8px;height:8px;background:#FF5100;border-radius:50%;vertical-align:1px;"></span></span>
+          </div>
+          <div style="font-family:'Space Grotesk','Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:700;font-size:22px;letter-spacing:-0.02em;color:#0d0d0b;line-height:1;">colo<span style="color:#FF5100;">phon</span></div>
         </td></tr>
         <tr><td style="padding:28px 28px 24px;line-height:1.7;font-size:14px;color:#0d0d0b;">
           ${bodyHtml}
@@ -146,12 +157,21 @@ const coldStorageEmail = (name, email, rowNumber) => {
   const ghostUrl   = `https://colophon.contact/invite?name=${encodeURIComponent(name || '')}`;
   const html = `<!doctype html>
 <html lang="en">
+<head>
+  <!-- Web font for the wordmark — supported by Gmail web, Apple Mail, iOS Mail. Outlook desktop ignores this and falls through to Helvetica/Arial. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+</head>
 <body style="margin:0;background:#f4f1ec;font-family:Georgia,'Times New Roman',serif;color:#0d0d0b;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f1ec;padding:32px 16px;">
     <tr><td align="center">
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="background:#f4f1ec;max-width:560px;">
-        <tr><td style="padding:24px 28px;">
-          <span style="display:inline-block;width:18px;height:18px;background:#f4f1ec;border:1.5px solid #0d0d0b;border-radius:50%;text-align:center;line-height:14px;vertical-align:-3px;margin-right:8px;"><span style="display:inline-block;width:6px;height:6px;background:#FF5100;border-radius:50%;vertical-align:1px;"></span></span><span style="font-family:Georgia,'Times New Roman',serif;font-weight:bold;font-size:18px;color:#0d0d0b;">colo<span style="color:#FF5100;">phon</span></span>
+        <tr><td style="padding:24px 28px;text-align:left;">
+          <div style="margin:0 0 10px;line-height:0;">
+            <span style="display:inline-block;width:22px;height:22px;background:#f4f1ec;border:1.5px solid #0d0d0b;border-radius:50%;box-sizing:border-box;text-align:center;line-height:18px;"><span style="display:inline-block;width:8px;height:8px;background:#FF5100;border-radius:50%;vertical-align:1px;"></span></span>
+          </div>
+          <div style="font-family:'Space Grotesk','Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:700;font-size:22px;letter-spacing:-0.02em;color:#0d0d0b;line-height:1;">colo<span style="color:#FF5100;">phon</span></div>
         </td></tr>
         <tr><td style="padding:0 28px 8px;line-height:1.6;font-size:16px;color:#0d0d0b;">
           <p style="margin:0 0 18px;font-size:22px;line-height:1.25;font-style:italic;">you've gone cold on the bench.</p>
@@ -169,7 +189,7 @@ const coldStorageEmail = (name, email, rowNumber) => {
         </td></tr>
         <tr><td style="padding:18px 28px;border-top:1px solid rgba(13,13,11,0.12);text-align:center;">
           <div style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#FF5100;"></div>
-          <div style="font-family:Georgia,'Times New Roman',serif;font-size:11px;color:rgba(13,13,11,0.5);margin-top:8px;">colophon · the bench</div>
+          <div style="font-family:'IBM Plex Mono','Menlo','Courier New',monospace;font-size:10px;letter-spacing:0.14em;color:rgba(13,13,11,0.5);text-transform:uppercase;margin-top:8px;">colophon · the bench</div>
         </td></tr>
       </table>
     </td></tr>
