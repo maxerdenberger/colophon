@@ -2056,11 +2056,9 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
 
 // ── APPLY PAGE ────────────────────────────────────────────────────────────────
 function ApplyPage({ accent, onDone, isDrawer = false }) {
-  // Pull the live approved bench so the referral input can autocomplete
-  // against actual member names. Datalist works against either bench (the
-  // public approved-only list) or allBench (everyone in the Sheet). We
-  // use bench so applicants only see names that are currently visible
-  // on the public site — no leaking pending applicants.
+  // Pull the live approved bench so the referral + clients inputs can
+  // autocomplete against real bench data. Datalist works against the
+  // public approved-only list — no leaking pending applicants.
   const { bench: liveBenchForReferral } = useBench();
   const referralSuggestions = React.useMemo(() => {
     return (liveBenchForReferral || [])
@@ -2070,6 +2068,30 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
       }))
       .filter((p) => p.name && p.name.length > 1)
       .sort((a, b) => a.name.localeCompare(b.name));
+  }, [liveBenchForReferral]);
+
+  // Client suggestions — flatten every approved row's clients[] into a
+  // single deduped, alpha-sorted list. Title-case each so 'apple' and
+  // 'Apple' don't double-list. Drop the parser's 'portfolio available'
+  // filler. Each datalist entry suggests one client at a time.
+  const clientSuggestions = React.useMemo(() => {
+    const set = new Map(); // lowercase → original-case
+    for (const p of (liveBenchForReferral || [])) {
+      for (const c of (p.clients || [])) {
+        const t = String(c || '').trim();
+        if (!t || t.toLowerCase() === 'portfolio available') continue;
+        const k = t.toLowerCase();
+        if (!set.has(k)) {
+          // Title-case for nicer display: 'wieden+kennedy' → 'Wieden+Kennedy'
+          const display = t.split(/(\s+)/).map((w) => {
+            if (/^\s+$/.test(w)) return w;
+            return w.charAt(0).toUpperCase() + w.slice(1);
+          }).join('');
+          set.set(k, display);
+        }
+      }
+    }
+    return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
   }, [liveBenchForReferral]);
   const [done, setDone] = useState(false);
   // Top three disciplines, in rank order. disc1 is the primary (required);
@@ -2086,7 +2108,10 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
   const [form, setForm] = useState({
     name: '', email: '', portfolio: '', linkedin: '', disciplineOther: '',
     availability: '', timezone: '', hourlyRate: '', minFee: '',
-    referralContext: '', topClients: '', expLevel: '', summary: '',
+    referralContext: '', expLevel: '', summary: '',
+    // Top three clients/brands. Captured separately so each gets its own
+    // autocomplete; combined into topClients on submit (comma-separated).
+    client1: '', client2: '', client3: '',
     partnerEmails: '', aiSavvy: '',
     rec1Name: '', rec1Email: '', rec2Name: '', rec2Email: '', rec3Name: '', rec3Email: '',
     buyerName: '', buyerOrg: '', buyerEmail: ''
@@ -2146,6 +2171,8 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
         <form onSubmit={async (e) => {
           e.preventDefault();
           const orderedDisciplines = [disc1, disc2, disc3].filter(Boolean);
+          const orderedClients = [form.client1, form.client2, form.client3]
+            .map((c) => String(c || '').trim()).filter(Boolean);
           await submitForm({
             ...form,
             // Rank-ordered, comma-separated. parseSheetCSV preserves order
@@ -2154,6 +2181,9 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
             disciplinePrimary:    disc1 || '',
             disciplineSecondary:  disc2 || '',
             disciplineTertiary:   disc3 || '',
+            // Top 3 clients combined for downstream consumers (Sheet col 12,
+            // formspree, parseSheetCSV) — they all read this comma string.
+            topClients: orderedClients.join(', '),
             categories: categories.join(', '),
             social: isSocial ? 'yes' : '',
             source: 'apply-bench',
@@ -2282,7 +2312,28 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
           </div>
 
           <h3 style={sH}>background</h3>
-          <div><label style={lS}>top 3 most relevant past clients / brands</label><input style={iS} value={form.topClients} onChange={set('topClients')} placeholder="apple, google, nike" /></div>
+          <div>
+            <label style={lS}>top 3 most relevant past clients / brands</label>
+            <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.6, marginTop: 4, marginBottom: 12 }}>
+              type to autocomplete from brands already on the bench, or freetype anything new.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr', gap: '10px 14px', alignItems: 'center' }}>
+              <span style={{ fontFamily: GM, fontSize: 11, color: C.soft, letterSpacing: '0.14em' }}>1 ·</span>
+              <input list="colophon-client-suggestions" style={iS} value={form.client1} onChange={set('client1')} placeholder="e.g. Nike" autoComplete="off" />
+              <span style={{ fontFamily: GM, fontSize: 11, color: C.soft, letterSpacing: '0.14em' }}>2 ·</span>
+              <input list="colophon-client-suggestions" style={iS} value={form.client2} onChange={set('client2')} placeholder="e.g. Apple" autoComplete="off" />
+              <span style={{ fontFamily: GM, fontSize: 11, color: C.soft, letterSpacing: '0.14em' }}>3 ·</span>
+              <input list="colophon-client-suggestions" style={iS} value={form.client3} onChange={set('client3')} placeholder="e.g. Wieden+Kennedy" autoComplete="off" />
+            </div>
+            <datalist id="colophon-client-suggestions">
+              {clientSuggestions.map((c, i) => <option key={i} value={c} />)}
+            </datalist>
+            {clientSuggestions.length > 0 && (
+              <p style={{ fontFamily: GM, fontSize: 10, color: 'rgba(13,13,11,0.45)', lineHeight: 1.55, marginTop: 8 }}>
+                {clientSuggestions.length} brands already on the bench.
+              </p>
+            )}
+          </div>
           <div>
             <label style={lS}>referral context — who referred you</label>
             <input list="colophon-bench-names" style={iS} value={form.referralContext} onChange={set('referralContext')}
