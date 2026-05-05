@@ -2055,19 +2055,57 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
 }
 
 // ── APPLY PAGE ────────────────────────────────────────────────────────────────
+// Inline autocomplete input. The "select-the-rest" pattern (same as the
+// Chrome URL bar): as the user types, we find the closest prefix match
+// in `suggestions` and stuff it into the input — but mark the auto-
+// completed tail as a text selection. Keep typing → the selection gets
+// replaced with the next character, so the suggestion never gets in the
+// way. Tab/Enter/Click-out → selection collapses and the full match is
+// accepted. No dropdown, no list, no datalist UI noise.
+function AutocompleteInput({ value, onChange, suggestions, minChars = 2, ...rest }) {
+  const ref = React.useRef(null);
+  const lastValue = React.useRef(value || '');
+  const handleChange = (e) => {
+    const v = e.target.value;
+    const wasShortening = v.length < (lastValue.current || '').length;
+    lastValue.current = v;
+    // When deleting, never auto-complete — let them clear freely.
+    if (wasShortening || v.length < minChars) { onChange(v); return; }
+    const match = (suggestions || []).find((s) =>
+      typeof s === 'string' && s.length > v.length &&
+      s.toLowerCase().startsWith(v.toLowerCase()) &&
+      s.toLowerCase() !== v.toLowerCase()
+    );
+    if (match) {
+      onChange(match);
+      // Defer to next tick so React commits the new value, then mark
+      // the auto-completed tail as a selection.
+      setTimeout(() => {
+        const el = ref.current;
+        if (el && typeof el.setSelectionRange === 'function') {
+          try { el.setSelectionRange(v.length, match.length); } catch {}
+        }
+      }, 0);
+    } else {
+      onChange(v);
+    }
+  };
+  return <input ref={ref} value={value} onChange={handleChange} {...rest} />;
+}
+
 function ApplyPage({ accent, onDone, isDrawer = false }) {
   // Pull the live approved bench so the referral + clients inputs can
-  // autocomplete against real bench data. Datalist works against the
-  // public approved-only list — no leaking pending applicants.
+  // autocomplete against real bench data. Suggestions only pull from
+  // status='approved' rows — no leaking pending applicants.
   const { bench: liveBenchForReferral } = useBench();
   const referralSuggestions = React.useMemo(() => {
     return (liveBenchForReferral || [])
-      .map((p) => ({
-        name: p.realName || p.name,
-        discipline: (p.disciplines && p.disciplines[0]) || p.discipline || '',
-      }))
-      .filter((p) => p.name && p.name.length > 1)
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .map((p) => p.realName || p.name)
+      .filter((n) => typeof n === 'string' && n.length > 1)
+      // Title-case so 'andrew dixon' → 'Andrew Dixon' on completion.
+      .map((n) => n.split(/(\s+)/).map((w) => /^\s+$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(''))
+      .filter((n, i, arr) => arr.indexOf(n) === i)  // dedupe
+      .sort((a, b) => a.localeCompare(b));
   }, [liveBenchForReferral]);
 
   // Client suggestions — flatten every approved row's clients[] into a
@@ -2319,35 +2357,34 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr', gap: '10px 14px', alignItems: 'center' }}>
               <span style={{ fontFamily: GM, fontSize: 11, color: C.soft, letterSpacing: '0.14em' }}>1 ·</span>
-              <input list="colophon-client-suggestions" style={iS} value={form.client1} onChange={set('client1')} placeholder="e.g. Nike" autoComplete="off" />
+              <AutocompleteInput
+                value={form.client1}
+                onChange={(v) => setForm((f) => ({ ...f, client1: v }))}
+                suggestions={clientSuggestions}
+                style={iS} placeholder="e.g. Nike" autoComplete="off" />
               <span style={{ fontFamily: GM, fontSize: 11, color: C.soft, letterSpacing: '0.14em' }}>2 ·</span>
-              <input list="colophon-client-suggestions" style={iS} value={form.client2} onChange={set('client2')} placeholder="e.g. Apple" autoComplete="off" />
+              <AutocompleteInput
+                value={form.client2}
+                onChange={(v) => setForm((f) => ({ ...f, client2: v }))}
+                suggestions={clientSuggestions}
+                style={iS} placeholder="e.g. Apple" autoComplete="off" />
               <span style={{ fontFamily: GM, fontSize: 11, color: C.soft, letterSpacing: '0.14em' }}>3 ·</span>
-              <input list="colophon-client-suggestions" style={iS} value={form.client3} onChange={set('client3')} placeholder="e.g. Wieden+Kennedy" autoComplete="off" />
+              <AutocompleteInput
+                value={form.client3}
+                onChange={(v) => setForm((f) => ({ ...f, client3: v }))}
+                suggestions={clientSuggestions}
+                style={iS} placeholder="e.g. Wieden+Kennedy" autoComplete="off" />
             </div>
-            <datalist id="colophon-client-suggestions">
-              {clientSuggestions.map((c, i) => <option key={i} value={c} />)}
-            </datalist>
-            {clientSuggestions.length > 0 && (
-              <p style={{ fontFamily: GM, fontSize: 10, color: 'rgba(13,13,11,0.45)', lineHeight: 1.55, marginTop: 8 }}>
-                {clientSuggestions.length} brands already on the bench.
-              </p>
-            )}
           </div>
           <div>
             <label style={lS}>referral context — who referred you</label>
-            <input list="colophon-bench-names" style={iS} value={form.referralContext} onChange={set('referralContext')}
-              placeholder="start typing — names on the bench will suggest" autoComplete="off" />
-            <datalist id="colophon-bench-names">
-              {referralSuggestions.map((p, i) => (
-                <option key={i} value={p.discipline ? `${p.name} (${p.discipline})` : p.name} />
-              ))}
-            </datalist>
-            <p style={{ fontFamily: GM, fontSize: 10, color: 'rgba(13,13,11,0.5)', lineHeight: 1.55, marginTop: 4 }}>
-              {referralSuggestions.length > 0
-                ? `${referralSuggestions.length} names on the current bench — type two letters to filter.`
-                : 'free text — name + how they referred you.'}
-            </p>
+            <AutocompleteInput
+              value={form.referralContext}
+              onChange={(v) => setForm((f) => ({ ...f, referralContext: v }))}
+              suggestions={referralSuggestions}
+              style={iS}
+              placeholder="type a name on the bench — we'll auto-complete"
+              autoComplete="off" />
           </div>
           <div>
             <label style={lS}>partners you team up with — emails, one per line</label>
