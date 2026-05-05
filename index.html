@@ -6555,30 +6555,85 @@ josh@appliedambition.com`);
   // stamped only localStorage and never reached the Sheet, plus any
   // silent /api/bench-update failures along the way.
   const [unsyncedBusy, setUnsyncedBusy] = useState(false);
+  // Last sync's per-row failures, surfaced inline so the operator can see
+  // exactly what didn't take. Cleared on each new sync run.
+  const [unsyncedFailures, setUnsyncedFailures] = useState([]);
   const syncUnsyncedApprovals = async () => {
     if (unsyncedBusy) return;
     const targets = bench.filter(needsSheetSync);
-    if (!targets.length) { append('sync · 0 rows need a Sheet write'); return; }
+    if (!targets.length) { append('sync · 0 rows need a Sheet write'); setUnsyncedFailures([]); return; }
     if (!window.confirm(`Push ${targets.length} locally-approved rows to the Sheet (set status='approved' on each)? Their public-bench visibility depends on this.`)) return;
     setUnsyncedBusy(true);
+    setUnsyncedFailures([]);
     append(`→ sync · pushing ${targets.length} approvals to Sheet`);
-    let ok = 0, fail = 0;
+    let ok = 0;
+    const failures = [];
     for (const row of targets) {
+      const label = row.realName || row.name || row.emailRaw || `id:${row.id}`;
       try {
         const r = await fetch('/api/bench-update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
           body: JSON.stringify({ action: 'approve', email: row.emailRaw, name: row.realName || row.name }),
         });
-        if (!r.ok) { fail++; continue; }
-        // Mirror to local row + mutation cache so the next CSV refresh
-        // doesn't re-introduce the gap.
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          failures.push({
+            label,
+            email: row.emailRaw || '(no email)',
+            id: row.id,
+            status: r.status,
+            error: (j && j.error) || `HTTP ${r.status}`,
+          });
+          continue;
+        }
         updateBenchRowStatus({ id: row.id, email: row.emailRaw }, 'approved');
         ok++;
-      } catch { fail++; }
+      } catch (ex) {
+        failures.push({ label, email: row.emailRaw || '(no email)', id: row.id, status: 0, error: ex.message || 'network' });
+      }
     }
-    append(`✓ sync · ${ok} written to Sheet · ${fail} failed`);
+    setUnsyncedFailures(failures);
+    if (failures.length === 0) {
+      append(`✓ sync · ${ok} written to Sheet · 0 failed`);
+    } else {
+      append(`⚠ sync · ${ok} written · ${failures.length} failed (see panel below)`);
+      // First three reasons inline for quick triage
+      const reasons = failures.slice(0, 3).map((f) => `${f.label} → ${f.error}`).join(' · ');
+      append(`  ${reasons}${failures.length > 3 ? ` · +${failures.length - 3} more` : ''}`);
+    }
     setUnsyncedBusy(false);
+  };
+
+  // Drop the local approve stamps for rows the Sheet refused. Use this
+  // when a row's email doesn't match anything in the Sheet (someone's
+  // record lives in localStorage as 'approved' but the real Sheet row
+  // has a different email or no email at all). Removing the stamp gets
+  // the row out of the unsynced banner so we stop trying.
+  const dropFailedLocalApprovals = () => {
+    if (!unsyncedFailures.length) return;
+    if (!window.confirm(`Drop the local approve stamps for ${unsyncedFailures.length} rows that the Sheet refused? They'll fall back to whatever the Sheet says (usually 'pending'). The Sheet itself is NOT touched.`)) return;
+    setPastActions((p) => {
+      const next = { ...p };
+      for (const f of unsyncedFailures) {
+        const keys = [
+          f.id != null ? String(f.id) : null,
+          f.email && f.email.includes('@') ? `e:${String(f.email).toLowerCase()}` : null,
+        ].filter(Boolean);
+        for (const k of keys) {
+          if (next[k]) {
+            const cleaned = { ...next[k] };
+            delete cleaned.approve;
+            if (Object.keys(cleaned).length > 0) next[k] = cleaned;
+            else delete next[k];
+          }
+        }
+      }
+      saveAdminActions(next);
+      return next;
+    });
+    append(`✓ cleared local approve for ${unsyncedFailures.length} rows · banner should clear`);
+    setUnsyncedFailures([]);
   };
 
   const intentBtn = adminIntentBtn;
@@ -6679,14 +6734,42 @@ josh@appliedambition.com`);
           Most often: pre-architecture approvals OR a silent API failure.
           One-click "sync to Sheet" closes the gap row by row. */}
       {bench.filter(needsSheetSync).length > 0 && (
-        <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px solid rgba(200,124,24,0.4)', background: 'rgba(200,124,24,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ fontFamily: GM, fontSize: 11, color: '#7A4A0E', lineHeight: 1.6 }}>
-            <strong>{bench.filter(needsSheetSync).length} rows are approved here but still 'pending' on the Sheet.</strong> Until you sync, they won't appear on the public bench.
+        <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px solid rgba(200,124,24,0.4)', background: 'rgba(200,124,24,0.06)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ fontFamily: GM, fontSize: 11, color: '#7A4A0E', lineHeight: 1.6 }}>
+              <strong>{bench.filter(needsSheetSync).length} rows are approved here but still 'pending' on the Sheet.</strong> Until you sync, they won't appear on the public bench.
+            </div>
+            <button onClick={syncUnsyncedApprovals} disabled={unsyncedBusy}
+              style={{ ...intentBtn('approve', 'full'), padding: '7px 12px', fontSize: 10, opacity: unsyncedBusy ? 0.5 : 1, cursor: unsyncedBusy ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
+              {unsyncedBusy ? 'syncing…' : `sync ${bench.filter(needsSheetSync).length} to Sheet →`}
+            </button>
           </div>
-          <button onClick={syncUnsyncedApprovals} disabled={unsyncedBusy}
-            style={{ ...intentBtn('approve', 'full'), padding: '7px 12px', fontSize: 10, opacity: unsyncedBusy ? 0.5 : 1, cursor: unsyncedBusy ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
-            {unsyncedBusy ? 'syncing…' : `sync ${bench.filter(needsSheetSync).length} to Sheet →`}
-          </button>
+          {unsyncedFailures.length > 0 && (
+            <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(176,64,64,0.06)', border: '1px solid rgba(176,64,64,0.3)', borderRadius: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7A1818', margin: 0 }}>
+                  ✗ {unsyncedFailures.length} sync failure{unsyncedFailures.length === 1 ? '' : 's'} — Sheet rejected these
+                </p>
+                <button type="button" onClick={dropFailedLocalApprovals}
+                  style={{ ...miniBtn, padding: '4px 10px', fontSize: 9 }}>
+                  drop these local stamps →
+                </button>
+              </div>
+              <p style={{ fontFamily: GM, fontSize: 10, color: '#3D3C38', lineHeight: 1.55, margin: '0 0 8px' }}>
+                most common cause: the email on the local approve doesn't match any row in the Sheet (typo, edited later, or never saved). dropping the stamp tells the system to stop trying.
+              </p>
+              <ul style={{ margin: '6px 0 0', paddingLeft: 16, fontFamily: GM, fontSize: 10, color: C.ink, lineHeight: 1.7 }}>
+                {unsyncedFailures.slice(0, 12).map((f, i) => (
+                  <li key={i} style={{ marginBottom: 2 }}>
+                    <strong>{f.label}</strong> <span style={{ color: C.soft }}>({f.email})</span> — {f.error}
+                  </li>
+                ))}
+                {unsyncedFailures.length > 12 && (
+                  <li style={{ color: C.soft }}>+{unsyncedFailures.length - 12} more</li>
+                )}
+              </ul>
+            </div>
+          )}
         </div>
       )}
       {/* Sheet migration — one-time bridge from localStorage gate to Sheet
