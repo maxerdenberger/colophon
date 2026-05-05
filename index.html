@@ -810,9 +810,45 @@ function deriveCounts(rows) {
 
 const BenchCtx = React.createContext(null);
 
+// Mutation cache — bridges the gap between your last action and the Sheet's
+// 5-minute publish-to-web CSV cache. Every approve/deny/etc writes a
+// {email, status, ts} entry here; every refreshBench applies the cache on
+// top of the freshly-parsed CSV. Entries auto-expire after 15 minutes (by
+// then the published CSV will have caught up). Persisted in localStorage
+// so a page reload still trusts your recent actions over the stale CSV.
+const MUTATION_CACHE_KEY = 'colophon_bench_mutations';
+const MUTATION_TTL_MS = 15 * 60 * 1000;
+const _loadMutationCache = () => {
+  try {
+    const raw = (typeof localStorage !== 'undefined') && localStorage.getItem(MUTATION_CACHE_KEY);
+    const data = raw ? JSON.parse(raw) : {};
+    const now = Date.now();
+    const fresh = {};
+    for (const [k, v] of Object.entries(data || {})) {
+      if (v && v.ts && (now - v.ts) < MUTATION_TTL_MS) fresh[k] = v;
+    }
+    return fresh;
+  } catch { return {}; }
+};
+const _saveMutationCache = (cache) => {
+  try { localStorage.setItem(MUTATION_CACHE_KEY, JSON.stringify(cache)); } catch {}
+};
+const _applyMutationCache = (rows) => {
+  const cache = _loadMutationCache();
+  const now = Date.now();
+  return rows.map((r) => {
+    const email = (r.emailRaw || '').toLowerCase();
+    const entry = email ? cache[email] : null;
+    if (!entry || !entry.ts || (now - entry.ts) > MUTATION_TTL_MS) return r;
+    if (entry.status && entry.status !== r.status) return { ...r, status: entry.status };
+    return r;
+  });
+};
+
 function BenchProvider({ children }) {
   const [allBench, setAllBench] = useState(BENCH);
   const [loading, setLoading] = useState(true);
+  const [lastSync, setLastSync] = useState(null);
   // Re-fetch the source CSV. Cache-bust with a timestamp so the browser /
   // edge layer don't serve a stale copy. Note: Google's publish-to-web
   // re-renders the CSV every ~5min from the underlying Sheet, so very
@@ -834,8 +870,13 @@ function BenchProvider({ children }) {
               typeof r.id === 'string' && String(r.id).startsWith('opt:') &&
               !sheetEmails.has((r.emailRaw || '').toLowerCase())
             );
-            return [...optsKept, ...p];
+            // Apply mutation cache LAST so recent local actions take
+            // precedence over stale CSV data. If you clicked approve 30s
+            // ago and the Sheet hasn't published yet, the row stays
+            // approved here.
+            return _applyMutationCache([...optsKept, ...p]);
           });
+          setLastSync(Date.now());
         }
       })
       .catch(() => {})
@@ -924,14 +965,21 @@ function BenchProvider({ children }) {
       if (idMatch || emailMatch) return { ...r, status: newStatus };
       return r;
     }));
+    // Stash in the mutation cache so the next refreshBench (or a page
+    // reload) doesn't overwrite this with stale CSV data. 15-min TTL.
+    if (targetEmail) {
+      const cache = _loadMutationCache();
+      cache[targetEmail] = { status: newStatus, ts: Date.now() };
+      _saveMutationCache(cache);
+    }
   };
 
-  return <BenchCtx.Provider value={{ bench, allBench, emergingBench, noDataBench, stats, loading, refreshBench, injectOptimisticRow, updateBenchRowStatus }}>{children}</BenchCtx.Provider>;
+  return <BenchCtx.Provider value={{ bench, allBench, emergingBench, noDataBench, stats, loading, refreshBench, injectOptimisticRow, updateBenchRowStatus, lastSync }}>{children}</BenchCtx.Provider>;
 }
 
 function useBench() {
   const ctx = React.useContext(BenchCtx);
-  return ctx || { bench: BENCH, stats: deriveCounts(BENCH), loading: false, refreshBench: () => {}, injectOptimisticRow: () => {}, updateBenchRowStatus: () => {} };
+  return ctx || { bench: BENCH, stats: deriveCounts(BENCH), loading: false, refreshBench: () => {}, injectOptimisticRow: () => {}, updateBenchRowStatus: () => {}, lastSync: null };
 }
 
 // useLiveDrop — schedules a few small drops in the visible bench number
@@ -5894,7 +5942,7 @@ function AdminFormspreeApproval({ secret }) {
 // Action buttons POST to /api/bench-update (server-side endpoint must
 // implement the Sheets write-back). Failures surface in the inline log.
 function AdminBenchBrowser({ secret }) {
-  const { allBench, noDataBench, refreshBench, loading: benchLoading, updateBenchRowStatus } = useBench();
+  const { allBench, noDataBench, refreshBench, loading: benchLoading, updateBenchRowStatus, lastSync } = useBench();
   const bench = allBench;
   const [filter, setFilter] = useState('');
   // 'pending' | 'approved' | 'archived' — exclusive Sheet-status buckets.
@@ -6204,6 +6252,16 @@ josh@appliedambition.com`);
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
         <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.16em', textTransform: 'uppercase', margin: 0 }}>bench browser · {bench.length} rows</p>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {lastSync && (
+            <span style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.04em' }}>
+              synced {(() => {
+                const m = Math.floor((Date.now() - lastSync) / 60000);
+                if (m < 1) return 'just now';
+                if (m === 1) return '1m ago';
+                return `${m}m ago`;
+              })()}
+            </span>
+          )}
           <a href="/look" target="_blank" rel="noreferrer"
             style={{ ...miniBtn, padding: '4px 10px', fontSize: 9, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
             preview bench ↗
