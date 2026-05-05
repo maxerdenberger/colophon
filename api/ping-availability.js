@@ -33,9 +33,9 @@ function buildEmail(name, email) {
   const text = [
     `Hi ${firstName},`,
     ``,
-    `the bench runs in real time. your row, currently, runs on whenever-you-last-thought-about-it time. let's reconcile.`,
+    `quick one — the bench runs in real time. you've been running on something more like memory.`,
     ``,
-    `tap whichever line below fits today — your status updates now. no reply needed.`,
+    `tap whichever line fits today — your status updates now. no reply needed.`,
     ``,
     `Available now:           ${link('available')}`,
     `Available in 2–4 weeks:  ${link('soon')}`,
@@ -64,8 +64,8 @@ function buildEmail(name, email) {
       </div>
       <p style="font-size:11px;letter-spacing:0.18em;color:#888580;text-transform:uppercase;margin:0 0 24px;font-family:'IBM Plex Mono','Menlo',monospace;">availability check-in</p>
       <p style="margin:0 0 16px;">Hi ${safeFirst},</p>
-      <p style="margin:0 0 16px;">The bench runs in real time. Your row, currently, runs on whenever-you-last-thought-about-it time. Let's reconcile.</p>
-      <p style="margin:0 0 24px;">Tap whichever line below fits today — your status updates now. No reply needed.</p>
+      <p style="margin:0 0 16px;">Quick one — the bench runs in real time. You've been running on something more like memory.</p>
+      <p style="margin:0 0 24px;">Tap whichever line fits today — your status updates now. No reply needed.</p>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px;">
         <tr><td style="padding:0 0 10px;">
           <a href="${link('available')}" style="display:block;background:#3F7F4A;color:#f4ede2;padding:14px 18px;text-decoration:none;font-family:'IBM Plex Mono','Menlo',monospace;font-size:13px;letter-spacing:0.04em;border-radius:2px;text-align:left;">
