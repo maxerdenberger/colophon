@@ -2376,16 +2376,7 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
                 style={iS} placeholder="e.g. Wieden+Kennedy" autoComplete="off" />
             </div>
           </div>
-          <div>
-            <label style={lS}>referral context — who referred you</label>
-            <AutocompleteInput
-              value={form.referralContext}
-              onChange={(v) => setForm((f) => ({ ...f, referralContext: v }))}
-              suggestions={referralSuggestions}
-              style={iS}
-              placeholder="type a name on the bench — we'll auto-complete"
-              autoComplete="off" />
-          </div>
+          <div><label style={lS}>referral context — who referred you</label><input style={iS} value={form.referralContext} onChange={set('referralContext')} placeholder="name + how they referred you" /></div>
           <div>
             <label style={lS}>partners you team up with — emails, one per line</label>
             <textarea style={{ ...iS, minHeight: 84, resize: 'vertical' }} value={form.partnerEmails} onChange={set('partnerEmails')}
