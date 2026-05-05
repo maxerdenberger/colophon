@@ -33,13 +33,13 @@ function buildEmail(name, email) {
   const text = [
     `Hi ${firstName},`,
     ``,
-    `Quick check-in. Your availability on the Colophon bench affects whether hirers reach out — and stale signals send the wrong message. One tap on whichever line below fits today; we'll update your row instantly:`,
+    `the bench runs in real time. your row, currently, runs on whenever-you-last-thought-about-it time. let's reconcile.`,
+    ``,
+    `tap whichever line below fits today — your status updates now. no reply needed.`,
     ``,
     `Available now:           ${link('available')}`,
     `Available in 2–4 weeks:  ${link('soon')}`,
     `Booked / waitlist:       ${link('booked')}`,
-    ``,
-    `Want to update more than just availability — rate, portfolio, projects? Reply to this email and I'll roll the changes in by hand.`,
     ``,
     `— Max`,
     `Colophon · ${SITE}`,
@@ -64,7 +64,8 @@ function buildEmail(name, email) {
       </div>
       <p style="font-size:11px;letter-spacing:0.18em;color:#888580;text-transform:uppercase;margin:0 0 24px;font-family:'IBM Plex Mono','Menlo',monospace;">availability check-in</p>
       <p style="margin:0 0 16px;">Hi ${safeFirst},</p>
-      <p style="margin:0 0 24px;">Quick one. Your availability on the Colophon bench affects whether hirers reach out — and stale signals send the wrong message. Tap whichever line below fits today; we'll update your row instantly. No reply needed.</p>
+      <p style="margin:0 0 16px;">The bench runs in real time. Your row, currently, runs on whenever-you-last-thought-about-it time. Let's reconcile.</p>
+      <p style="margin:0 0 24px;">Tap whichever line below fits today — your status updates now. No reply needed.</p>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px;">
         <tr><td style="padding:0 0 10px;">
           <a href="${link('available')}" style="display:block;background:#3F7F4A;color:#f4ede2;padding:14px 18px;text-decoration:none;font-family:'IBM Plex Mono','Menlo',monospace;font-size:13px;letter-spacing:0.04em;border-radius:2px;text-align:left;">
@@ -82,7 +83,6 @@ function buildEmail(name, email) {
           </a>
         </td></tr>
       </table>
-      <p style="margin:0 0 16px;">Want to update more than availability — rate, portfolio, projects, the social heart, anything? Reply to this email and I'll roll the changes in by hand.</p>
       <p style="margin:0 0 8px;">Thanks,</p>
       <p style="margin:0 0 32px;">— Max</p>
       <p style="font-size:11px;color:#888580;font-family:'IBM Plex Mono','Menlo',monospace;letter-spacing:0.04em;text-transform:uppercase;margin:0;">colophon · <a href="${SITE}" style="color:#888580;text-decoration:underline;">${SITE.replace(/^https?:\/\//, '')}</a></p>
