@@ -6000,15 +6000,40 @@ function AdminBenchBrowser({ secret }) {
   // the Sheet — same for every browser, every device.
   const wasApproved = (row) => row.status === 'approved';
 
-  // Sheet-driven buckets. Three exclusive states the operator cares about:
-  //   pending  — in review queue. Action: approve or deny.
-  //   approved — on the public bench. Action: revoke (back to denied).
-  //   archived — denied / cold / duplicate. Hidden by default; collapsed
-  //              under an explicit pill so an accidental deny is recoverable.
-  // Every Sheet row falls into exactly one of those three buckets.
-  const isPending  = (p) => p.status === 'pending';
-  const isApprovedSheet = (p) => p.status === 'approved';
-  const isArchived = (p) => ['denied', 'cold', 'duplicate'].includes(p.status);
+  // Buckets are driven by Sheet status PLUS the operator's local action
+  // history. If the operator clicked approve at any point (this session or
+  // a prior one) but the Sheet still says 'pending' — almost always because
+  // the original click happened before the Sheet-status architecture
+  // shipped, OR a Sheet write failed silently — we still treat the row as
+  // approved in this view. Same for deny → archived. Once the Sheet
+  // catches up via the bulk-sync button below, the two sources agree
+  // and the localStorage layer becomes redundant.
+  const localApproved = (p) => stateFor(p, 'approve') !== 'empty';
+  const localDenied   = (p) =>
+    stateFor(p, 'deny')   !== 'empty' ||
+    stateFor(p, 'reject') !== 'empty' ||
+    stateFor(p, 'revoke') !== 'empty';
+
+  // Sheet-truth wins when it disagrees with localStorage in the obvious
+  // direction. e.g. if Sheet says 'approved' but localStorage stamped a
+  // later deny, the deny wins (and vice versa). When Sheet is 'pending'
+  // we lean on localStorage as a hint.
+  const isApprovedSheet = (p) => {
+    if (p.status === 'approved') return !localDenied(p);  // unless we later denied
+    if (p.status === 'denied' || p.status === 'cold' || p.status === 'duplicate') return false;
+    return localApproved(p);
+  };
+  const isArchived = (p) => {
+    if (['denied','cold','duplicate'].includes(p.status)) return !localApproved(p);  // unless we later re-approved
+    return localDenied(p) && !localApproved(p);
+  };
+  const isPending = (p) => !isApprovedSheet(p) && !isArchived(p);
+
+  // Diagnostic: rows the operator has locally approved but the Sheet still
+  // says pending. These need a sync to ground the Sheet to the operator's
+  // intent. Surfaced as a banner above the row list.
+  const needsSheetSync = (p) =>
+    p.status === 'pending' && localApproved(p) && (p.emailRaw || '').includes('@');
 
   const searchHit = (p) =>
     !filter ||
@@ -6244,7 +6269,40 @@ josh@appliedambition.com`);
     setMigrateBusy(false);
   };
 
-    const intentBtn = adminIntentBtn;
+    // ── Sync unsynced approvals → Sheet ────────────────────────────────────
+  // Walks every row where localStorage says approved but the Sheet says
+  // pending, POSTs approve for each (server writes status='approved' to
+  // the Sheet). Fixes the legacy gap where pre-architecture approvals
+  // stamped only localStorage and never reached the Sheet, plus any
+  // silent /api/bench-update failures along the way.
+  const [unsyncedBusy, setUnsyncedBusy] = useState(false);
+  const syncUnsyncedApprovals = async () => {
+    if (unsyncedBusy) return;
+    const targets = bench.filter(needsSheetSync);
+    if (!targets.length) { append('sync · 0 rows need a Sheet write'); return; }
+    if (!window.confirm(`Push ${targets.length} locally-approved rows to the Sheet (set status='approved' on each)? Their public-bench visibility depends on this.`)) return;
+    setUnsyncedBusy(true);
+    append(`→ sync · pushing ${targets.length} approvals to Sheet`);
+    let ok = 0, fail = 0;
+    for (const row of targets) {
+      try {
+        const r = await fetch('/api/bench-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+          body: JSON.stringify({ action: 'approve', email: row.emailRaw, name: row.realName || row.name }),
+        });
+        if (!r.ok) { fail++; continue; }
+        // Mirror to local row + mutation cache so the next CSV refresh
+        // doesn't re-introduce the gap.
+        updateBenchRowStatus({ id: row.id, email: row.emailRaw }, 'approved');
+        ok++;
+      } catch { fail++; }
+    }
+    append(`✓ sync · ${ok} written to Sheet · ${fail} failed`);
+    setUnsyncedBusy(false);
+  };
+
+  const intentBtn = adminIntentBtn;
   const miniBtn = adminIntentBtn('neutral');
 
   return (
@@ -6331,6 +6389,20 @@ josh@appliedambition.com`);
           </>
         )}
       </div>
+      {/* Banner: locally-approved rows that haven't reached the Sheet yet.
+          Most often: pre-architecture approvals OR a silent API failure.
+          One-click "sync to Sheet" closes the gap row by row. */}
+      {bench.filter(needsSheetSync).length > 0 && (
+        <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px solid rgba(200,124,24,0.4)', background: 'rgba(200,124,24,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ fontFamily: GM, fontSize: 11, color: '#7A4A0E', lineHeight: 1.6 }}>
+            <strong>{bench.filter(needsSheetSync).length} rows are approved here but still 'pending' on the Sheet.</strong> Until you sync, they won't appear on the public bench.
+          </div>
+          <button onClick={syncUnsyncedApprovals} disabled={unsyncedBusy}
+            style={{ ...intentBtn('approve', 'full'), padding: '7px 12px', fontSize: 10, opacity: unsyncedBusy ? 0.5 : 1, cursor: unsyncedBusy ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
+            {unsyncedBusy ? 'syncing…' : `sync ${bench.filter(needsSheetSync).length} to Sheet →`}
+          </button>
+        </div>
+      )}
       {/* Sheet migration — one-time bridge from localStorage gate to Sheet
           status column. After running, the public bench reads visibility
           from the Sheet directly; localStorage is just for UI tint. */}
