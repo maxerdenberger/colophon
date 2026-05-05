@@ -6094,6 +6094,59 @@ function AdminBenchBrowser({ secret }) {
     setSyncBusy(false);
   };
 
+  // ── Roll back last bulk sync ───────────────────────────────────────────
+  // Surgical undo for syncApprovalsFromSheet. The sync stamps every row's
+  // keys with one Date.now() value, so all sync-created stamps share an
+  // identical timestamp. Real per-click approvals are scattered in time
+  // (each click → a unique ms timestamp). We find the most-common approve
+  // timestamp; if it accounts for >= 20 stamps, treat it as a sync and
+  // remove just those keys. Hand-clicked approvals from earlier sessions
+  // stay intact.
+  const [rollbackBusy, setRollbackBusy] = useState(false);
+  const rollbackLastSync = () => {
+    if (rollbackBusy) return;
+    const tallies = new Map();
+    for (const [k, ops] of Object.entries(pastActions || {})) {
+      if (ops && ops.approve) tallies.set(ops.approve, (tallies.get(ops.approve) || 0) + 1);
+    }
+    if (tallies.size === 0) { append('rollback · no approvals to roll back'); return; }
+    let modeTs = 0, modeCount = 0;
+    for (const [ts, count] of tallies) {
+      if (count > modeCount) { modeTs = ts; modeCount = count; }
+    }
+    if (modeCount < 20) {
+      append(`rollback · no obvious bulk sync detected (largest cluster: ${modeCount} stamps). use the global reset to clear everything if needed.`);
+      return;
+    }
+    const modeDate = new Date(modeTs).toLocaleString();
+    if (!window.confirm(`Roll back ${modeCount} approve stamps from the bulk sync at ${modeDate}? Hand-clicked approvals from before that sync will be preserved.`)) {
+      return;
+    }
+    setRollbackBusy(true);
+    let removedKeys = 0;
+    setPastActions((p) => {
+      const next = {};
+      for (const [k, ops] of Object.entries(p)) {
+        const cleanOps = { ...ops };
+        if (cleanOps.approve === modeTs) { delete cleanOps.approve; removedKeys++; }
+        if (Object.keys(cleanOps).length > 0) next[k] = cleanOps;
+      }
+      saveAdminActions(next);
+      return next;
+    });
+    setSessionActions((s) => {
+      const next = {};
+      for (const [k, ops] of Object.entries(s)) {
+        const cleanOps = { ...ops };
+        if (cleanOps.approve === modeTs) delete cleanOps.approve;
+        if (Object.keys(cleanOps).length > 0) next[k] = cleanOps;
+      }
+      return next;
+    });
+    append(`✓ rollback · removed ${removedKeys} approve stamps from sync at ${modeDate} · prior approvals preserved`);
+    setRollbackBusy(false);
+  };
+
   const intentBtn = adminIntentBtn;
   const miniBtn = adminIntentBtn('neutral');
 
@@ -6159,23 +6212,31 @@ function AdminBenchBrowser({ secret }) {
           </>
         )}
       </div>
-      {/* Sync approvals from Sheet — recovery for the persistence bug.
-          Walks every active row in the Sheet and stamps 'approve' in
-          localStorage. Skips rows that have a current deny/revoke. Run
-          once after the bug-fix landed; idempotent if you click twice. */}
+      {/* Bulk recovery — sync stamps every active Sheet row as approved;
+          rollback finds the bulk timestamp and removes only those stamps,
+          preserving any hand-clicked approvals from before. */}
       <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px dashed rgba(255,81,0,0.35)', background: 'rgba(255,81,0,0.05)' }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-          <div>
-            <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#FF5100', display: 'block' }}>
-              sync approvals from Sheet
-            </span>
-            <span style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.6 }}>
-              re-stamp every active Sheet row as approved on this browser. fixes counts that drifted from the Sheet (e.g. the persistence bug). idempotent.
-            </span>
-          </div>
-          <button type="button" onClick={syncApprovalsFromSheet} disabled={syncBusy}
+        <div style={{ marginBottom: 10 }}>
+          <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#FF5100', display: 'block', marginBottom: 4 }}>
+            bulk recovery — danger
+          </span>
+          <span style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.6 }}>
+            <strong>sync</strong> stamps every active Sheet row as approved (use only if all rows in the Sheet are meant to be on the public bench).
+            <strong> roll back last sync</strong> finds the bulk-stamp timestamp and removes those stamps, preserving any hand-clicked approvals from before.
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button type="button" onClick={() => {
+              const n = bench.filter((r) => !r.status || r.status === 'active').length;
+              if (!window.confirm(`Stamp all ${n} active rows as approved? This will mark every Sheet row as visible on the public bench. If only some should be approved, click cancel and approve them individually instead.`)) return;
+              syncApprovalsFromSheet();
+            }} disabled={syncBusy}
             style={{ ...intentBtn('approve', 'full'), padding: '7px 12px', fontSize: 10, opacity: syncBusy ? 0.5 : 1, cursor: syncBusy ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
             {syncBusy ? 'syncing…' : `sync ${bench.filter((r) => !r.status || r.status === 'active').length} rows →`}
+          </button>
+          <button type="button" onClick={rollbackLastSync} disabled={rollbackBusy}
+            style={{ ...intentBtn('revoke', 'full'), padding: '7px 12px', fontSize: 10, opacity: rollbackBusy ? 0.5 : 1, cursor: rollbackBusy ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
+            {rollbackBusy ? 'rolling back…' : 'roll back last sync ↶'}
           </button>
         </div>
       </div>
