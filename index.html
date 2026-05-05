@@ -5969,6 +5969,114 @@ function AdminFormspreeApproval({ secret }) {
   );
 }
 
+// Bulk availability ping. Two-step: dryRun first to show recipient count,
+// then real send. Triggers /api/ping-availability which reads the Sheet,
+// finds every status='approved' row, and emails each with one-click
+// availability buttons.
+function PingAvailabilitySection({ secret, append }) {
+  const [stage, setStage] = React.useState('idle'); // idle | preview | sending
+  const [count, setCount] = React.useState(null);
+  const [recipients, setRecipients] = React.useState([]);
+  const [result, setResult] = React.useState(null);
+
+  const preview = async () => {
+    setStage('preview');
+    setResult(null);
+    try {
+      const r = await fetch('/api/ping-availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify({ dryRun: true }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) {
+        append(`✗ availability ping preview · ${(j && j.error) || 'failed'}`);
+        setStage('idle');
+        return;
+      }
+      setCount(j.recipientCount);
+      setRecipients(j.recipients || []);
+      append(`→ availability ping · ${j.recipientCount} recipients ready`);
+    } catch (ex) {
+      append(`✗ availability ping preview · ${ex.message || 'network'}`);
+      setStage('idle');
+    }
+  };
+
+  const send = async () => {
+    if (!window.confirm(`Send the availability ping to ${count} approved creatives now?`)) return;
+    setStage('sending');
+    try {
+      const r = await fetch('/api/ping-availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify({}),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) {
+        append(`✗ availability ping · ${(j && j.error) || 'send failed'}`);
+        setStage('preview');
+        return;
+      }
+      setResult(j);
+      append(`✓ availability ping · ${j.sent} sent · ${j.failed} failed`);
+      setStage('idle');
+    } catch (ex) {
+      append(`✗ availability ping · ${ex.message || 'network'}`);
+      setStage('preview');
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px dashed rgba(63,127,74,0.35)', background: 'rgba(63,127,74,0.04)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12, marginBottom: 6 }}>
+        <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#3F7F4A' }}>
+          ping the bench for availability
+        </span>
+        {stage === 'idle' && (
+          <button type="button" onClick={preview}
+            style={{ ...adminIntentBtn('approve', 'full'), padding: '6px 12px', fontSize: 10 }}>
+            check recipients →
+          </button>
+        )}
+      </div>
+      <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.6, margin: 0 }}>
+        emails every <em>status='approved'</em> creative with three one-click buttons (available now / 2–4 weeks / booked). their click hits <code>/api/update-availability</code> and writes their new state straight to the Sheet — no admin work after the send.
+      </p>
+      {stage === 'preview' && count != null && (
+        <div style={{ marginTop: 12, padding: '10px 12px', background: '#fff', border: '1px solid rgba(13,13,11,0.08)' }}>
+          <p style={{ fontFamily: GM, fontSize: 11, color: C.ink, margin: '0 0 8px' }}>
+            <strong>{count}</strong> recipient{count === 1 ? '' : 's'} ready.
+          </p>
+          {recipients.length > 0 && (
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.5, margin: '0 0 10px' }}>
+              first {recipients.length}: {recipients.map((r) => r.name || r.email).join(', ')}{count > recipients.length ? `, +${count - recipients.length} more` : ''}
+            </p>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={send}
+              style={{ ...adminIntentBtn('approve', 'full'), padding: '7px 14px', fontSize: 11 }}>
+              send to {count} →
+            </button>
+            <button type="button" onClick={() => { setStage('idle'); setCount(null); setRecipients([]); }}
+              style={{ ...adminIntentBtn('neutral'), padding: '7px 14px', fontSize: 11 }}>
+              cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {stage === 'sending' && (
+        <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, margin: '10px 0 0' }}>sending…</p>
+      )}
+      {result && (
+        <p style={{ fontFamily: GM, fontSize: 10, color: '#3F7F4A', margin: '10px 0 0' }}>
+          ✓ {result.sent} sent · {result.failed} failed
+        </p>
+      )}
+    </div>
+  );
+}
+
 // Read-only bench browser with per-row approve/deny/revoke + manual-add.
 // Action buttons POST to /api/bench-update (server-side endpoint must
 // implement the Sheets write-back). Failures surface in the inline log.
@@ -6420,6 +6528,13 @@ josh@appliedambition.com`);
           </>
         )}
       </div>
+
+      {/* Bulk availability ping. Sends every status='approved' creative an
+          email with three one-click buttons: available now / soon / booked.
+          Server reads the Sheet directly (no CSV cache) so the recipient
+          list is exactly current. */}
+      <PingAvailabilitySection secret={secret} append={append} />
+
       {/* Banner: locally-approved rows that haven't reached the Sheet yet.
           Most often: pre-architecture approvals OR a silent API failure.
           One-click "sync to Sheet" closes the gap row by row. */}
