@@ -2544,7 +2544,27 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
   const rawFilterCount = Object.values(filters).filter((arr) => arr.length > 0).length;
   const filterCount = Math.min(MAX_DISCOUNTED_FILTERS, rawFilterCount);
   const discount = filterCount * 0.10;
-  const priceFor = (d) => Math.round(PRICES[d] * (1 - discount));
+
+  // Loyalty discount — applied if the buyer already has a valid pass on
+  // this browser. Stacks with the filter discount: 10% off the filter-
+  // adjusted price. Their new pass replaces the old session token, so
+  // the term resets to a full duration starting at purchase time.
+  const [isReturning, setIsReturning] = useState(false);
+  const [returningTier, setReturningTier] = useState('');
+  useEffect(() => {
+    try {
+      const raw = (typeof sessionStorage !== 'undefined') ? sessionStorage.getItem('colophon_session') : null;
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      if (s && s.expires && s.expires > Date.now()) {
+        setIsReturning(true);
+        setReturningTier(s.tier || '');
+      }
+    } catch {}
+  }, []);
+  const LOYALTY_PCT = 0.10;
+  const loyaltyMultiplier = isReturning ? (1 - LOYALTY_PCT) : 1;
+  const priceFor = (d) => Math.round(PRICES[d] * (1 - discount) * loyaltyMultiplier);
 
   // Server-side count.
   useEffect(() => {
@@ -2605,6 +2625,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
           matched: matched.length,
           name: buyerName.trim(),
           email: buyerEmail.trim(),
+          loyalty: isReturning,
         }),
       });
       const j = await r.json().catch(() => ({}));
@@ -3261,9 +3282,9 @@ function AccessPage({ accent, setPage }) {
   if (expired) return (
     <div style={{ background: C.cream, minHeight: 'calc(100vh - 54px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: 40, textAlign: 'center' }}>
       <div style={{ width: 48, height: 48, border: '1.5px solid #b04040', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b04040', fontSize: 20 }}>×</div>
-      <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em' }}>this look has expired.</h2>
-      <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '40ch', lineHeight: 1.75 }}>the access window has closed.</p>
-      <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: 'none', padding: '14px 22px', cursor: 'pointer', borderRadius: 6, marginTop: 8 }}>request a new look →</button>
+      <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(32px,5vw,56px)', letterSpacing: '-0.03em' }}>your pass has expired.</h2>
+      <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, maxWidth: '40ch', lineHeight: 1.75 }}>the access window has closed. renew with a 10% loyalty discount — term resets to full.</p>
+      <button onClick={() => setPage('pricing')} style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.08em', background: C.ink, color: C.cream, border: 'none', padding: '14px 22px', cursor: 'pointer', borderRadius: 6, marginTop: 8 }}>get a new pass →</button>
     </div>);
 
 
@@ -3321,8 +3342,8 @@ function AccessPage({ accent, setPage }) {
             ) : (
               <>
                 <div style={{ fontFamily: GM, fontSize: 10, color: AVAIL_DOT.available }}>● the directory is open.</div>
-                {tier && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{tier} look</div>}
-                {timeLeft && <div style={{ fontFamily: GM, fontSize: 10, color: C.ink, marginTop: 2 }}>look expires in {timeLeft}</div>}
+                {tier && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{tier} pass</div>}
+                {timeLeft && <div style={{ fontFamily: GM, fontSize: 10, color: C.ink, marginTop: 2 }}>expires in {timeLeft}</div>}
                 {sessionFilters && Object.keys(sessionFilters).some((k) => Array.isArray(sessionFilters[k]) && sessionFilters[k].length) && (
                   <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, marginTop: 4, letterSpacing: '0.06em' }}>filters applied</div>
                 )}

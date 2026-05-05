@@ -29,6 +29,7 @@ export default async function handler(req, res) {
       email,
       filters,
       matched,
+      loyalty,          // boolean — true when the buyer has an active pass on this browser
     } = req.body || {};
 
     // Resolve which catalog entry this request maps to
@@ -64,6 +65,7 @@ export default async function handler(req, res) {
       ...(matched ? { matched: String(matched) } : {}),
       ...(name ? { buyer_name: String(name).slice(0, 100) } : {}),
       ...(filters ? { filters: JSON.stringify(filters).slice(0, 480) } : {}),
+      ...(loyalty ? { loyalty: 'yes' } : {}),
     };
 
     const session = await stripe.checkout.sessions.create({
