@@ -2006,7 +2006,12 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
 // ── APPLY PAGE ────────────────────────────────────────────────────────────────
 function ApplyPage({ accent, onDone, isDrawer = false }) {
   const [done, setDone] = useState(false);
-  const [disciplines, setDisciplines] = useState([]);
+  // Top three disciplines, in rank order. disc1 is the primary (required);
+  // disc2 + disc3 are optional. The ordered list is stored in the Sheet
+  // as comma-separated col-5 (parseSheetCSV preserves order on read).
+  const [disc1, setDisc1] = useState('');
+  const [disc2, setDisc2] = useState('');
+  const [disc3, setDisc3] = useState('');
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState({
     name: '', email: '', portfolio: '', linkedin: '', disciplineOther: '',
@@ -2070,9 +2075,15 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
         )}
         <form onSubmit={async (e) => {
           e.preventDefault();
+          const orderedDisciplines = [disc1, disc2, disc3].filter(Boolean);
           await submitForm({
             ...form,
-            disciplines: disciplines.join(', '),
+            // Rank-ordered, comma-separated. parseSheetCSV preserves order
+            // when reading back; the first element is the primary discipline.
+            disciplines: orderedDisciplines.join(', '),
+            disciplinePrimary:    disc1 || '',
+            disciplineSecondary:  disc2 || '',
+            disciplineTertiary:   disc3 || '',
             categories: categories.join(', '),
             source: 'apply-bench',
             _subject: 'bench application',
@@ -2090,20 +2101,29 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
 
           <h3 style={sH}>your work</h3>
           <div>
-            <label style={lS}>primary creative discipline(s)</label>
-            <div style={{ paddingLeft: 22 }}>
-              {DISCIPLINES.map((d) => {
-                const on = disciplines.includes(d);
-                return (
-                  <button key={d} type="button" onClick={() => toggle(disciplines, setDisciplines, d)}
-                    style={{ display: 'block', width: '100%', background: 'transparent', border: 'none', padding: '6px 0', fontFamily: GM, fontSize: 13, color: C.ink, cursor: 'pointer', textAlign: 'left', lineHeight: 1.55, borderRadius: 0 }}>
-                    [{on ? '●' : ' '}]&nbsp;&nbsp;{d}
-                  </button>
-                );
-              })}
+            <label style={lS}>your top three creative disciplines, ranked</label>
+            <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.6, marginTop: 4, marginBottom: 12 }}>
+              pick what you do best, in order. example — Creative Direction / Art Direction / Design Leadership.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr', gap: '10px 14px', alignItems: 'center' }}>
+              <span style={{ fontFamily: GM, fontSize: 11, color: C.soft, letterSpacing: '0.14em' }}>1 ·</span>
+              <select required style={iS} value={disc1} onChange={(e) => setDisc1(e.target.value)}>
+                <option value="" disabled>your primary discipline</option>
+                {DISCIPLINES.filter((d) => d !== disc2 && d !== disc3).map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <span style={{ fontFamily: GM, fontSize: 11, color: C.soft, letterSpacing: '0.14em' }}>2 ·</span>
+              <select style={iS} value={disc2} onChange={(e) => setDisc2(e.target.value)}>
+                <option value="">— optional —</option>
+                {DISCIPLINES.filter((d) => d !== disc1 && d !== disc3).map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <span style={{ fontFamily: GM, fontSize: 11, color: C.soft, letterSpacing: '0.14em' }}>3 ·</span>
+              <select style={iS} value={disc3} onChange={(e) => setDisc3(e.target.value)}>
+                <option value="">— optional —</option>
+                {DISCIPLINES.filter((d) => d !== disc1 && d !== disc2).map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
             </div>
           </div>
-          {disciplines.includes('Other (specify below)') && <div><label style={lS}>specify discipline</label><input style={iS} value={form.disciplineOther} onChange={set('disciplineOther')} /></div>}
+          {[disc1, disc2, disc3].includes('Other (specify below)') && <div><label style={lS}>specify discipline</label><input style={iS} value={form.disciplineOther} onChange={set('disciplineOther')} /></div>}
           <div>
             <label style={lS}>which professional level best describes your current experience?</label>
             <select style={iS} value={form.expLevel} onChange={set('expLevel')}>
@@ -6374,7 +6394,20 @@ josh@appliedambition.com`);
                 </span>
               )}
             </span>
-            <span style={{ color: C.soft, fontSize: 10 }}>{p.discipline}</span>
+            <span style={{ color: C.soft, fontSize: 10 }}>
+              {(() => {
+                // Show the rank-ordered top 3 (primary in ink, others muted)
+                // so the admin sees the full discipline shape at a glance.
+                const top = (p.disciplines && p.disciplines.length ? p.disciplines : [p.discipline]).slice(0, 3).filter(Boolean);
+                if (!top.length) return '—';
+                return top.map((d, i) => (
+                  <span key={i}>
+                    <span style={{ color: i === 0 ? C.ink : C.soft, opacity: i === 0 ? 1 : 0.7 }}>{d}</span>
+                    {i < top.length - 1 && <span style={{ margin: '0 6px', opacity: 0.4 }}>/</span>}
+                  </span>
+                ));
+              })()}
+            </span>
             <span style={{ color: C.ink, fontSize: 11, fontFamily: GS, fontWeight: 600 }}>{p.hourlyRate ? `$${p.hourlyRate}` : p.rate}</span>
             <span style={{ color: C.soft, fontSize: 10 }}>{p.yoe ? `${p.yoe}y` : '—'}</span>
             <span style={{ display: 'flex', gap: 6 }}>
