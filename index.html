@@ -5696,7 +5696,7 @@ function AdminFormspreeApproval({ secret }) {
         // takes ~5 min to regenerate; without this the operator would
         // refresh and see nothing for a while.
         injectOptimisticRow(data);
-        append(`✓ approved → sheet · ${data.name || sub.id} (live in bench browser; Sheet CSV reconciles within ~5min)`);
+        append(`✓ approved → on the bench · ${data.name || sub.id} · live now (preview ↗ to verify)`);
         // Stamp the new creative as approved under the keys the bench
         // browser looks up (e:<email>, n:<name>). Both setSession and
         // setPast — keeping React state in sync with localStorage so a
@@ -5777,8 +5777,14 @@ function AdminFormspreeApproval({ secret }) {
   return (
     <div style={{ marginBottom: 36, border: `1px solid rgba(13,13,11,0.08)`, padding: 18, background: '#fff' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
-        <p style={{ fontFamily: GM, fontSize: 10, color: '#3D3C38', letterSpacing: '0.16em', textTransform: 'uppercase' }}>formspree → bench approval queue</p>
-        <span style={{ fontFamily: GM, fontSize: 10, color: '#3D3C38' }}>{pending.length} pending · {reviewed.size} reviewed</span>
+        <p style={{ fontFamily: GM, fontSize: 10, color: '#3D3C38', letterSpacing: '0.16em', textTransform: 'uppercase', margin: 0 }}>formspree → bench approval queue</p>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <a href="/look" target="_blank" rel="noreferrer"
+            style={{ fontFamily: GM, fontSize: 9, padding: '4px 10px', border: '1px solid rgba(13,13,11,0.08)', borderRadius: 4, color: '#0d0d0b', textDecoration: 'none', background: 'transparent' }}>
+            preview bench ↗
+          </a>
+          <span style={{ fontFamily: GM, fontSize: 10, color: '#3D3C38' }}>{pending.length} pending · {reviewed.size} reviewed</span>
+        </div>
       </div>
       <p style={{ fontFamily: GM, fontSize: 11, color: '#3D3C38', marginBottom: 14, lineHeight: 1.6 }}>
         Approving a row POSTs <code>action: 'add'</code> to <code>/api/bench-update</code>, which (when implemented server-side) appends to the source Sheet. Skip / reject mark the submission as reviewed locally on this browser only.
@@ -6177,13 +6183,19 @@ josh@appliedambition.com`);
     <div style={{ marginBottom: 36, border: `1px solid ${C.rule}`, padding: 18, background: '#fff' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
         <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.16em', textTransform: 'uppercase', margin: 0 }}>bench browser · {bench.length} rows</p>
-        <button onClick={refreshBench} disabled={benchLoading}
-          style={{ ...miniBtn, padding: '4px 10px', fontSize: 9, opacity: benchLoading ? 0.5 : 1 }}>
-          {benchLoading ? 'refreshing…' : 'refresh from Sheet ↻'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <a href="/look" target="_blank" rel="noreferrer"
+            style={{ ...miniBtn, padding: '4px 10px', fontSize: 9, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+            preview bench ↗
+          </a>
+          <button onClick={refreshBench} disabled={benchLoading}
+            style={{ ...miniBtn, padding: '4px 10px', fontSize: 9, opacity: benchLoading ? 0.5 : 1 }}>
+            {benchLoading ? 'refreshing…' : 'refresh from Sheet ↻'}
+          </button>
+        </div>
       </div>
       <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 10, lineHeight: 1.6 }}>
-        Approve / deny / revoke writes the row's <code>status</code> column on the Sheet via <code>/api/bench-update</code>. The public bench reads visibility from that column. Approvals from the formspree queue inject instantly here; the published CSV reconciles every ~5 min.
+        Approve / deny / revoke writes the row's <code>status</code> column on the Sheet via <code>/api/bench-update</code>. The public bench reads visibility from that column. <strong>Approvals from the formspree queue land directly in <em>on the bench</em></strong> (skip the review queue) and inject here instantly; the published CSV reconciles every ~5 min.
       </p>
       {/* Three-state button legend — confirms what the colours mean.
           Empty outline = never acted on. Tinted fill = acted in a
