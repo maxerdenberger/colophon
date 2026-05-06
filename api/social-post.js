@@ -140,22 +140,25 @@ export default async function handler(req, res) {
         });
       }
 
-      // createPost mutation
+      // createPost mutation — shape per Buffer's CreatePostInput introspection.
+      // schedulingType: 'automatic' (Buffer publishes) | 'notification' (you do)
+      // mode:           'shareNow' | 'customScheduled' | 'addToQueue' | ...
+      // channelId is SINGULAR (one post per channel; loop client-side for multi-platform)
       const mutation = `
         mutation CreatePost($input: CreatePostInput!) {
           createPost(input: $input) {
-            post { id status scheduledAt }
-            ... on CreatePostError { reason }
+            __typename
           }
         }
       `;
+      const isScheduled = scheduled_at && !isNaN(scheduled_at.getTime());
       const input = {
-        organizationId: orgId,
-        channelIds: [target.id],
-        content: { text: copy, ...(image_url ? { media: [{ url: image_url, type: 'image' }] } : {}) },
-        ...(scheduled_at && !isNaN(scheduled_at.getTime())
-          ? { scheduledAt: scheduled_at.toISOString() }
-          : { schedulingType: 'NOW' }),
+        channelId: target.id,
+        schedulingType: 'automatic',
+        mode: isScheduled ? 'customScheduled' : 'shareNow',
+        text: copy,
+        ...(isScheduled ? { dueAt: scheduled_at.toISOString() } : {}),
+        ...(image_url ? { assets: { images: [image_url] } } : {}),
       };
       const sendRes = await bufferQuery(mutation, { input }, token);
       if (!sendRes.ok || !sendRes.body || sendRes.body.errors) {
