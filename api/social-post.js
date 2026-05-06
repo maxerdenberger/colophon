@@ -159,6 +159,9 @@ export default async function handler(req, res) {
         text: copy,
         ...(isScheduled ? { dueAt: scheduled_at.toISOString() } : {}),
         ...(image_url ? { assets: { images: [{ url: image_url }] } } : {}),
+        ...(String(target.service || '').toLowerCase() === 'instagram'
+          ? { metadata: { instagram: { type: 'post', shouldShareToFeed: true } } }
+          : {}),
       };
       const sendRes = await bufferQuery(mutation, { input }, token);
       if (!sendRes.ok || !sendRes.body || sendRes.body.errors) {
