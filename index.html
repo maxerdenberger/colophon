@@ -1838,7 +1838,6 @@ const HERO_LABELS = [
 ];
 
 function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHoverChange }) {
-  const isMobile = useIsMobile();
   const { bench: liveBench, stats, loading } = useBench();
   // Live drop — bench numbers tick down a few times after the page
   // settles. `total` and `avail` are the actual counts minus the drop,
@@ -1989,8 +1988,7 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
       </section>
 
       {/* how it works */}
-      {/* spec strip — desktop only (hidden on mobile per design) */}
-      {!isMobile && (
+      {/* spec strip */}
       <section style={{ borderTop: `1px solid ${C.rule}`, borderBottom: `1px solid ${C.rule}`, padding: '0 40px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 0 }}>
           {[
@@ -2006,7 +2004,6 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
           )}
         </div>
       </section>
-      )}
 
       {/* how it works */}
       <section style={{ background: C.paper, borderTop: `1px solid ${C.rule}`, padding: '72px 40px' }}>
@@ -6314,8 +6311,27 @@ function AdminBenchBrowser({ secret }) {
   // Diagnostic: rows the operator has locally approved but the Sheet still
   // says pending. These need a sync to ground the Sheet to the operator's
   // intent. Surfaced as a banner above the row list.
-  const needsSheetSync = (p) =>
-    p.status === 'pending' && localApproved(p) && (p.emailRaw || '').includes('@');
+  // Suppress the banner for rows we just successfully wrote to the Sheet —
+  // CSV publish-to-web is on a ~5-min cache, so the row will keep reading as
+  // 'pending' for a while after a successful approve. Without this grace
+  // window, the operator sees the same N rows reappear daily and has to
+  // press 'sync' for nothing.
+  const RECENT_WRITE_GRACE_MS = 15 * 60 * 1000;
+  const recentSheetWrites = useRef(new Map());     // rowKey → ts
+  const stampSheetWrite = (row) => {
+    const key = (row.id != null ? String(row.id) : '') + '|' + (row.emailRaw || '').toLowerCase();
+    if (key !== '|') recentSheetWrites.current.set(key, Date.now());
+  };
+  const wasJustWritten = (row) => {
+    const key = (row.id != null ? String(row.id) : '') + '|' + (row.emailRaw || '').toLowerCase();
+    const ts = recentSheetWrites.current.get(key);
+    return ts && Date.now() - ts < RECENT_WRITE_GRACE_MS;
+  };
+  const needsSheetSync = (p) => {
+    if (!(p.status === 'pending' && localApproved(p) && (p.emailRaw || '').includes('@'))) return false;
+    if (wasJustWritten(p)) return false;
+    return true;
+  };
 
   const searchHit = (p) =>
     !filter ||
@@ -6561,14 +6577,20 @@ josh@appliedambition.com`);
   // Last sync's per-row failures, surfaced inline so the operator can see
   // exactly what didn't take. Cleared on each new sync run.
   const [unsyncedFailures, setUnsyncedFailures] = useState([]);
-  const syncUnsyncedApprovals = async () => {
+  const syncUnsyncedApprovals = async (opts = {}) => {
+    const { silent = false } = opts;
     if (unsyncedBusy) return;
     const targets = bench.filter(needsSheetSync);
-    if (!targets.length) { append('sync · 0 rows need a Sheet write'); setUnsyncedFailures([]); return; }
-    if (!window.confirm(`Push ${targets.length} locally-approved rows to the Sheet (set status='approved' on each)? Their public-bench visibility depends on this.`)) return;
+    if (!targets.length) {
+      if (!silent) { append('sync · 0 rows need a Sheet write'); setUnsyncedFailures([]); }
+      return;
+    }
+    if (!silent) {
+      if (!window.confirm(`Push ${targets.length} locally-approved rows to the Sheet (set status='approved' on each)? Their public-bench visibility depends on this.`)) return;
+    }
     setUnsyncedBusy(true);
-    setUnsyncedFailures([]);
-    append(`→ sync · pushing ${targets.length} approvals to Sheet`);
+    if (!silent) setUnsyncedFailures([]);
+    if (!silent) append(`→ sync · pushing ${targets.length} approvals to Sheet`);
     let ok = 0;
     const failures = [];
     for (const row of targets) {
@@ -6590,23 +6612,61 @@ josh@appliedambition.com`);
           });
           continue;
         }
+        // Stamp this row so the banner won't recount it during the ~5-min
+        // CSV publish-to-web cache window.
+        stampSheetWrite(row);
         updateBenchRowStatus({ id: row.id, email: row.emailRaw }, 'approved');
         ok++;
       } catch (ex) {
         failures.push({ label, email: row.emailRaw || '(no email)', id: row.id, status: 0, error: ex.message || 'network' });
       }
     }
-    setUnsyncedFailures(failures);
-    if (failures.length === 0) {
-      append(`✓ sync · ${ok} written to Sheet · 0 failed`);
+    if (silent) {
+      // Auto-sync: only surface failures so the activity log doesn't
+      // churn on every tick. Successful writes are invisible — exactly
+      // the daily-button-press behavior we're replacing.
+      if (failures.length > 0) {
+        setUnsyncedFailures(failures);
+        append(`⚠ auto-sync · ${ok} written · ${failures.length} failed (see panel below)`);
+      } else if (ok > 0) {
+        append(`· auto-sync · ${ok} written to Sheet`);
+      }
     } else {
-      append(`⚠ sync · ${ok} written · ${failures.length} failed (see panel below)`);
-      // First three reasons inline for quick triage
-      const reasons = failures.slice(0, 3).map((f) => `${f.label} → ${f.error}`).join(' · ');
-      append(`  ${reasons}${failures.length > 3 ? ` · +${failures.length - 3} more` : ''}`);
+      setUnsyncedFailures(failures);
+      if (failures.length === 0) {
+        append(`✓ sync · ${ok} written to Sheet · 0 failed`);
+      } else {
+        append(`⚠ sync · ${ok} written · ${failures.length} failed (see panel below)`);
+        // First three reasons inline for quick triage
+        const reasons = failures.slice(0, 3).map((f) => `${f.label} → ${f.error}`).join(' · ');
+        append(`  ${reasons}${failures.length > 3 ? ` · +${failures.length - 3} more` : ''}`);
+      }
     }
     setUnsyncedBusy(false);
   };
+
+  // ── Auto-sync ──────────────────────────────────────────────────────────
+  // The user shouldn't have to click 'sync N to Sheet' every day. We
+  // run the sync silently:
+  //   1. Once on bench load (admin mount)
+  //   2. Every 3 minutes while the admin page is open
+  // Successes don't toast; only failures do. The button stays as a
+  // manual override / 'force run now' for impatient days.
+  const syncRef = useRef();
+  syncRef.current = syncUnsyncedApprovals;
+  useEffect(() => {
+    if (benchLoading) return;
+    if (!secret) return;
+    // Defer slightly so the UI mounts and we don't block render.
+    const t = setTimeout(() => { try { syncRef.current && syncRef.current({ silent: true }); } catch {} }, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [benchLoading, bench.length]);
+  useEffect(() => {
+    if (!secret) return;
+    const id = setInterval(() => { try { syncRef.current && syncRef.current({ silent: true }); } catch {} }, 3 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [secret]);
 
   // Drop the local approve stamps for rows the Sheet refused. Use this
   // when a row's email doesn't match anything in the Sheet (someone's
@@ -6740,7 +6800,7 @@ josh@appliedambition.com`);
         <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px solid rgba(200,124,24,0.4)', background: 'rgba(200,124,24,0.06)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ fontFamily: GM, fontSize: 11, color: '#7A4A0E', lineHeight: 1.6 }}>
-              <strong>{bench.filter(needsSheetSync).length} rows are approved here but still 'pending' on the Sheet.</strong> Until you sync, they won't appear on the public bench.
+              <strong>{bench.filter(needsSheetSync).length} rows are approved here but still 'pending' on the Sheet.</strong> auto-sync runs in the background. if the count doesn't drop in a few minutes, push manually:
             </div>
             <button onClick={syncUnsyncedApprovals} disabled={unsyncedBusy}
               style={{ ...intentBtn('approve', 'full'), padding: '7px 12px', fontSize: 10, opacity: unsyncedBusy ? 0.5 : 1, cursor: unsyncedBusy ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
