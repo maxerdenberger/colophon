@@ -1,38 +1,7 @@
 {
-  "framework": null,
-  "buildCommand": null,
-  "outputDirectory": ".",
-  "installCommand": "npm install",
-  "crons": [
-    {
-      "path": "/api/ping",
-      "schedule": "0 9 */20 * *"
-    },
-    {
-      "path": "/api/concierge-dispatch",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/year-renewal-check",
-      "schedule": "15 9 * * *"
-    }
-  ],
-  "redirects": [
-    {
-      "source": "/pricing",
-      "destination": "/look",
-      "permanent": true
-    },
-    {
-      "source": "/dashboard",
-      "destination": "/bench",
-      "permanent": true
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "installCommand": "npm ci --prefer-offline --no-audit --no-fund",
+  "regions": ["iad1"],
+  "functions": {
+    "api/*.js": { "maxDuration": 30 }
+  }
 }

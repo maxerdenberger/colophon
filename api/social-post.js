@@ -158,7 +158,7 @@ export default async function handler(req, res) {
         mode: isScheduled ? 'customScheduled' : 'shareNow',
         text: copy,
         ...(isScheduled ? { dueAt: scheduled_at.toISOString() } : {}),
-        ...(image_url ? { assets: { images: [image_url] } } : {}),
+        ...(image_url ? { assets: { images: [{ url: image_url }] } } : {}),
       };
       const sendRes = await bufferQuery(mutation, { input }, token);
       if (!sendRes.ok || !sendRes.body || sendRes.body.errors) {
@@ -168,11 +168,28 @@ export default async function handler(req, res) {
           input,
         });
       }
+      // Buffer's createPost returns a PostActionPayload union — only
+      // 'PostActionSuccess' is actually success. Anything else is a
+      // platform-side rejection (e.g. IG without media, IG without
+      // Facebook Page link, etc.). Surface those as failures so we
+      // don't silently report success for posts that didn't land.
+      const result = sendRes.body.data && sendRes.body.data.createPost;
+      const typename = result && result.__typename;
+      if (typename !== 'PostActionSuccess') {
+        return res.status(502).json({
+          error: `buffer rejected the post (${typename || 'unknown'})`,
+          detail: result,
+          input,
+          hint: typename === 'UnexpectedError'
+            ? 'most common causes: instagram without media (text-only not supported), instagram without facebook-page link, or platform-side validation. check publish.buffer.com for the queued/failed post.'
+            : 'check publish.buffer.com for details',
+        });
+      }
       return res.status(200).json({
         ok: true,
         platform,
         scheduled: !!scheduled_at,
-        result: sendRes.body.data,
+        typename,
       });
     }
 
