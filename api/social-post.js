@@ -60,7 +60,7 @@ export default async function handler(req, res) {
     // ── list-profiles via GraphQL ──────────────────────────────────────
     if (action === 'list-profiles') {
       // First get the organization, then channels under it.
-      const orgQuery = `query { organizations { id name } }`;
+      const orgQuery = `query { organizations(input: {}) { id name } }`;
       const orgRes = await bufferQuery(orgQuery, {}, token);
       if (!orgRes.ok || !orgRes.body || orgRes.body.errors) {
         return res.status(orgRes.status || 502).json({
@@ -117,7 +117,7 @@ export default async function handler(req, res) {
       if (!copy)     return res.status(400).json({ error: 'copy required' });
 
       // Look up channels and find the matching one
-      const orgRes = await bufferQuery(`query { organizations { id } }`, {}, token);
+      const orgRes = await bufferQuery(`query { organizations(input: {}) { id } }`, {}, token);
       const orgId = orgRes.body && orgRes.body.data && orgRes.body.data.organizations && orgRes.body.data.organizations[0] && orgRes.body.data.organizations[0].id;
       if (!orgId) return res.status(502).json({ error: 'no organization in Buffer', detail: orgRes.body });
 
