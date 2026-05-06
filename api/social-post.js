@@ -76,12 +76,11 @@ export default async function handler(req, res) {
       const orgId = orgs[0].id;
 
       const channelsQuery = `
-        query Channels($organizationId: String!) {
+        query Channels($organizationId: OrganizationId!) {
           channels(input: { organizationId: $organizationId }) {
             id
             service
             name
-            serviceType
             avatar
             timezone
           }
@@ -99,7 +98,6 @@ export default async function handler(req, res) {
       const profiles = channels.map((c) => ({
         id: c.id,
         service: c.service,
-        serviceType: c.serviceType,
         name: c.name,
         avatar: c.avatar,
         timezone: c.timezone,
@@ -123,7 +121,7 @@ export default async function handler(req, res) {
       if (!orgId) return res.status(502).json({ error: 'no organization in Buffer', detail: orgRes.body });
 
       const chRes = await bufferQuery(
-        `query Channels($organizationId: String!) { channels(input: { organizationId: $organizationId }) { id service serviceType name } }`,
+        `query Channels($organizationId: OrganizationId!) { channels(input: { organizationId: $organizationId }) { id service name } }`,
         { organizationId: orgId },
         token
       );
