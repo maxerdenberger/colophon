@@ -1838,6 +1838,7 @@ const HERO_LABELS = [
 ];
 
 function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHoverChange }) {
+  const isMobile = useIsMobile();
   const { bench: liveBench, stats, loading } = useBench();
   // Live drop — bench numbers tick down a few times after the page
   // settles. `total` and `avail` are the actual counts minus the drop,
@@ -1988,7 +1989,8 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
       </section>
 
       {/* how it works */}
-      {/* spec strip */}
+      {/* spec strip — desktop only (hidden on mobile per design) */}
+      {!isMobile && (
       <section style={{ borderTop: `1px solid ${C.rule}`, borderBottom: `1px solid ${C.rule}`, padding: '0 40px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 0 }}>
           {[
@@ -2004,6 +2006,7 @@ function HomePage({ setPage, accent, variant, activeFilters, onRowClick, onHover
           )}
         </div>
       </section>
+      )}
 
       {/* how it works */}
       <section style={{ background: C.paper, borderTop: `1px solid ${C.rule}`, padding: '72px 40px' }}>
