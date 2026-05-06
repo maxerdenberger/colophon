@@ -60,7 +60,7 @@ export default async function handler(req, res) {
     // ── list-profiles via GraphQL ──────────────────────────────────────
     if (action === 'list-profiles') {
       // First get the organization, then channels under it.
-      const orgQuery = `query { organizations(input: {}) { id name } }`;
+      const orgQuery = `query { account { id organizations { id name } } }`;
       const orgRes = await bufferQuery(orgQuery, {}, token);
       if (!orgRes.ok || !orgRes.body || orgRes.body.errors) {
         return res.status(orgRes.status || 502).json({
@@ -68,7 +68,8 @@ export default async function handler(req, res) {
           detail: (orgRes.body && orgRes.body.errors) || orgRes.raw.slice(0, 400),
         });
       }
-      const orgs = (orgRes.body.data && orgRes.body.data.organizations) || [];
+      const acct = orgRes.body.data && orgRes.body.data.account;
+      const orgs = (acct && acct.organizations) || [];
       if (!orgs.length) {
         return res.status(200).json({ ok: true, count: 0, profiles: [], note: 'no Buffer organizations found for this token' });
       }
@@ -117,8 +118,8 @@ export default async function handler(req, res) {
       if (!copy)     return res.status(400).json({ error: 'copy required' });
 
       // Look up channels and find the matching one
-      const orgRes = await bufferQuery(`query { organizations(input: {}) { id } }`, {}, token);
-      const orgId = orgRes.body && orgRes.body.data && orgRes.body.data.organizations && orgRes.body.data.organizations[0] && orgRes.body.data.organizations[0].id;
+      const orgRes = await bufferQuery(`query { account { organizations { id } } }`, {}, token);
+      const orgId = orgRes.body && orgRes.body.data && orgRes.body.data.account && orgRes.body.data.account.organizations && orgRes.body.data.account.organizations[0] && orgRes.body.data.account.organizations[0].id;
       if (!orgId) return res.status(502).json({ error: 'no organization in Buffer', detail: orgRes.body });
 
       const chRes = await bufferQuery(
