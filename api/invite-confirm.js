@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import { findBenchRowByEmail, updateBenchRow } from './_utils/sheets.js';
+import { findBenchRowByEmail, updateBenchRow, appendReferralLog } from './_utils/sheets.js';
 import { invalidateBenchCache } from './_utils/bench.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -96,7 +96,45 @@ export default async function handler(req, res) {
       sheetUpdate = { matched: false, error: sheetErr.message };
     }
 
-    return res.status(200).json({ success: true, sheetUpdate });
+    // Log the optional referrals to the Referrals tab so the data lives
+    // somewhere queryable instead of only in the operator's admin email.
+    // Auto-creates the tab on first hit; non-fatal on failure (the admin
+    // email already shipped).
+    let referralLog = null;
+    try {
+      const ts = new Date().toISOString();
+      const entries = [];
+      if (talentRefName || talentRefContact) {
+        entries.push({
+          timestamp: ts,
+          referrer: knownName || '',
+          referrerEmail: email,
+          type: 'creative',
+          name:    talentRefName || '',
+          contact: talentRefContact || '',
+        });
+      }
+      if (buyerRefName || buyerRefContact || buyerRefOrg) {
+        entries.push({
+          timestamp: ts,
+          referrer: knownName || '',
+          referrerEmail: email,
+          type: 'hirer',
+          name:    buyerRefName || '',
+          contact: buyerRefContact || '',
+          org:     buyerRefOrg || '',
+        });
+      }
+      if (entries.length) {
+        const r = await appendReferralLog(entries);
+        referralLog = { logged: r.appended };
+      }
+    } catch (logErr) {
+      console.error('referral log error (non-fatal):', logErr);
+      referralLog = { error: logErr.message };
+    }
+
+    return res.status(200).json({ success: true, sheetUpdate, referralLog });
   } catch (err) {
     console.error('invite-confirm error:', err);
     return res.status(500).json({ error: err.message || 'send failed' });

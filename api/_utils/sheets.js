@@ -62,9 +62,9 @@ const AVAIL_MAP = {
 
 // Append a new row to the bench Sheet. Columns mirror the parser:
 //   0 Timestamp · 1 Name · 2 Email · 3 Portfolio · 4 LinkedIn · 5 Disciplines
-//   6 (empty)   · 7 Availability · 8 (empty) · 9 Hourly · 10 (empty) · 11 (empty)
+//   6 Timezone  · 7 Availability · 8 (empty) · 9 Hourly · 10 (empty) · 11 Referral
 //   12 Past Clients · 13 Exp Level · 14 (empty) · 15 Value Prop · 16 (empty)
-//   17 Partners · 18 Status · 19 Last Updated · 20 Confirmed
+//   17 Partners · 18 Status · 19 Last Updated · 20 Confirmed · 21 Social
 // Returns { rowNumber, range } so callers can patch other columns later.
 export async function appendBenchRow(fields) {
   if (!process.env.SHEETS_SPREADSHEET_ID) {
@@ -85,6 +85,11 @@ export async function appendBenchRow(fields) {
   row[6]  = fields.timezone     || '';
   row[7]  = fields.availability || '';
   row[9]  = String(fields.hourlyRate || '');
+  // col L (index 11) — who referred them. Pulled from the apply form's
+  // referralContext field (and any other referrer field bench-update may
+  // pass through). Without this, the source of every approval is lost the
+  // moment the row lands on the Sheet.
+  row[11] = fields.referralContext || fields.referrer || fields.referral || '';
   row[12] = fields.topClients   || fields.clients || '';
   row[13] = fields.expLevel     || '';
   row[15] = fields.summary      || fields.valueProp || '';
@@ -250,4 +255,73 @@ export async function getBenchEmailMap() {
     if (!map.has(email)) map.set(email, status);
   }
   return map;
+}
+
+
+// ───────────────────────────────────────────────────────────────────────────
+// Referral audit log. Captures the two-referral block on /invite (one
+// creative + one hirer) so we have a queryable record of who's been
+// recommended and by whom — instead of the data sitting in the operator's
+// admin email forever.
+//
+// Auto-creates the 'Referrals' tab on first call so no manual sheet setup.
+
+let _referralsTabReady = false;
+
+async function ensureTab(sheets, tabName, headers) {
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: process.env.SHEETS_SPREADSHEET_ID });
+  const exists = (meta.data.sheets || []).some((sh) => sh.properties && sh.properties.title === tabName);
+  if (exists) return;
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+    requestBody: { requests: [{ addSheet: { properties: { title: tabName } } }] },
+  });
+  if (headers && headers.length) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+      range: `${tabName}!A1`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [headers] },
+    });
+  }
+}
+
+// entries: [{ timestamp, referrer, referrerEmail, type, name, contact, org, status }]
+//   type    = 'creative' | 'hirer'
+//   status  = 'new' (default) — caller can set 'reached-out' / 'converted' etc.
+// Returns { appended }.
+export async function appendReferralLog(entries) {
+  if (!process.env.SHEETS_SPREADSHEET_ID) {
+    throw new Error('SHEETS_SPREADSHEET_ID not configured');
+  }
+  if (!Array.isArray(entries) || !entries.length) return { appended: 0 };
+  const sheets = client();
+  const TAB = 'Referrals';
+  if (!_referralsTabReady) {
+    await ensureTab(sheets, TAB, [
+      'Timestamp','Referrer','Referrer Email','Type','Referred Name',
+      'Referred Contact','Referred Org','Status','Notes',
+    ]);
+    _referralsTabReady = true;
+  }
+  const now = new Date().toISOString();
+  const rows = entries.map((e) => [
+    e.timestamp || now,
+    e.referrer || '',
+    e.referrerEmail || '',
+    e.type || '',
+    e.name || '',
+    e.contact || '',
+    e.org || '',
+    e.status || 'new',
+    e.notes || '',
+  ]);
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+    range: `${TAB}!A:I`,
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: rows },
+  });
+  return { appended: rows.length };
 }

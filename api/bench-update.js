@@ -51,6 +51,9 @@ export default async function handler(req, res) {
         summary:       body.summary || body.valueProp,
         partnerEmails: body.partnerEmails,
         social:        body.social,
+        // Persist the apply-form's referrer field to col L. Previously
+        // dropped silently — now every approval keeps its source.
+        referralContext: body.referralContext || body.referrer || body.referral,
         // Default new rows from the formspree queue to 'approved' so they
         // appear on the public bench immediately. The operator already
         // vetted them by clicking "approve → sheet". Pass status='pending'
