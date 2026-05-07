@@ -6146,6 +6146,140 @@ function AdminFormspreeApproval({ secret }) {
 // then real send. Triggers /api/ping-availability which reads the Sheet,
 // finds every status='approved' row, and emails each with one-click
 // availability buttons.
+// Two-audience batch sender — gathers creatives (Sheet, status='pending')
+// and buyers (Stripe, all paid Colophon products) via /api/build-batches,
+// then fires the matching transactional template via /api/send-batch.
+// Each card is independently previewable + sendable; cancel returns to idle.
+function BatchSendsPanel({ secret, append }) {
+  const [busy, setBusy]     = React.useState(false);
+  const [data, setData]     = React.useState(null);   // {creatives:{count,list},buyers:{count,list}}
+  const [stage, setStage]   = React.useState({ creatives: 'idle', buyers: 'idle' }); // idle|preview|sending
+  const [result, setResult] = React.useState({ creatives: null, buyers: null });
+
+  const refresh = async () => {
+    setBusy(true);
+    try {
+      const r = await fetch('/api/build-batches', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${secret}` },
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        append(`✗ batches · ${(j && j.error) || 'failed'}`);
+        setBusy(false);
+        return;
+      }
+      setData(j);
+      append(`→ batches · ${j.creatives.count} creatives · ${j.buyers.count} buyers`);
+    } catch (ex) {
+      append(`✗ batches · ${ex.message || 'network'}`);
+    }
+    setBusy(false);
+  };
+
+  const send = async (audience) => {
+    const count = data && data[audience] ? data[audience].count : 0;
+    if (!count) return;
+    if (!window.confirm(`Send the ${audience} batch (${count} recipient${count === 1 ? '' : 's'}) now? This is a real send via Resend.`)) return;
+    setStage((s) => ({ ...s, [audience]: 'sending' }));
+    try {
+      const r = await fetch('/api/send-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify({ audience }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        append(`✗ send-${audience} · ${(j && j.error) || 'failed'}`);
+        setStage((s) => ({ ...s, [audience]: 'preview' }));
+        return;
+      }
+      setResult((s) => ({ ...s, [audience]: j }));
+      append(`✓ send-${audience} · ${j.sent} sent · ${j.failed?.length || 0} failed`);
+      setStage((s) => ({ ...s, [audience]: 'idle' }));
+      // Auto-refresh counts so the panel reflects post-send state
+      setTimeout(refresh, 1500);
+    } catch (ex) {
+      append(`✗ send-${audience} · ${ex.message || 'network'}`);
+      setStage((s) => ({ ...s, [audience]: 'preview' }));
+    }
+  };
+
+  const card = (audience, accentColor, title, body) => {
+    const a = data && data[audience] ? data[audience] : { count: 0, list: [] };
+    const st = stage[audience];
+    const res = result[audience];
+    return (
+      <div style={{ flex: '1 1 320px', minWidth: 0, padding: '12px 14px', border: `1px solid ${accentColor}33`, background: `${accentColor}08` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+          <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: accentColor }}>
+            {title}
+          </span>
+          <strong style={{ fontFamily: GS, fontSize: 18, fontWeight: 700, color: C.ink }}>{a.count}</strong>
+        </div>
+        <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.65, margin: '0 0 10px' }}>{body}</p>
+        {a.count > 0 && (
+          <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.5, margin: '0 0 10px', wordBreak: 'break-word' }}>
+            first {Math.min(5, a.list.length)}: {a.list.slice(0, 5).map((r) => r.name || r.email).filter(Boolean).join(', ')}{a.count > 5 ? `, +${a.count - 5} more` : ''}
+          </p>
+        )}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button"
+            onClick={() => send(audience)}
+            disabled={!a.count || st === 'sending'}
+            style={{ ...adminIntentBtn('approve', a.count ? 'full' : 'empty'), padding: '6px 12px', fontSize: 10, opacity: a.count ? 1 : 0.4 }}>
+            {st === 'sending' ? 'sending…' : `send to ${a.count} →`}
+          </button>
+        </div>
+        {res && (
+          <p style={{ fontFamily: GM, fontSize: 10, color: '#3F7F4A', margin: '10px 0 0' }}>
+            ✓ {res.sent} sent · {res.failed?.length || 0} failed
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px dashed rgba(13,13,11,0.18)', background: 'rgba(13,13,11,0.02)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12, marginBottom: 10 }}>
+        <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.ink }}>
+          ready-to-go batch sends
+        </span>
+        <button type="button" onClick={refresh} disabled={busy}
+          style={{ ...adminIntentBtn('neutral'), padding: '6px 12px', fontSize: 10, opacity: busy ? 0.5 : 1 }}>
+          {busy ? 'building…' : (data ? 'refresh counts →' : 'build batches →')}
+        </button>
+      </div>
+      {!data && (
+        <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.65, margin: 0 }}>
+          pulls every pending recommend from the Sheet and every paid customer from Stripe, dedupes (buyers win — they've moved past the invite stage), and stages two ready-to-send batches with audience-specific copy.
+        </p>
+      )}
+      {data && (
+        <>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 6 }}>
+            {card('creatives', '#3F7F4A', 'creatives — invite',
+              "pending applicants who haven't claimed a row yet. fires the 'X recommended you' template with their /invite link.")}
+            {card('buyers', '#7A4A0E', 'buyers — re-engage',
+              "anyone who's bought a pass or concierge brief. fires the 'back on the bench' template with /look + /concierge CTAs.")}
+          </div>
+          {data.buyers?.error && (
+            <p style={{ fontFamily: GM, fontSize: 10, color: '#7A1818', margin: '6px 0 0' }}>
+              buyers · {data.buyers.error}
+            </p>
+          )}
+          {data.buyers?.note && (
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, margin: '6px 0 0' }}>
+              buyers · {data.buyers.note}
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function PingAvailabilitySection({ secret, append }) {
   const [stage, setStage] = React.useState('idle'); // idle | preview | sending
   const [count, setCount] = React.useState(null);
@@ -6824,6 +6958,7 @@ josh@appliedambition.com`);
           email with three one-click buttons: available now / soon / booked.
           Server reads the Sheet directly (no CSV cache) so the recipient
           list is exactly current. */}
+      <BatchSendsPanel secret={secret} append={append} />
       <PingAvailabilitySection secret={secret} append={append} />
 
       {/* Banner: locally-approved rows that haven't reached the Sheet yet.
