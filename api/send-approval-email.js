@@ -24,7 +24,7 @@ import { Resend } from 'resend';
 import { google } from 'googleapis';
 
 const FROM = 'Colophon <bench@colophon.contact>';
-const REPLY_TO = 'bench@colophon.contact';
+const REPLY_TO = process.env.REPLY_TO_EMAIL || 'merdenberger@gmail.com';
 const SITE = 'https://colophon.contact';
 
 export default async function handler(req, res) {
@@ -51,10 +51,15 @@ export default async function handler(req, res) {
   const discipline = String(body.discipline || '').trim();
   const customMessage = String(body.customMessage || '').trim();
 
-  // Bench deep-link — if we know the creative's discipline, pre-filter the
-  // public bench so the link they share leads people straight to the row
-  // shape they belong to. Otherwise the bare /look URL.
-  const benchUrl = discipline
+  // Bench deep-link — focus=<base64 email> opens the bench with the
+  // creative's row scrolled-to + selected. preview=1 bypasses the paywall
+  // for THIS visit so they can actually see their profile (a creative
+  // doesn't have a hirer pass; without preview they'd hit the lock screen).
+  // share-friendly variant: the same link, minus preview, points to the
+  // discipline-filtered bench for them to forward to a hirer.
+  const focusToken  = Buffer.from(to.toLowerCase()).toString('base64');
+  const benchUrl    = `${SITE}/look?preview=1&focus=${encodeURIComponent(focusToken)}`;
+  const shareUrl    = discipline
     ? `${SITE}/look?discipline=${encodeURIComponent(disciplineSlug(discipline))}`
     : `${SITE}/look`;
 
@@ -72,16 +77,16 @@ export default async function handler(req, res) {
     ``,
     `Hirers reach you direct from that page — your rate, your contact, no agency in the middle. The bench is small on purpose, and you made it.`,
     ``,
-    `If you'd like to share that you're on the bench, here are a few options you can copy as-is:`,
+    `If you'd like to share that you're on the bench, here are a few options you can copy as-is (these point at the public bench, not your private preview link):`,
     ``,
     `LinkedIn / general post:`,
-    `Just joined Colophon — a directory of independent freelance creatives in advertising. Editor-curated, no agency markup, every name vouched for. ${benchUrl}`,
+    `Just joined Colophon — a directory of independent freelance creatives in advertising. Editor-curated, no agency markup, every name vouched for. ${shareUrl}`,
     ``,
     `Twitter / X / Threads:`,
-    `Now on Colophon. The group text, made legible. ${benchUrl}`,
+    `Now on Colophon. The group text, made legible. ${shareUrl}`,
     ``,
     `Instagram caption:`,
-    `on the bench. ${benchUrl} (link in your bio works best — IG eats raw URLs)`,
+    `on the bench. ${shareUrl} (link in your bio works best — IG eats raw URLs)`,
     ``,
     `Reply to this email if anything on your profile needs editing or if you want to update your availability — I read every reply.`,
     ``,
@@ -139,15 +144,15 @@ export default async function handler(req, res) {
       <p style="margin:0 0 16px;color:#3D3C38;font-size:14px;">A few drop-in posts you can copy as-is. Or write your own — whatever fits.</p>
 
       ${shareBlock('LinkedIn / general post',
-        `Just joined Colophon — a directory of independent freelance creatives in advertising. Editor-curated, no agency markup, every name vouched for. ${benchUrl}`,
-        `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(benchUrl)}`)}
+        `Just joined Colophon — a directory of independent freelance creatives in advertising. Editor-curated, no agency markup, every name vouched for. ${shareUrl}`,
+        `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`)}
 
       ${shareBlock('Twitter / X / Threads',
-        `Now on Colophon. The group text, made legible. ${benchUrl}`,
-        `https://twitter.com/intent/tweet?text=${encodeURIComponent('Now on Colophon. The group text, made legible.')}&url=${encodeURIComponent(benchUrl)}`)}
+        `Now on Colophon. The group text, made legible. ${shareUrl}`,
+        `https://twitter.com/intent/tweet?text=${encodeURIComponent('Now on Colophon. The group text, made legible.')}&url=${encodeURIComponent(shareUrl)}`)}
 
       ${shareBlock('Instagram caption',
-        `on the bench. ${benchUrl} (link in your bio works best — IG eats raw URLs)`,
+        `on the bench. ${shareUrl} (link in your bio works best — IG eats raw URLs)`,
         null)}
 
       <hr style="border:0;border-top:1px solid rgba(13,16,20,0.12);margin:32px 0;" />

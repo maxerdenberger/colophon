@@ -2867,6 +2867,39 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionF
   const [cursor, setCursor] = useState({ x: 0, y: 0, quip: '' });
   const [showAll, setShowAll] = useState(false);
 
+  // ── Focus deep-link ──────────────────────────────────────────────────
+  // Approval/welcome emails send creatives here with ?focus=<base64 email>.
+  // We decode it, find the row, select+scroll on first paint. Lets the
+  // creative click 'view your profile' and actually see themselves.
+  const focusEmail = (() => {
+    if (typeof window === 'undefined') return null;
+    const u = new URLSearchParams(window.location.search);
+    const f = u.get('focus');
+    if (!f) return null;
+    try { return atob(decodeURIComponent(f)).toLowerCase(); } catch { return null; }
+  })();
+  const focusedRef = useRef(false);
+  useEffect(() => {
+    if (focusedRef.current) return;
+    if (!focusEmail || !liveBench || !liveBench.length) return;
+    const match = liveBench.find((p) => (p.emailRaw || '').toLowerCase() === focusEmail);
+    if (!match) return;
+    setSel(match.id);
+    setShowAll(true);          // ensure the row is in view, even past the cap
+    focusedRef.current = true;
+    // Defer the scroll so the row has rendered.
+    setTimeout(() => {
+      const el = document.getElementById('bench-row-' + match.id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.transition = 'box-shadow 0.4s';
+        el.style.boxShadow  = 'inset 3px 0 0 ' + accent + ', inset 0 0 0 1px rgba(255,81,0,0.25)';
+        setTimeout(() => { el.style.boxShadow = ''; }, 2400);
+      }
+    }, 350);
+  }, [focusEmail, liveBench, accent]);
+
+
   // Apply session filters from the signed token (set at purchase time, restored
   // on page load via /api/verify-session). This is what they paid for: they
   // see only matching rows. `showAll` lets them broaden during the session.
@@ -2995,7 +3028,7 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionF
       {visible.map((p, i) => {
         const isSel = sel === p.id;
         return (
-          <div key={p.id} className="bench-row">
+          <div key={p.id} id={`bench-row-${p.id}`} className="bench-row">
             <div
               onClick={() => setSel(isSel ? null : p.id)}
               onMouseEnter={() => { setHovered(p.id); setCursor((c) => ({ ...c, quip: quipFor(p.id) })); }}

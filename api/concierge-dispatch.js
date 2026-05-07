@@ -158,4 +158,4 @@ function esc(s) {
     .replace(/>/g, '&gt;');
 }
 
-const REPLY_TO = 'bench@colophon.contact';
+const REPLY_TO = process.env.REPLY_TO_EMAIL || 'merdenberger@gmail.com';

@@ -73,7 +73,7 @@ export default async function handler(req, res) {
       await resend.emails.send({
         from: FROM,
         to: email,
-        replyTo: 'bench@colophon.contact',
+        replyTo: process.env.REPLY_TO_EMAIL || 'merdenberger@gmail.com',
         subject: `${referrer} recommended you to Colophon.`,
         html,
       });

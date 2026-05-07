@@ -18,7 +18,7 @@ import { Resend } from 'resend';
 import { google } from 'googleapis';
 
 const FROM = 'Colophon <bench@colophon.contact>';
-const REPLY_TO = 'bench@colophon.contact';
+const REPLY_TO = process.env.REPLY_TO_EMAIL || 'merdenberger@gmail.com';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
