@@ -225,3 +225,29 @@ export async function migrateApprovalsBulk(approvedEmails) {
     totalRows: rows.length - 1,
   };
 }
+
+// Returns a map of {emailLowercased -> status} for every row on the bench
+// Sheet. Used by /api/submissions to filter out Formspree submissions that
+// have already been promoted into the Sheet (any status — approved, pending,
+// denied, cold, duplicate). Empty rows skipped.
+export async function getBenchEmailMap() {
+  if (!process.env.SHEETS_SPREADSHEET_ID) {
+    throw new Error('SHEETS_SPREADSHEET_ID not configured');
+  }
+  const sheets = client();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+    range: RANGE_ALL,
+  });
+  const rows = res.data.values || [];
+  const map = new Map();
+  for (let i = 1; i < rows.length; i++) {
+    const email = String(rows[i][2] || '').trim().toLowerCase();
+    if (!email || !email.includes('@')) continue;
+    const status = String(rows[i][18] || '').trim().toLowerCase() || 'pending';
+    // First-write wins so we don't get confused by duplicates; the bench
+    // browser's de-dupe step handles those separately.
+    if (!map.has(email)) map.set(email, status);
+  }
+  return map;
+}

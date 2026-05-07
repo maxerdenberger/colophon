@@ -5855,6 +5855,10 @@ function AdminFormspreeApproval({ secret }) {
     try { return new Set(JSON.parse(localStorage.getItem('colophon_reviewed') || '[]')); }
     catch { return new Set(); }
   });
+  // Count of submissions the server auto-archived (email already on bench
+  // Sheet). Surfaced in the header — replaces the old localStorage-only
+  // 'reviewed' gate which broke across browsers.
+  const [benchMatched, setBenchMatched] = useState(0);
   const [pastActions, setPastActions] = useState(loadAdminActions);
   const [sessionActions, setSessionActions] = useState({});
   const stateFor = (rowId, op) => {
@@ -5908,6 +5912,10 @@ function AdminFormspreeApproval({ secret }) {
         return;
       }
       const raw = j.submissions || j.data || j || [];
+      // Server-side cross-reference count — submissions auto-hidden because
+      // their email is already on the bench Sheet (any status). Surfaced in
+      // the panel header so the operator sees nothing's actually 'stuck'.
+      setBenchMatched(typeof j.benchMatched === 'number' ? j.benchMatched : 0);
       // Defensive fallback id — must be order-independent so the
       // localStorage 'reviewed' Set stays valid across reloads (Formspree
       // doesn't guarantee response order). Hash submitted_at + email +
@@ -6055,11 +6063,11 @@ function AdminFormspreeApproval({ secret }) {
             style={{ fontFamily: GM, fontSize: 9, padding: '4px 10px', border: '1px solid rgba(13,13,11,0.08)', borderRadius: 4, color: '#0d0d0b', textDecoration: 'none', background: 'transparent' }}>
             preview bench ↗
           </a>
-          <span style={{ fontFamily: GM, fontSize: 10, color: '#3D3C38' }}>{pending.length} pending · {reviewed.size} reviewed</span>
+          <span style={{ fontFamily: GM, fontSize: 10, color: '#3D3C38' }}>{pending.length} pending · {benchMatched} on bench (hidden) · {reviewed.size} reviewed</span>
         </div>
       </div>
       <p style={{ fontFamily: GM, fontSize: 11, color: '#3D3C38', marginBottom: 14, lineHeight: 1.6 }}>
-        Approving a row POSTs <code>action: 'add'</code> to <code>/api/bench-update</code>, which (when implemented server-side) appends to the source Sheet. Skip / reject mark the submission as reviewed locally on this browser only.
+        Approving a row POSTs <code>action: 'add'</code> to <code>/api/bench-update</code>, which appends to the source Sheet. Once a submission's email lives on the Sheet (any status), the server auto-archives it from this queue — no manual "stuck" rows to clean up. Skip / reject still mark a submission reviewed locally on this browser only (use that for spam or no-email rows).
       </p>
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
         <select value={filter} onChange={(e) => setFilter(e.target.value)}

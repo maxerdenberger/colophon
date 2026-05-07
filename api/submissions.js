@@ -4,6 +4,7 @@
 // (AdminFormspreeApproval) calls this to populate the approval queue.
 
 import { isTestOrOperatorSubmission } from './_utils/formspree.js';
+import { getBenchEmailMap } from './_utils/sheets.js';
 
 //
 // Why proxy: Formspree's API is auth'd with a personal API key that
@@ -79,18 +80,42 @@ export default async function handler(req, res) {
         // so the same submission could end up with a different id on a
         // later load — that broke localStorage('colophon_reviewed') and
         // caused already-rejected rows to reappear.
-        const submissions = raw
+        const stamped = (raw || [])
           // Drop test sources + operator's own submissions before
           // they reach the queue. Same rule used by the activity feed,
           // so all admin counters agree.
           .filter((s) => !isTestOrOperatorSubmission(s))
           .map((s) => {
-            if (s && s.id != null) return { ...s, id: s.id };
             const data = s && (s.data || s) || {};
-            const fp = `${s && s.submitted_at || ''}|${(data.email || '').toLowerCase()}|${(data.brief || data.summary || '').slice(0, 40)}`;
-            return { ...s, id: 'fp:' + simpleHash(fp) };
+            const id = s && s.id != null ? s.id : ('fp:' + simpleHash(`${s && s.submitted_at || ''}|${(data.email || '').toLowerCase()}|${(data.brief || data.summary || '').slice(0, 40)}`));
+            return { ...s, id, _email: (data.email || '').toLowerCase() };
           });
-        return res.status(200).json({ submissions, _via: { auth: a.auth.split(' ')[0], url: a.url } });
+
+        // Cross-reference the bench Sheet so submissions that have
+        // already been promoted (any status — approved, denied, pending,
+        // cold, duplicate) drop out of the queue automatically. This is
+        // what 'archive after approve' actually means: the row exists on
+        // the Sheet, so it doesn't belong in the new-submissions queue.
+        // Falls back to the localStorage 'reviewed' Set if the Sheet
+        // read fails (we tag, the client can choose).
+        let benchMap = null;
+        try { benchMap = await getBenchEmailMap(); } catch (_) {}
+
+        const submissions = stamped
+          .map((s) => {
+            const onBench = benchMap && s._email ? benchMap.get(s._email) : null;
+            return onBench ? { ...s, alreadyOnBench: true, benchStatus: onBench } : s;
+          })
+          // Drop the ones we just tagged. The admin UI can still surface
+          // them by hitting the endpoint with ?includeOnBench=1 if needed.
+          .filter((s) => req.query.includeOnBench === '1' ? true : !s.alreadyOnBench);
+
+        return res.status(200).json({
+          submissions,
+          benchMatched: benchMap ? stamped.length - submissions.length : 0,
+          benchKnown:   !!benchMap,
+          _via: { auth: a.auth.split(' ')[0], url: a.url },
+        });
       }
       lastStatus = r.status;
       lastTried = `${a.auth.split(' ')[0]} ${a.url}`;
