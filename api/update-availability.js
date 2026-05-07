@@ -50,7 +50,7 @@ export default async function handler(req, res) {
   const expected = tokenFor(cleanEmail);
   if (token !== expected) {
     return res.status(403).setHeader('Content-Type','text/html').send(page('Link expired',
-      '<h1 style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.02em;margin:0 0 16px;">link mismatch.</h1><p style="font-size:16px;line-height:1.7;">The token in this URL doesn\'t match what we expect for this email. If you got two pings, use the most recent one — or reply to <a href="mailto:bench@colophon.contact">bench@colophon.contact</a> and I\'ll update by hand.</p>'));
+      '<h1 style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.02em;margin:0 0 16px;">link mismatch.</h1><p style="font-size:16px;line-height:1.7;">The token in this URL doesn\'t match what we expect for this email. If you got two pings, use the most recent one. If neither works, head to <a href="https://colophon.contact/apply">colophon.contact/apply</a> and resubmit your row — that\'ll match by email.</p>'));
   }
   if (!VALID_VALUES[value]) {
     return res.status(400).setHeader('Content-Type','text/html').send(page('Bad request', '<p>Unknown availability value.</p>'));
@@ -60,12 +60,12 @@ export default async function handler(req, res) {
     const found = await findBenchRowByEmail(cleanEmail);
     if (!found) {
       return res.status(404).setHeader('Content-Type','text/html').send(page('Not on the bench',
-        '<h1 style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.02em;margin:0 0 16px;">we couldn\'t find your row.</h1><p style="font-size:16px;line-height:1.7;">Reply to <a href="mailto:bench@colophon.contact">bench@colophon.contact</a> and I\'ll sort it.</p>'));
+        '<h1 style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.02em;margin:0 0 16px;">we couldn\'t find your row.</h1><p style="font-size:16px;line-height:1.7;">Head to <a href="https://colophon.contact/apply">colophon.contact/apply</a> and resubmit your row — that\'ll match by email.</p>'));
     }
     await updateBenchRow(found.rowNumber, { availability: VALID_VALUES[value] });
   } catch (err) {
     return res.status(500).setHeader('Content-Type','text/html').send(page('Server error',
-      `<h1 style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:28px;margin:0 0 16px;">something went wrong.</h1><p style="font-size:14px;line-height:1.7;">${String(err.message || 'unknown')}. Reply to bench@colophon.contact.</p>`));
+      `<h1 style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:28px;margin:0 0 16px;">something went wrong.</h1><p style="font-size:14px;line-height:1.7;">${String(err.message || 'unknown')}. Try again at colophon.contact/apply.</p>`));
   }
 
   const labels = {
@@ -78,7 +78,7 @@ export default async function handler(req, res) {
     <h1 style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:36px;letter-spacing:-0.025em;line-height:1.05;margin:0 0 12px;">your row is updated.</h1>
     <p style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.04em;color:${lab.color};text-transform:uppercase;margin:0 0 28px;">→ ${lab.line}</p>
     <p style="font-size:16px;line-height:1.7;color:#0d1014;margin:0 0 16px;">Hirers will see the change on the public bench within a few minutes.</p>
-    <p style="font-size:14px;line-height:1.7;color:#3D3C38;margin:0 0 0;">Anything else to update — rate, portfolio, the social heart? Reply to <a href="mailto:bench@colophon.contact" style="color:#0d1014;">bench@colophon.contact</a> and I\'ll roll it in.</p>
+    <p style="font-size:14px;line-height:1.7;color:#3D3C38;margin:0 0 0;">Anything else to update — rate, portfolio, the social heart? Resubmit at <a href="https://colophon.contact/apply" style="color:#0d1014;">colophon.contact/apply</a> and I\'ll fold it in.</p>
   `;
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(page('Updated', body, lab.color));

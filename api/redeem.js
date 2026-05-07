@@ -4,7 +4,7 @@ import { signSession } from './_utils/session.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM   = 'Colophon <bench@colophon.contact>';
+const FROM   = 'Colophon <noreply@colophon.contact>';
 const SITE   = (process.env.SITE_URL || 'https://colophon.contact').replace(/\/$/, '');
 
 const PRODUCT_TIER = {

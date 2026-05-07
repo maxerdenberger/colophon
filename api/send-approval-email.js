@@ -15,7 +15,7 @@
 //     customMessage: string (optional — operator can prepend a note)
 //   }
 //
-// Replies-to bench@colophon.contact so creatives can write back.
+// Sent from noreply@colophon.contact — automated, no replies expected.
 // Logs to a "welcome_log" tab in the source spreadsheet (best-effort,
 // failures don't block the response) so we can see how many of these
 // have gone out without trawling Resend's dashboard.
@@ -23,8 +23,8 @@
 import { Resend } from 'resend';
 import { google } from 'googleapis';
 
-const FROM = 'Colophon <bench@colophon.contact>';
-const REPLY_TO = process.env.REPLY_TO_EMAIL || 'merdenberger@gmail.com';
+const FROM = 'Colophon <noreply@colophon.contact>';
+const REPLY_TO = 'noreply@colophon.contact';
 const SITE = 'https://colophon.contact';
 
 export default async function handler(req, res) {
@@ -87,8 +87,6 @@ export default async function handler(req, res) {
     ``,
     `Instagram caption:`,
     `on the bench. ${shareUrl} (link in your bio works best — IG eats raw URLs)`,
-    ``,
-    `Reply to this email if anything on your profile needs editing or if you want to update your availability — I read every reply.`,
     ``,
     `Welcome.`,
     `— Max`,
@@ -157,8 +155,7 @@ export default async function handler(req, res) {
 
       <hr style="border:0;border-top:1px solid rgba(13,16,20,0.12);margin:32px 0;" />
 
-      <p style="margin:0 0 16px;">Reply to this email if anything on your profile needs editing or if you want to update your availability — I read every reply.</p>
-
+      
       <p style="margin:0 0 8px;">Welcome.</p>
       <p style="margin:0 0 32px;">— Max</p>
 

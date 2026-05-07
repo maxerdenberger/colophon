@@ -17,7 +17,7 @@ import { google } from 'googleapis';
 
 const REMIND_DAYS_BEFORE = 60;
 const REMIND_WINDOW_DAYS = 1;   // cron runs daily; window matches that
-const FROM = 'Colophon <bench@colophon.contact>';
+const FROM = 'Colophon <noreply@colophon.contact>';
 
 export default async function handler(req, res) {
   const cronAuth = req.headers['x-vercel-cron'] === '1' || (req.headers['user-agent'] || '').includes('vercel-cron');
@@ -92,7 +92,7 @@ export default async function handler(req, res) {
           <p>Hi ${esc(buyerName.split(' ')[0] || 'there')},</p>
           <p>A quick heads up: your annual Colophon access renews on <strong>${esc(renewalHuman)}</strong> at <strong>${esc(amount)}</strong>.</p>
           <p>If that still works for you, no action needed — we'll keep your bench access live and the priority concierge SLA in place.</p>
-          <p>If you'd like to cancel, change the seat count, or talk through a different arrangement, just reply to this email and I'll handle it directly.</p>
+          <p>If you'd like to cancel, change the seat count, or talk through a different arrangement, head back to <a href="https://colophon.contact/access" style="color:#0d1014;">colophon.contact/access</a> and I'll see your note from there.</p>
           <p>— Max</p>
           <p style="font-size:11px;color:#888580;margin-top:32px;">Subscription id: ${esc(sub.id)} · ${esc(buyerEmail)}</p>
         </div>
@@ -102,7 +102,7 @@ export default async function handler(req, res) {
       await resend.emails.send({
         from: FROM,
         to: buyerEmail,
-        replyTo: process.env.REPLY_TO_EMAIL || 'merdenberger@gmail.com',
+        replyTo: 'noreply@colophon.contact',
         subject: `Your Colophon annual renews ${renewalHuman}`,
         html,
       });

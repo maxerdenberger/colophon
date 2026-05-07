@@ -32,7 +32,7 @@ import { google } from 'googleapis';
 const DEFAULT_OPERATOR = 'merdenberger@gmail.com';
 const DEFAULT_THRESHOLD_MIN = 30;
 const BUCKET_WINDOW_MIN = 60;
-const FROM = 'Colophon dispatch <bench@colophon.contact>';
+const FROM = 'Colophon dispatch <noreply@colophon.contact>';
 
 export default async function handler(req, res) {
   // Allow Vercel cron OR admin Bearer.
@@ -158,4 +158,4 @@ function esc(s) {
     .replace(/>/g, '&gt;');
 }
 
-const REPLY_TO = process.env.REPLY_TO_EMAIL || 'merdenberger@gmail.com';
+const REPLY_TO = 'noreply@colophon.contact';

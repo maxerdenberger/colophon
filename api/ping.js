@@ -25,7 +25,7 @@ import { Resend } from 'resend';
 import { google } from 'googleapis';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM = 'Colophon <bench@colophon.contact>';
+const FROM = 'Colophon <noreply@colophon.contact>';
 const TAB_NAME = process.env.SHEETS_TAB_NAME || 'Form Responses 1';
 
 const COL = {

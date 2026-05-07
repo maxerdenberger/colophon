@@ -1,7 +1,7 @@
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM = 'Colophon <bench@colophon.contact>';
+const FROM = 'Colophon <noreply@colophon.contact>';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {

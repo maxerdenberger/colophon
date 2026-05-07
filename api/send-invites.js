@@ -1,7 +1,7 @@
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM = 'Colophon <bench@colophon.contact>';
+const FROM = 'Colophon <noreply@colophon.contact>';
 const SLEEP_MS = 100;
 
 // Inline brand mark — pure HTML/CSS so it renders in every email client
@@ -73,7 +73,7 @@ export default async function handler(req, res) {
       await resend.emails.send({
         from: FROM,
         to: email,
-        replyTo: process.env.REPLY_TO_EMAIL || 'merdenberger@gmail.com',
+        replyTo: 'noreply@colophon.contact',
         subject: `${referrer} recommended you to Colophon.`,
         html,
       });
