@@ -6076,6 +6076,30 @@ function AdminFormspreeApproval({ secret }) {
           append(`(no email on submission — skipped welcome send)`);
         }
       } catch (ex) { append(`✗ approve — ${ex.message}`); return; }
+    } else if (op === 'reject') {
+      // Reject permanently — writes a 'denied' row to the Sheet (or flips
+      // an existing row to denied). Tracks every rejected applicant in
+      // the rejects bin so re-applications are visible as duplicates next
+      // time, and the operator never has to wonder 'did I see this person
+      // before?' Failures don't abort the queue removal — the local fade
+      // still runs so the operator's UI isn't stuck.
+      const data = sub.data || sub;
+      try {
+        const r = await fetch('/api/bench-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+          body: JSON.stringify({ action: 'reject', submissionId: sub.id, ...data }),
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          append(`⚠ reject (local fade) — server: ${(j && j.error) || r.status}`);
+        } else {
+          const j = await r.json().catch(() => ({}));
+          append(`🗑 rejected → rejects bin · ${data.name || data.email || sub.id} · ${j.mode || 'sheet'}`);
+        }
+      } catch (ex) {
+        append(`⚠ reject (local fade) — ${ex.message || 'network'}`);
+      }
     } else {
       append(`✓ ${op} (local) · ${sub.id}`);
     }
@@ -6424,6 +6448,61 @@ function PingAvailabilitySection({ secret, append }) {
       {result && (
         <p style={{ fontFamily: GM, fontSize: 10, color: '#3F7F4A', margin: '10px 0 0' }}>
           ✓ {result.sent} sent · {result.failed} failed
+        </p>
+      )}
+    </div>
+  );
+}
+
+// One-click 'send everything not on the bench → rejects bin'. The user's
+// flow needs to be: review applications -> approve onto the bench. Anything
+// else is a reject. This button collapses the leftover pending parking-lot
+// in a single POST so the only states left are approved + denied.
+function BulkArchivePendingButton({ secret, append, refreshBench, bench }) {
+  const [busy, setBusy] = React.useState(false);
+  const [done, setDone] = React.useState(null);
+  const pendingCount = (bench || []).filter((p) => {
+    const st = (p.status || '').toLowerCase();
+    return st === '' || st === 'pending';
+  }).length;
+  const fire = async () => {
+    if (!pendingCount) return;
+    if (!window.confirm(`Flip ${pendingCount} pending row${pendingCount === 1 ? '' : 's'} to 'denied' on the Sheet? Approved rows are untouched. Reversible by editing the Sheet or re-approving from the rejects view.`)) return;
+    setBusy(true);
+    try {
+      const r = await fetch('/api/bench-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify({ action: 'archive-all-pending' }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        append(`x archive-all-pending - ${(j && j.error) || r.status}`);
+      } else {
+        setDone(j);
+        append(`archived ${j.archived} pending -> rejects bin (${j.totalScanned} rows scanned)`);
+        if (refreshBench) refreshBench();
+      }
+    } catch (ex) {
+      append(`x archive-all-pending - ${ex.message || 'network'}`);
+    }
+    setBusy(false);
+  };
+  if (!pendingCount && !done) return null;
+  return (
+    <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px dashed rgba(176,64,64,0.35)', background: 'rgba(176,64,64,0.04)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ fontFamily: GM, fontSize: 11, color: '#7A1818', lineHeight: 1.6 }}>
+          <strong>{pendingCount} row{pendingCount === 1 ? '' : 's'} sitting in 'pending'.</strong> if you've already approved everyone you want on the bench, send the rest to the rejects bin in one move.
+        </div>
+        <button type="button" onClick={fire} disabled={busy || !pendingCount}
+          style={{ ...adminIntentBtn('reject', 'full'), padding: '7px 12px', fontSize: 10, opacity: busy ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+          {busy ? 'archiving...' : `archive ${pendingCount} -> rejects ->`}
+        </button>
+      </div>
+      {done && (
+        <p style={{ fontFamily: GM, fontSize: 10, color: '#7A1818', margin: '10px 0 0' }}>
+          archived {done.archived} - {done.totalScanned} rows scanned. refresh the bench to see them in the rejects view.
         </p>
       )}
     </div>
@@ -7006,6 +7085,10 @@ josh@appliedambition.com`);
           list is exactly current. */}
       <BatchSendsPanel secret={secret} append={append} />
       <PingAvailabilitySection secret={secret} append={append} />
+
+      {/* Bulk archive — collapses pending parking-lot into rejects bin so
+          the bench is two-state: approved (on bench) or denied (in bin). */}
+      <BulkArchivePendingButton secret={secret} append={append} refreshBench={refreshBench} bench={bench} />
 
       {/* Banner: locally-approved rows that haven't reached the Sheet yet.
           Most often: pre-architecture approvals OR a silent API failure.
