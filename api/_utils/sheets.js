@@ -325,3 +325,42 @@ export async function appendReferralLog(entries) {
   });
   return { appended: rows.length };
 }
+
+
+// Bulk-archive everything not on the bench. Flips every row whose current
+// status is empty OR 'pending' to 'denied'. Approved/cold/duplicate/denied
+// rows are left alone. Used by the admin's 'archive all pending' button
+// to clear the parking-lot pending state — every applicant ends up either
+// approved (on the bench) or denied (in the rejects bin). No middle.
+export async function bulkArchivePending() {
+  if (!process.env.SHEETS_SPREADSHEET_ID) {
+    throw new Error('SHEETS_SPREADSHEET_ID not configured');
+  }
+  const sheets = client();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+    range: RANGE_ALL,
+  });
+  const rows = res.data.values || [];
+  const data = [];
+  let count = 0;
+  for (let i = 1; i < rows.length; i++) {
+    const email = String(rows[i][2] || '').trim().toLowerCase();
+    if (!email || !email.includes('@')) continue;
+    const cur = String(rows[i][18] || '').trim().toLowerCase();
+    if (cur === '' || cur === 'pending') {
+      data.push({
+        range: `${TAB_NAME}!S${i + 1}`,
+        values: [['denied']],
+      });
+      count++;
+    }
+  }
+  if (data.length) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+      requestBody: { valueInputOption: 'RAW', data },
+    });
+  }
+  return { archived: count, totalScanned: rows.length - 1 };
+}

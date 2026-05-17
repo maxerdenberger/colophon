@@ -104,11 +104,23 @@ export default async function handler(req, res) {
         const submissions = stamped
           .map((s) => {
             const onBench = benchMap && s._email ? benchMap.get(s._email) : null;
-            return onBench ? { ...s, alreadyOnBench: true, benchStatus: onBench } : s;
+            if (!onBench) return s;
+            return {
+              ...s,
+              alreadyOnBench: true,
+              benchStatus: onBench,
+              // 'denied' / 'cold' / 'duplicate' all mean: previously rejected.
+              // Surface them in the queue with this flag so duplicates are
+              // visible (the operator can quickly re-reject or change their
+              // mind). Only 'approved' is hidden — that's the only state
+              // where surfacing is pointless (already on the bench).
+              previouslyRejected: ['denied','cold','duplicate'].includes(onBench),
+            };
           })
-          // Drop the ones we just tagged. The admin UI can still surface
-          // them by hitting the endpoint with ?includeOnBench=1 if needed.
-          .filter((s) => req.query.includeOnBench === '1' ? true : !s.alreadyOnBench);
+          // Hide only when they're already approved. Anything else is
+          // surfaced (with previouslyRejected/benchStatus flags) so the
+          // operator can act on duplicate or re-applying submitters.
+          .filter((s) => req.query.includeAll === '1' ? true : !(s.alreadyOnBench && s.benchStatus === 'approved'));
 
         return res.status(200).json({
           submissions,

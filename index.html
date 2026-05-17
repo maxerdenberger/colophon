@@ -6138,6 +6138,11 @@ function AdminFormspreeApproval({ secret }) {
                     <span style={{ fontFamily: GM, fontSize: 9, color: '#3D3C38', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{data.source || 'unknown'}</span>
                     <span style={{ fontFamily: GM, fontSize: 9, color: '#3D3C38' }}>{s.submitted_at ? new Date(s.submitted_at).toLocaleString() : (s.created_at || '')}</span>
                   </div>
+                  {s.previouslyRejected && (
+                    <div style={{ display: 'inline-block', fontFamily: GM, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7A1818', background: 'rgba(176,64,64,0.08)', border: '1px solid rgba(176,64,64,0.3)', padding: '2px 8px', borderRadius: 3, marginBottom: 6 }}>
+                      previously rejected · status: {s.benchStatus || 'denied'}
+                    </div>
+                  )}
                   <div style={{ color: '#3D3C38', fontSize: 11, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     {data.email && <span>{data.email}</span>}
                     {data.email && (

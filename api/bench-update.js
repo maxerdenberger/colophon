@@ -16,7 +16,7 @@
 //   pending   → set status='pending' (back into the review queue)
 //   cold      → set status='cold'
 
-import { appendBenchRow, updateBenchStatusByEmail } from './_utils/sheets.js';
+import { appendBenchRow, updateBenchStatusByEmail, findBenchRowByEmail, updateBenchRow, bulkArchivePending } from './_utils/sheets.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -62,6 +62,54 @@ export default async function handler(req, res) {
         confirmed:     body.confirmed,
       });
       return res.status(200).json({ ok: true, action, ...result });
+    }
+
+    // ── Smart reject ─────────────────────────────────────────────────
+    // Used by the Formspree queue's reject button. If the email is already
+    // on the Sheet, just flips status to 'denied'. If not, appends a fresh
+    // denied row so we keep a permanent record (the rejects bin). Either
+    // way the operator never sees this person in the queue again — even
+    // across browsers, devices, or new submissions from the same email.
+    if (action === 'reject') {
+      const email = String(body.email || '').trim();
+      if (email.includes('@')) {
+        try {
+          const found = await findBenchRowByEmail(email);
+          if (found) {
+            const r = await updateBenchRow(found.rowNumber, { status: 'denied' });
+            return res.status(200).json({ ok: true, action, status: 'denied', mode: 'updated', rowNumber: found.rowNumber, updated: r.updated });
+          }
+        } catch (_) {}
+      }
+      const appended = await appendBenchRow({
+        timestamp:     body.timestamp,
+        name:          body.name,
+        email,
+        portfolio:     body.portfolio,
+        linkedin:      body.linkedin,
+        disciplines:   body.disciplines || body.discipline,
+        timezone:      body.timezone || body.tz,
+        availability:  body.availability,
+        hourlyRate:    body.hourlyRate,
+        topClients:    body.topClients || body.clients,
+        expLevel:      body.expLevel,
+        summary:       body.summary || body.valueProp,
+        partnerEmails: body.partnerEmails,
+        social:        body.social,
+        referralContext: body.referralContext || body.referrer || body.referral,
+        status:        'denied',
+        confirmed:     body.confirmed,
+      });
+      return res.status(200).json({ ok: true, action, status: 'denied', mode: 'appended', ...appended });
+    }
+
+    // ── Bulk archive ─────────────────────────────────────────────────
+    // Flips every pending/empty row to 'denied'. Approved rows untouched.
+    // The 'archive all remaining pending' button calls this once to clear
+    // the parking-lot backlog so the only states left are approved + rejected.
+    if (action === 'archive-all-pending') {
+      const r = await bulkArchivePending();
+      return res.status(200).json({ ok: true, action, ...r });
     }
 
     // Status-changing actions. All require an email to look up the row.
