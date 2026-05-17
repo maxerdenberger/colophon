@@ -836,6 +836,33 @@ const _loadMutationCache = () => {
 const _saveMutationCache = (cache) => {
   try { localStorage.setItem(MUTATION_CACHE_KEY, JSON.stringify(cache)); } catch {}
 };
+
+// Bench snapshot cache — stale-while-revalidate. The CSV fetch on mount
+// used to leave the admin staring at the 19-row seed BENCH for 1-3s.
+// Now we cache the last-parsed full bench in localStorage. On mount we
+// hydrate from there (no spinner, no seed flash); the background fetch
+// still fires and swaps in fresh data when it lands. TTL prevents wildly
+// stale data — if you haven't loaded admin in a day, you'll see the
+// regular fetch path again.
+const SNAPSHOT_KEY = 'colophon_bench_snapshot';
+const SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
+const _loadSnapshot = () => {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(SNAPSHOT_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || !data.ts || !Array.isArray(data.rows)) return null;
+    if (Date.now() - data.ts > SNAPSHOT_TTL_MS) return null;
+    return data.rows;
+  } catch { return null; }
+};
+const _saveSnapshot = (rows) => {
+  try {
+    if (!Array.isArray(rows) || rows.length < 5) return; // don't snapshot a degenerate parse
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ ts: Date.now(), rows }));
+  } catch {}
+};
 const _applyMutationCache = (rows) => {
   const cache = _loadMutationCache();
   const now = Date.now();
@@ -849,9 +876,13 @@ const _applyMutationCache = (rows) => {
 };
 
 function BenchProvider({ children }) {
-  const [allBench, setAllBench] = useState(BENCH);
-  const [loading, setLoading] = useState(true);
-  const [lastSync, setLastSync] = useState(null);
+  // Hydrate from the last good CSV parse so admin doesn't render the
+  // 19-row seed while the network fetch is in flight. If the snapshot
+  // is older than 24h or missing, fall back to BENCH and show loading.
+  const _initialSnapshot = _loadSnapshot();
+  const [allBench, setAllBench] = useState(_initialSnapshot || BENCH);
+  const [loading, setLoading]   = useState(!_initialSnapshot);
+  const [lastSync, setLastSync] = useState(_initialSnapshot ? Date.now() : null);
   // Re-fetch the source CSV. Cache-bust with a timestamp so the browser /
   // edge layer don't serve a stale copy. Note: Google's publish-to-web
   // re-renders the CSV every ~5min from the underlying Sheet, so very
@@ -877,7 +908,9 @@ function BenchProvider({ children }) {
             // precedence over stale CSV data. If you clicked approve 30s
             // ago and the Sheet hasn't published yet, the row stays
             // approved here.
-            return _applyMutationCache([...optsKept, ...p]);
+            const next = _applyMutationCache([...optsKept, ...p]);
+            _saveSnapshot(next);   // persist so next admin load is instant
+            return next;
           });
           setLastSync(Date.now());
         }
