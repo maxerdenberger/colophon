@@ -146,6 +146,16 @@ export async function updateBenchRow(rowNumber, { availability, portfolio, partn
       values: [[status]],
     });
   }
+  // Always stamp col T (Last Updated) when we touch the row so the
+  // 'who's stale' freshness signal is real. Without this, an availability
+  // click would change the row but not change the timestamp — and the
+  // next stale-first batch would re-ping the person you just heard from.
+  if (data.length) {
+    data.push({
+      range: `${TAB_NAME}!T${rowNumber}`,
+      values: [[new Date().toISOString()]],
+    });
+  }
   if (!data.length) return { updated: 0 };
   const res = await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
@@ -363,4 +373,144 @@ export async function bulkArchivePending() {
     });
   }
   return { archived: count, totalScanned: rows.length - 1 };
+}
+
+
+// ───────────────────────────────────────────────────────────────────────────
+// Availability ping engagement tracking. Every send appends a row to a
+// 'Availability Pings' tab with the Resend email ID. Every click stamps
+// the matching row with response_at + response_value. The admin freshness
+// panel reads this tab + cross-references Resend's open-tracking via
+// /api/email-events.
+
+let _pingsTabReady = false;
+
+export async function appendPingLog(entries) {
+  if (!process.env.SHEETS_SPREADSHEET_ID) {
+    throw new Error('SHEETS_SPREADSHEET_ID not configured');
+  }
+  if (!Array.isArray(entries) || !entries.length) return { appended: 0 };
+  const sheets = client();
+  const TAB = 'Availability Pings';
+  if (!_pingsTabReady) {
+    await ensureTab(sheets, TAB, [
+      'Timestamp','Name','Email','Email ID','Status','Opened At',
+      'Responded At','Response','Prior Availability',
+    ]);
+    _pingsTabReady = true;
+  }
+  const now = new Date().toISOString();
+  const rows = entries.map((e) => [
+    e.timestamp || now,
+    e.name || '',
+    e.email || '',
+    e.emailId || '',
+    e.status || 'sent',
+    '',                                         // openedAt — fetched live from Resend
+    '',                                         // respondedAt — stamped on click
+    '',                                         // response — stamped on click
+    e.priorAvailability || '',
+  ]);
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+    range: `${TAB}!A:I`,
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: rows },
+  });
+  return { appended: rows.length };
+}
+
+// Stamp response (value + timestamp) on the most-recent ping row for the
+// given email. Matches the latest unanswered row so the audit log shows
+// 'pinged on X, responded on Y' clearly. Returns { matched, rowNumber }.
+export async function recordPingResponse({ email, value }) {
+  if (!process.env.SHEETS_SPREADSHEET_ID) {
+    throw new Error('SHEETS_SPREADSHEET_ID not configured');
+  }
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  if (!cleanEmail.includes('@')) return { matched: false };
+  const sheets = client();
+  const TAB = 'Availability Pings';
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+    range: `${TAB}!A:I`,
+  }).catch(() => null);
+  if (!res || !res.data || !res.data.values) return { matched: false };
+  const rows = res.data.values;
+  // Walk bottom-up to find the latest ping for this email that hasn't
+  // already been responded to. If they click two pings (rare), only the
+  // most-recent unanswered one gets stamped.
+  for (let i = rows.length - 1; i >= 1; i--) {
+    const rowEmail = String(rows[i][2] || '').trim().toLowerCase();
+    const alreadyResponded = String(rows[i][6] || '').trim();
+    if (rowEmail === cleanEmail && !alreadyResponded) {
+      const now = new Date().toISOString();
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+        requestBody: {
+          valueInputOption: 'RAW',
+          data: [
+            { range: `${TAB}!G${i + 1}`, values: [[now]] },
+            { range: `${TAB}!H${i + 1}`, values: [[value || '']] },
+          ],
+        },
+      });
+      return { matched: true, rowNumber: i + 1 };
+    }
+  }
+  return { matched: false };
+}
+
+// Bench freshness — reads every approved row, parses col T 'Last Updated'
+// into a timestamp, classifies into buckets:
+//   fresh:  updated in last 7 days
+//   aging:  7–30 days
+//   stale:  30+ days (or no timestamp)
+// Returns rows sorted by lastUpdate ASC (stalest first) so the caller
+// can pick the next batch off the top.
+export async function getBenchFreshness() {
+  if (!process.env.SHEETS_SPREADSHEET_ID) {
+    throw new Error('SHEETS_SPREADSHEET_ID not configured');
+  }
+  const sheets = client();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+    range: RANGE_ALL,
+  });
+  const rows = res.data.values || [];
+  const now = Date.now();
+  const DAY = 24 * 60 * 60 * 1000;
+  const fresh = [], aging = [], stale = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const email = String(r[2] || '').trim().toLowerCase();
+    const status = String(r[18] || '').trim().toLowerCase();
+    if (!email || !email.includes('@')) continue;
+    if (status !== 'approved' && status !== 'active') continue;
+    const ts = Date.parse(String(r[19] || '').trim()) || 0;
+    const ageDays = ts ? (now - ts) / DAY : Infinity;
+    const entry = {
+      rowNumber:    i + 1,
+      name:         String(r[1] || '').trim(),
+      email,
+      availability: String(r[7]  || '').trim(),
+      lastUpdate:   ts ? new Date(ts).toISOString() : null,
+      ageDays:      Number.isFinite(ageDays) ? Math.round(ageDays * 10) / 10 : null,
+    };
+    if (ageDays < 7) fresh.push(entry);
+    else if (ageDays < 30) aging.push(entry);
+    else stale.push(entry);
+  }
+  const byAge = (a, b) => (Date.parse(a.lastUpdate || 0) || 0) - (Date.parse(b.lastUpdate || 0) || 0);
+  // Stale first (oldest), then aging, then fresh. Caller can slice top N
+  // off the combined list for the next stalest-first batch.
+  const sorted = [...stale.sort(byAge), ...aging.sort(byAge), ...fresh.sort(byAge)];
+  return {
+    counts: { total: sorted.length, fresh: fresh.length, aging: aging.length, stale: stale.length },
+    sorted,
+    fresh: fresh.sort(byAge),
+    aging: aging.sort(byAge),
+    stale: stale.sort(byAge),
+  };
 }

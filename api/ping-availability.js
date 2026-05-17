@@ -13,6 +13,7 @@
 import { Resend } from 'resend';
 import crypto from 'crypto';
 import { google } from 'googleapis';
+import { appendPingLog } from './_utils/sheets.js';
 
 const FROM = 'Colophon <noreply@colophon.contact>';
 const REPLY_TO = 'noreply@colophon.contact';
@@ -131,7 +132,13 @@ export default async function handler(req, res) {
       const status = String(row[18] || '').trim().toLowerCase();
       // 'active' is the legacy synonym for 'approved' (parser bridges it).
       if ((status === 'approved' || status === 'active') && email.includes('@')) {
-        approvedRows.push({ email, name, rowNumber: i + 1 });
+        const lastTs = Date.parse(String(row[19] || '').trim()) || 0;
+        approvedRows.push({
+          email, name,
+          rowNumber: i + 1,
+          lastUpdate: lastTs,
+          priorAvailability: String(row[7] || '').trim(),
+        });
       }
     }
   } catch (err) {
@@ -145,11 +152,35 @@ export default async function handler(req, res) {
   );
   approvedRows = approvedRows.filter((r) => !operatorEmails.has(r.email.toLowerCase()));
 
+  // Stale-first sort. Anyone with no Last Updated timestamp ranks oldest
+  // (lastUpdate=0 → top of the list) so they always get pinged before
+  // someone who recently responded. Resend free-tier caps us at 100/day,
+  // so the typical batch shape is { oldestFirst: true, batchSize: 34 } —
+  // split a ~100-row bench across three days, stalest first.
+  const oldestFirst = req.body && req.body.oldestFirst !== false;  // default true
+  if (oldestFirst) {
+    approvedRows.sort((a, b) => (a.lastUpdate || 0) - (b.lastUpdate || 0));
+  }
+  const batchSize = req.body && Number.isFinite(+req.body.batchSize) && +req.body.batchSize > 0
+    ? Math.min(+req.body.batchSize, 100)
+    : null;
+  const totalEligible = approvedRows.length;
+  if (batchSize && batchSize < approvedRows.length) {
+    approvedRows = approvedRows.slice(0, batchSize);
+  }
+
   if (dryRun) {
     return res.status(200).json({
       ok: true, dryRun: true,
       recipientCount: approvedRows.length,
-      recipients: approvedRows.slice(0, 10).map((r) => ({ name: r.name, email: r.email })),
+      totalEligible,
+      batchSize: batchSize || approvedRows.length,
+      oldestFirst,
+      recipients: approvedRows.slice(0, 10).map((r) => ({
+        name: r.name, email: r.email,
+        lastUpdate: r.lastUpdate ? new Date(r.lastUpdate).toISOString() : null,
+        ageDays: r.lastUpdate ? Math.round((Date.now() - r.lastUpdate) / 86400000 * 10) / 10 : null,
+      })),
       note: approvedRows.length > 10 ? `+${approvedRows.length - 10} more` : '',
     });
   }
@@ -157,16 +188,23 @@ export default async function handler(req, res) {
   const resend = new Resend(process.env.RESEND_API_KEY);
   let sent = 0, failed = 0;
   const failures = [];
+  const pingEntries = [];
   for (const r of approvedRows) {
     try {
       const msg = buildEmail(r.name, r.email);
-      await resend.emails.send({
+      const result = await resend.emails.send({
         from: FROM,
         to: r.email,
         replyTo: REPLY_TO,
         subject: msg.subject,
         text: msg.text,
         html: msg.html,
+      });
+      const emailId = (result && result.data && result.data.id) || null;
+      pingEntries.push({
+        name: r.name, email: r.email,
+        emailId, status: 'sent',
+        priorAvailability: r.priorAvailability || '',
       });
       sent++;
     } catch (err) {
@@ -175,10 +213,27 @@ export default async function handler(req, res) {
     }
   }
 
+  // Log every successful send to the Pings tab so the admin freshness
+  // panel can show 'pinged N, opened X (via Resend), responded Y'. Non-
+  // fatal on failure — the sends already shipped.
+  let pingLog = null;
+  if (pingEntries.length) {
+    try {
+      const r = await appendPingLog(pingEntries);
+      pingLog = { logged: r.appended };
+    } catch (logErr) {
+      pingLog = { error: logErr.message };
+    }
+  }
+
   return res.status(200).json({
     ok: true,
     sent, failed,
     recipientCount: approvedRows.length,
+    totalEligible,
+    batchSize: batchSize || approvedRows.length,
+    oldestFirst,
+    pingLog,
     failures: failures.slice(0, 12),
   });
 }

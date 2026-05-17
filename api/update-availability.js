@@ -9,7 +9,7 @@
 // ADMIN_KEY), first 32 hex chars. Stable per recipient; no expiration.
 
 import crypto from 'crypto';
-import { findBenchRowByEmail, updateBenchRow } from './_utils/sheets.js';
+import { findBenchRowByEmail, updateBenchRow, recordPingResponse } from './_utils/sheets.js';
 
 const VALID_VALUES = {
   available: 'Immediate (ready to start within 1 week)',
@@ -63,6 +63,11 @@ export default async function handler(req, res) {
         '<h1 style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.02em;margin:0 0 16px;">we couldn\'t find your row.</h1><p style="font-size:16px;line-height:1.7;">Head to <a href="https://colophon.contact/apply">colophon.contact/apply</a> and resubmit your row — that\'ll match by email.</p>'));
     }
     await updateBenchRow(found.rowNumber, { availability: VALID_VALUES[value] });
+    // Stamp the matching Pings row so the admin freshness panel can
+    // attribute 'responded' counts to specific pings. Non-fatal — the
+    // bench row already shows their new state.
+    try { await recordPingResponse({ email: cleanEmail, value: VALID_VALUES[value] }); }
+    catch (_) {}
   } catch (err) {
     return res.status(500).setHeader('Content-Type','text/html').send(page('Server error',
       `<h1 style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:28px;margin:0 0 16px;">something went wrong.</h1><p style="font-size:14px;line-height:1.7;">${String(err.message || 'unknown')}. Try again at colophon.contact/apply.</p>`));

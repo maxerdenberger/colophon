@@ -6350,11 +6350,124 @@ function BatchSendsPanel({ secret, append }) {
   );
 }
 
+// Bench freshness snapshot — buckets the approved bench into fresh
+// (<7d) / aging (7-30d) / stale (30+d) using col T 'Last Updated'.
+// Surfaces the last-blast stats from the Pings tab. Used by the ping
+// section to decide who's next + give the operator visibility into
+// engagement.
+function BenchFreshnessCard({ secret, append, onLoaded }) {
+  const [data, setData] = React.useState(null);
+  const [busy, setBusy] = React.useState(false);
+  const fetchIt = async () => {
+    setBusy(true);
+    try {
+      const r = await fetch('/api/bench-freshness?withPings=1', {
+        headers: { Authorization: `Bearer ${secret}` },
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        append(`✗ freshness · ${(j && j.error) || r.status}`);
+        setBusy(false);
+        return;
+      }
+      setData(j);
+      if (onLoaded) onLoaded(j);
+    } catch (ex) {
+      append(`✗ freshness · ${ex.message || 'network'}`);
+    }
+    setBusy(false);
+  };
+  React.useEffect(() => { fetchIt(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  if (!data && !busy) {
+    return (
+      <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, margin: '6px 0' }}>
+        bench freshness will load when you check recipients.
+      </p>
+    );
+  }
+  if (busy && !data) {
+    return (
+      <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, margin: '6px 0' }}>
+        loading freshness…
+      </p>
+    );
+  }
+  const c = data.counts || {};
+  const pings = data.pings || {};
+  return (
+    <div style={{ marginTop: 8, padding: '10px 12px', background: '#fff', border: '1px solid rgba(13,13,11,0.08)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+        <span style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#3D3C38' }}>
+          bench freshness
+        </span>
+        <button type="button" onClick={fetchIt} disabled={busy}
+          style={{ ...adminIntentBtn('neutral'), padding: '4px 10px', fontSize: 9 }}>
+          {busy ? 'loading…' : 'refresh'}
+        </button>
+      </div>
+      <div style={{ display: 'flex', gap: 14, marginTop: 8, flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 0', minWidth: 86 }}>
+          <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 20, color: '#3F7F4A', lineHeight: 1 }}>{c.fresh || 0}</div>
+          <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.06em', marginTop: 4 }}>fresh · &lt;7 days</div>
+        </div>
+        <div style={{ flex: '1 1 0', minWidth: 86 }}>
+          <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 20, color: '#C87C18', lineHeight: 1 }}>{c.aging || 0}</div>
+          <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.06em', marginTop: 4 }}>aging · 7–30 days</div>
+        </div>
+        <div style={{ flex: '1 1 0', minWidth: 86 }}>
+          <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 20, color: '#B04040', lineHeight: 1 }}>{c.stale || 0}</div>
+          <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.06em', marginTop: 4 }}>stale · 30+ days</div>
+        </div>
+        <div style={{ flex: '1 1 0', minWidth: 86 }}>
+          <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 20, color: C.ink, lineHeight: 1 }}>{c.total || 0}</div>
+          <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.06em', marginTop: 4 }}>approved · total</div>
+        </div>
+      </div>
+      {pings && (pings.sent != null) && (
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(13,13,11,0.08)' }}>
+          <span style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#3D3C38' }}>last blast</span>
+          <p style={{ fontFamily: GM, fontSize: 11, color: C.ink, margin: '6px 0 0', lineHeight: 1.5 }}>
+            <strong>{pings.sent}</strong> pinged · <strong>{pings.responded}</strong> responded · <strong>{pings.responseRate}%</strong> response rate
+            {pings.lastBlastAt && (
+              <span style={{ color: C.soft, marginLeft: 8 }}> · last blast {new Date(pings.lastBlastAt).toLocaleString()}</span>
+            )}
+          </p>
+          {pings.missing && (
+            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, margin: '6px 0 0' }}>
+              the Availability Pings tab hasn't been created yet — first send will create it. (your previous blast pre-dated this tracking; future sends will be tracked.)
+            </p>
+          )}
+        </div>
+      )}
+      {(data.stale || []).length > 0 && (
+        <details style={{ marginTop: 10 }}>
+          <summary style={{ fontFamily: GM, fontSize: 10, color: C.soft, cursor: 'pointer' }}>
+            stale list — {data.stale.length} {data.stale.length === 1 ? 'person' : 'people'} hasn't updated in 30+ days
+          </summary>
+          <ul style={{ margin: '8px 0 0', paddingLeft: 16, fontFamily: GM, fontSize: 10, color: C.ink, lineHeight: 1.6 }}>
+            {data.stale.slice(0, 30).map((r) => (
+              <li key={r.email}>
+                <strong>{r.name || r.email}</strong> <span style={{ color: C.soft }}>· {r.ageDays != null ? `${r.ageDays}d` : 'never'} · {r.availability || '—'}</span>
+              </li>
+            ))}
+            {data.stale.length > 30 && (<li style={{ color: C.soft }}>+{data.stale.length - 30} more</li>)}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
 function PingAvailabilitySection({ secret, append }) {
   const [stage, setStage] = React.useState('idle'); // idle | preview | sending
   const [count, setCount] = React.useState(null);
   const [recipients, setRecipients] = React.useState([]);
   const [result, setResult] = React.useState(null);
+
+  // Batch size — Resend free tier caps at 100/day. Default 34 ≈ 100/3 so
+  // a ~100-row bench batches across three days, stale-first.
+  const [batchSize, setBatchSize] = React.useState(34);
+  const [totalEligible, setTotalEligible] = React.useState(null);
 
   const preview = async () => {
     setStage('preview');
@@ -6363,7 +6476,7 @@ function PingAvailabilitySection({ secret, append }) {
       const r = await fetch('/api/ping-availability', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
-        body: JSON.stringify({ dryRun: true }),
+        body: JSON.stringify({ dryRun: true, batchSize, oldestFirst: true }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) {
@@ -6372,8 +6485,9 @@ function PingAvailabilitySection({ secret, append }) {
         return;
       }
       setCount(j.recipientCount);
+      setTotalEligible(j.totalEligible || j.recipientCount);
       setRecipients(j.recipients || []);
-      append(`→ availability ping · ${j.recipientCount} recipients ready`);
+      append(`→ availability ping · top ${j.recipientCount} stalest of ${j.totalEligible || j.recipientCount} ready`);
     } catch (ex) {
       append(`✗ availability ping preview · ${ex.message || 'network'}`);
       setStage('idle');
@@ -6381,13 +6495,13 @@ function PingAvailabilitySection({ secret, append }) {
   };
 
   const send = async () => {
-    if (!window.confirm(`Send the availability ping to ${count} approved creatives now?`)) return;
+    if (!window.confirm(`Send the availability ping to ${count} stalest creatives now? Resend free tier caps at 100/day.`)) return;
     setStage('sending');
     try {
       const r = await fetch('/api/ping-availability', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ batchSize, oldestFirst: true }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) {
@@ -6396,7 +6510,7 @@ function PingAvailabilitySection({ secret, append }) {
         return;
       }
       setResult(j);
-      append(`✓ availability ping · ${j.sent} sent · ${j.failed} failed`);
+      append(`✓ availability ping · ${j.sent} sent · ${j.failed} failed${j.pingLog && j.pingLog.logged ? ` · ${j.pingLog.logged} logged to Pings tab` : ''}`);
       setStage('idle');
     } catch (ex) {
       append(`✗ availability ping · ${ex.message || 'network'}`);
@@ -6408,27 +6522,44 @@ function PingAvailabilitySection({ secret, append }) {
     <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px dashed rgba(63,127,74,0.35)', background: 'rgba(63,127,74,0.04)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12, marginBottom: 6 }}>
         <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#3F7F4A' }}>
-          ping the bench for availability
+          availability ping · stalest first
         </span>
         {stage === 'idle' && (
-          <button type="button" onClick={preview}
-            style={{ ...adminIntentBtn('approve', 'full'), padding: '6px 12px', fontSize: 10 }}>
-            check recipients →
-          </button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
+              batch size:
+              <input type="number" min="1" max="100" value={batchSize}
+                onChange={(e) => setBatchSize(Math.max(1, Math.min(100, +e.target.value || 1)))}
+                style={{ fontFamily: GM, fontSize: 11, padding: '4px 6px', width: 60, border: '1px solid rgba(13,13,11,0.2)', borderRadius: 3, marginLeft: 6 }} />
+            </label>
+            <button type="button" onClick={preview}
+              style={{ ...adminIntentBtn('approve', 'full'), padding: '6px 12px', fontSize: 10 }}>
+              check next {batchSize} →
+            </button>
+          </div>
         )}
       </div>
       <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.6, margin: 0 }}>
-        emails every <em>status='approved'</em> creative with three one-click buttons (available now / 2–4 weeks / booked). their click hits <code>/api/update-availability</code> and writes their new state straight to the Sheet — no admin work after the send.
+        emails the <strong>{batchSize} stalest</strong> approved creatives — sorted by col T 'Last Updated' ascending. their click hits <code>/api/update-availability</code> which updates the Sheet + bumps Last Updated, so the next batch never re-pings someone you just heard from. resend free tier = 100/day, so the natural cadence is 34/day for three days to cover a ~100-row bench.
       </p>
+      <BenchFreshnessCard secret={secret} append={append} />
       {stage === 'preview' && count != null && (
         <div style={{ marginTop: 12, padding: '10px 12px', background: '#fff', border: '1px solid rgba(13,13,11,0.08)' }}>
           <p style={{ fontFamily: GM, fontSize: 11, color: C.ink, margin: '0 0 8px' }}>
-            <strong>{count}</strong> recipient{count === 1 ? '' : 's'} ready.
+            <strong>{count}</strong> stalest recipient{count === 1 ? '' : 's'} of {totalEligible || count} eligible.
           </p>
           {recipients.length > 0 && (
-            <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.5, margin: '0 0 10px' }}>
-              first {recipients.length}: {recipients.map((r) => r.name || r.email).join(', ')}{count > recipients.length ? `, +${count - recipients.length} more` : ''}
-            </p>
+            <ul style={{ margin: '0 0 10px', paddingLeft: 16, fontFamily: GM, fontSize: 10, color: C.ink, lineHeight: 1.7 }}>
+              {recipients.map((r, i) => (
+                <li key={r.email || i}>
+                  <strong>{r.name || r.email}</strong>
+                  <span style={{ color: C.soft }}> · {r.ageDays != null ? `${r.ageDays}d since update` : 'never updated'}</span>
+                </li>
+              ))}
+              {count > recipients.length && (
+                <li style={{ color: C.soft }}>+{count - recipients.length} more</li>
+              )}
+            </ul>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" onClick={send}
