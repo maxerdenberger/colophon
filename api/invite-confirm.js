@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { findBenchRowByEmail, updateBenchRow, appendReferralLog } from './_utils/sheets.js';
+import { sendInviteEmail, looksLikeEmail } from './_utils/invites.js';
 import { invalidateBenchCache } from './_utils/bench.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -100,11 +101,42 @@ export default async function handler(req, res) {
     // somewhere queryable instead of only in the operator's admin email.
     // Auto-creates the tab on first hit; non-fatal on failure (the admin
     // email already shipped).
+    //
+    // BONUS: if the creative referral's contact looks like an email, we
+    // immediately fire the 'X recommended you to Colophon' invite to that
+    // address — Path B referrals become self-onboarding instead of just
+    // observable. The referred person fills out their full /invite form
+    // and lands in the Formspree queue with the referrer pre-stamped.
+    // LinkedIn / handle / blank contacts skip the auto-invite (no email
+    // to send to); they still log to the Referrals tab for manual outreach.
     let referralLog = null;
+    let autoInvite = null;
+    const referrerDisplay = knownName || email || 'a colleague';
     try {
       const ts = new Date().toISOString();
       const entries = [];
+      let autoInvitedFlag = '';
+
       if (talentRefName || talentRefContact) {
+        const contactIsEmail = looksLikeEmail(talentRefContact);
+        if (contactIsEmail && talentRefName) {
+          // Fire the invite — don't await long-running failures alone block
+          // the response; we want this to be best-effort.
+          try {
+            const r = await sendInviteEmail({
+              name:      talentRefName,
+              email:     String(talentRefContact).trim(),
+              referrer:  referrerDisplay,
+            });
+            autoInvite = r.ok
+              ? { sent: true, to: String(talentRefContact).trim(), id: r.id }
+              : { sent: false, to: String(talentRefContact).trim(), error: r.error };
+            autoInvitedFlag = r.ok ? 'auto-invited' : `auto-invite-failed: ${r.error}`;
+          } catch (inviteErr) {
+            autoInvite = { sent: false, error: inviteErr.message };
+            autoInvitedFlag = `auto-invite-error: ${inviteErr.message}`;
+          }
+        }
         entries.push({
           timestamp: ts,
           referrer: knownName || '',
@@ -112,9 +144,12 @@ export default async function handler(req, res) {
           type: 'creative',
           name:    talentRefName || '',
           contact: talentRefContact || '',
+          notes:   autoInvitedFlag,
         });
       }
       if (buyerRefName || buyerRefContact || buyerRefOrg) {
+        // Hirers don't get the creative-onboarding email — they're a
+        // sales lead, not a self-serve signup. Log only.
         entries.push({
           timestamp: ts,
           referrer: knownName || '',
@@ -134,7 +169,7 @@ export default async function handler(req, res) {
       referralLog = { error: logErr.message };
     }
 
-    return res.status(200).json({ success: true, sheetUpdate, referralLog });
+    return res.status(200).json({ success: true, sheetUpdate, referralLog, autoInvite });
   } catch (err) {
     console.error('invite-confirm error:', err);
     return res.status(500).json({ error: err.message || 'send failed' });
