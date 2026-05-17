@@ -6592,10 +6592,42 @@ function PingAvailabilitySection({ secret, append }) {
 function BulkArchivePendingButton({ secret, append, refreshBench, bench }) {
   const [busy, setBusy] = React.useState(false);
   const [done, setDone] = React.useState(null);
-  const pendingCount = (bench || []).filter((p) => {
-    const st = (p.status || '').toLowerCase();
-    return st === '' || st === 'pending';
-  }).length;
+  const [showList, setShowList] = React.useState(false);
+  // Stable sort: oldest applications first (earliest timestamp wins).
+  const pendingRows = React.useMemo(() => {
+    const list = (bench || []).filter((p) => {
+      const st = (p.status || '').toLowerCase();
+      return st === '' || st === 'pending';
+    });
+    return list.slice().sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0));
+  }, [bench]);
+  const pendingCount = pendingRows.length;
+  const downloadCsv = () => {
+    const header = ['name','email','discipline','rate','availability','tz','yoe','applied_at'];
+    const lines = [header.join(',')].concat(
+      pendingRows.map((p) => [
+        p.realName || p.name || '',
+        p.emailRaw || '',
+        p.discipline || '',
+        p.rate || '',
+        p.availability || '',
+        p.tz || '',
+        p.yoe != null ? p.yoe : '',
+        p.updatedAt ? new Date(p.updatedAt).toISOString() : '',
+      ].map((v) => {
+        const s = String(v == null ? '' : v);
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      }).join(','))
+    );
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `colophon-pending-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    append(`csv exported · ${pendingRows.length} pending rows`);
+  };
   const fire = async () => {
     if (!pendingCount) return;
     if (!window.confirm(`Flip ${pendingCount} pending row${pendingCount === 1 ? '' : 's'} to 'denied' on the Sheet? Approved rows are untouched. Reversible by editing the Sheet or re-approving from the rejects view.`)) return;
@@ -6626,11 +6658,41 @@ function BulkArchivePendingButton({ secret, append, refreshBench, bench }) {
         <div style={{ fontFamily: GM, fontSize: 11, color: '#7A1818', lineHeight: 1.6 }}>
           <strong>{pendingCount} row{pendingCount === 1 ? '' : 's'} sitting in 'pending'.</strong> if you've already approved everyone you want on the bench, send the rest to the rejects bin in one move.
         </div>
-        <button type="button" onClick={fire} disabled={busy || !pendingCount}
-          style={{ ...adminIntentBtn('reject', 'full'), padding: '7px 12px', fontSize: 10, opacity: busy ? 0.5 : 1, whiteSpace: 'nowrap' }}>
-          {busy ? 'archiving...' : `archive ${pendingCount} -> rejects ->`}
-        </button>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button type="button" onClick={() => setShowList((b) => !b)}
+            style={{ ...adminIntentBtn('neutral'), padding: '7px 10px', fontSize: 10, whiteSpace: 'nowrap' }}>
+            {showList ? 'hide list' : `view list (${pendingCount})`}
+          </button>
+          <button type="button" onClick={downloadCsv} disabled={!pendingCount}
+            style={{ ...adminIntentBtn('neutral'), padding: '7px 10px', fontSize: 10, whiteSpace: 'nowrap' }}>
+            csv ↓
+          </button>
+          <button type="button" onClick={fire} disabled={busy || !pendingCount}
+            style={{ ...adminIntentBtn('reject', 'full'), padding: '7px 12px', fontSize: 10, opacity: busy ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+            {busy ? 'archiving...' : `archive ${pendingCount} -> rejects ->`}
+          </button>
+        </div>
       </div>
+      {showList && pendingCount > 0 && (
+        <div style={{ marginTop: 12, padding: '8px 0', background: '#fff', border: '1px solid rgba(13,13,11,0.08)', maxHeight: 420, overflowY: 'auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 1fr 60px 80px', gap: 10, padding: '6px 12px', borderBottom: '1px solid rgba(13,13,11,0.08)', fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            <span>name</span>
+            <span>email</span>
+            <span>discipline</span>
+            <span>yoe</span>
+            <span>applied</span>
+          </div>
+          {pendingRows.map((p, i) => (
+            <div key={p.id || i} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 1fr 60px 80px', gap: 10, padding: '7px 12px', borderBottom: i < pendingRows.length - 1 ? '1px solid rgba(13,13,11,0.04)' : 'none', fontFamily: GM, fontSize: 10, color: C.ink, alignItems: 'center' }}>
+              <span style={{ fontWeight: 600 }}>{p.realName || p.name || '—'}</span>
+              <span style={{ color: C.soft, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.emailRaw || '—'}</span>
+              <span style={{ color: C.soft }}>{p.discipline || '—'}</span>
+              <span style={{ color: C.soft }}>{p.yoe != null ? p.yoe : '—'}</span>
+              <span style={{ color: C.soft, fontSize: 9 }}>{p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : '—'}</span>
+            </div>
+          ))}
+        </div>
+      )}
       {done && (
         <p style={{ fontFamily: GM, fontSize: 10, color: '#7A1818', margin: '10px 0 0' }}>
           archived {done.archived} - {done.totalScanned} rows scanned. refresh the bench to see them in the rejects view.
