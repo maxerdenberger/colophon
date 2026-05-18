@@ -80,6 +80,21 @@ export default async function handler(req, res) {
         // so the same submission could end up with a different id on a
         // later load — that broke localStorage('colophon_reviewed') and
         // caused already-rejected rows to reappear.
+        // Sources that don't belong in the candidate review queue.
+        // bench-newsletter is just an email capture — no portfolio, no
+        // discipline, no rate. Putting it next to apply-bench rows wastes
+        // the operator's eyeballs every load. We split them out server-
+        // side so the admin renders newsletter signups in their own list.
+        // Concierge briefs and year-tier inquiries already have dedicated
+        // panels but they still ride this endpoint; the client filters
+        // them by source. Only NEWSLETTER is moved out of the array.
+        const NEWSLETTER_SOURCES = new Set(['bench-newsletter']);
+        const isNewsletterSrc = (sub) => {
+          const data = (sub && (sub.data || sub)) || {};
+          const src = String(data.source || sub.source || '').toLowerCase();
+          return NEWSLETTER_SOURCES.has(src);
+        };
+
         const stamped = (raw || [])
           // Drop test sources + operator's own submissions before
           // they reach the queue. Same rule used by the activity feed,
@@ -88,8 +103,21 @@ export default async function handler(req, res) {
           .map((s) => {
             const data = s && (s.data || s) || {};
             const id = s && s.id != null ? s.id : ('fp:' + simpleHash(`${s && s.submitted_at || ''}|${(data.email || '').toLowerCase()}|${(data.brief || data.summary || '').slice(0, 40)}`));
-            return { ...s, id, _email: (data.email || '').toLowerCase() };
+            return { ...s, id, _email: (data.email || '').toLowerCase(), _isNewsletter: isNewsletterSrc(s) };
           });
+
+        // Pull newsletter signups into their own list and strip them
+        // from the main candidate queue. The admin renders these in a
+        // separate card — emails only, no review needed.
+        const newsletter = stamped.filter((s) => s._isNewsletter).map((s) => {
+          const data = (s.data || s) || {};
+          return {
+            id: s.id,
+            email: data.email || '',
+            name:  data.name  || '',
+            submittedAt: s.submitted_at || s.created_at || '',
+          };
+        });
 
         // Cross-reference the bench Sheet so submissions that have
         // already been promoted (any status — approved, denied, pending,
@@ -102,6 +130,9 @@ export default async function handler(req, res) {
         try { benchMap = await getBenchEmailMap(); } catch (_) {}
 
         const submissions = stamped
+          // Newsletter signups don't belong in the candidate queue —
+          // they go to their own panel via the `newsletter` field below.
+          .filter((s) => !s._isNewsletter)
           .map((s) => {
             const onBench = benchMap && s._email ? benchMap.get(s._email) : null;
             if (!onBench) return s;
@@ -124,7 +155,9 @@ export default async function handler(req, res) {
 
         return res.status(200).json({
           submissions,
-          benchMatched: benchMap ? stamped.length - submissions.length : 0,
+          newsletter,
+          newsletterCount: newsletter.length,
+          benchMatched: benchMap ? stamped.filter((s) => !s._isNewsletter).length - submissions.length : 0,
           benchKnown:   !!benchMap,
           _via: { auth: a.auth.split(' ')[0], url: a.url },
         });

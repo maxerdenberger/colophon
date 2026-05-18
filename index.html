@@ -5873,6 +5873,67 @@ const clearSiblingOps = (actions, keys, op) => {
   return next;
 };
 
+// Newsletter signups — the home page's email-capture form lands here.
+// No review needed: every row is just an email (sometimes a name). The
+// card shows count, the most-recent few, and a CSV download for syncing
+// to whatever sender you use (Buttondown, Substack, Resend Broadcasts).
+function NewsletterSignupsCard({ newsletter, append }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const downloadCsv = () => {
+    const header = ['email','name','submitted_at'];
+    const lines = [header.join(',')].concat(
+      newsletter.map((n) => [n.email || '', n.name || '', n.submittedAt || '']
+        .map((v) => {
+          const x = String(v == null ? '' : v);
+          return /[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x;
+        }).join(','))
+    );
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `colophon-newsletter-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    append(`csv exported · ${newsletter.length} newsletter signups`);
+  };
+  return (
+    <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px dashed rgba(13,13,11,0.18)', background: 'rgba(13,13,11,0.02)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ fontFamily: GM, fontSize: 11, color: C.ink, lineHeight: 1.6 }}>
+          <strong>{newsletter.length} newsletter signup{newsletter.length === 1 ? '' : 's'}.</strong> emails only — no review needed. export when you're ready to send a blast.
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button type="button" onClick={() => setExpanded((b) => !b)}
+            style={{ ...adminIntentBtn('neutral'), padding: '6px 10px', fontSize: 10, whiteSpace: 'nowrap' }}>
+            {expanded ? 'hide' : `view (${newsletter.length})`}
+          </button>
+          <button type="button" onClick={downloadCsv}
+            style={{ ...adminIntentBtn('neutral'), padding: '6px 10px', fontSize: 10, whiteSpace: 'nowrap' }}>
+            csv ↓
+          </button>
+        </div>
+      </div>
+      {expanded && (
+        <ul style={{ margin: '10px 0 0', paddingLeft: 16, fontFamily: GM, fontSize: 10, color: C.ink, lineHeight: 1.7, maxHeight: 240, overflowY: 'auto' }}>
+          {newsletter.slice(0, 200).map((n, i) => (
+            <li key={n.id || i}>
+              <strong>{n.email || '(no email)'}</strong>
+              {n.name && <span style={{ color: C.soft }}> · {n.name}</span>}
+              {n.submittedAt && (
+                <span style={{ color: C.soft, marginLeft: 6 }}>· {new Date(n.submittedAt).toLocaleDateString()}</span>
+              )}
+            </li>
+          ))}
+          {newsletter.length > 200 && (
+            <li style={{ color: C.soft }}>+{newsletter.length - 200} more (use csv ↓ for the full list)</li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // Pulls submissions from Formspree via a server-side proxy at
 // /api/submissions (proxy because the Formspree API token shouldn't
 // ride in client JS). Each row gets approve / skip / reject; approve
@@ -5892,6 +5953,9 @@ function AdminFormspreeApproval({ secret }) {
   // Sheet). Surfaced in the header — replaces the old localStorage-only
   // 'reviewed' gate which broke across browsers.
   const [benchMatched, setBenchMatched] = useState(0);
+  // Newsletter signups, pulled server-side so they don't pollute the
+  // candidate queue. Rendered in their own small card below.
+  const [newsletter, setNewsletter] = useState([]);
   const [pastActions, setPastActions] = useState(loadAdminActions);
   const [sessionActions, setSessionActions] = useState({});
   const stateFor = (rowId, op) => {
@@ -5949,6 +6013,7 @@ function AdminFormspreeApproval({ secret }) {
       // their email is already on the bench Sheet (any status). Surfaced in
       // the panel header so the operator sees nothing's actually 'stuck'.
       setBenchMatched(typeof j.benchMatched === 'number' ? j.benchMatched : 0);
+      setNewsletter(Array.isArray(j.newsletter) ? j.newsletter : []);
       // Defensive fallback id — must be order-independent so the
       // localStorage 'reviewed' Set stays valid across reloads (Formspree
       // doesn't guarantee response order). Hash submitted_at + email +
@@ -6126,6 +6191,9 @@ function AdminFormspreeApproval({ secret }) {
       <p style={{ fontFamily: GM, fontSize: 11, color: '#3D3C38', marginBottom: 14, lineHeight: 1.6 }}>
         Approving a row POSTs <code>action: 'add'</code> to <code>/api/bench-update</code>, which appends to the source Sheet. Once a submission's email lives on the Sheet (any status), the server auto-archives it from this queue — no manual "stuck" rows to clean up. Skip / reject still mark a submission reviewed locally on this browser only (use that for spam or no-email rows).
       </p>
+      {newsletter.length > 0 && (
+        <NewsletterSignupsCard newsletter={newsletter} append={append} />
+      )}
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
         <select value={filter} onChange={(e) => setFilter(e.target.value)}
           style={{ fontFamily: GM, fontSize: 12, padding: '8px 10px', border: '1px solid rgba(13,13,11,0.25)', borderRadius: 4, background: '#fff', minWidth: 220 }}>
