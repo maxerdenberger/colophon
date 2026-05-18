@@ -6196,9 +6196,9 @@ function AdminFormspreeApproval({ secret }) {
                   {data.partnerEmails && <div style={{ fontSize: 10, color: '#3D3C38', marginTop: 4 }}>partners: {String(data.partnerEmails).split(/\n+/).join(', ')}</div>}
                 </div>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <button onClick={() => act(s, 'approve')} style={adminIntentBtn('approve', stateFor(s.id, 'approve'))}>approve → sheet</button>
-                  <button onClick={() => act(s, 'skip')}    style={adminIntentBtn('skip',    stateFor(s.id, 'skip'))}>skip</button>
-                  <button onClick={() => act(s, 'reject')}  style={adminIntentBtn('reject',  stateFor(s.id, 'reject'))}>reject</button>
+                  <button type="button" onClick={() => act(s, 'approve')} style={adminIntentBtn('approve', stateFor(s.id, 'approve'))}>approve → sheet</button>
+                  <button type="button" onClick={() => act(s, 'skip')}    style={adminIntentBtn('skip',    stateFor(s.id, 'skip'))}>skip</button>
+                  <button type="button" onClick={() => act(s, 'reject')}  style={adminIntentBtn('reject',  stateFor(s.id, 'reject'))}>reject</button>
                 </div>
               </div>
             );
@@ -7470,7 +7470,7 @@ josh@appliedambition.com`);
             <span style={{ color: C.ink, fontSize: 11, fontFamily: GS, fontWeight: 600 }}>{p.hourlyRate ? `$${p.hourlyRate}` : p.rate}</span>
             <span style={{ color: C.soft, fontSize: 10 }}>{p.yoe ? `${p.yoe}y` : '—'}</span>
             <span style={{ display: 'flex', gap: 6 }}>
-              <a href={p.emailRaw ? `mailto:${p.emailRaw}` : '#'} target="_blank" rel="noreferrer" title={p.emailRaw || 'no email'}
+              <a href={p.emailRaw ? `mailto:${p.emailRaw}` : '#'} rel="noreferrer" title={p.emailRaw || 'no email'}
                 style={{ ...miniBtn, padding: '5px 7px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', opacity: p.emailRaw ? 1 : 0.35, pointerEvents: p.emailRaw ? 'auto' : 'none' }}>
                 <span aria-hidden="true">✉</span>
               </a>
@@ -7480,8 +7480,8 @@ josh@appliedambition.com`);
               </a>
             </span>
             <span style={{ display: 'flex', gap: 4 }}>
-              <button onClick={() => act(p, 'approve')} style={intentBtn('approve', stateFor(p, 'approve'))}>approve</button>
-              <button onClick={() => act(p, 'deny')}    style={intentBtn('deny',    stateFor(p, 'deny'))}>deny</button>
+              <button type="button" onClick={() => act(p, 'approve')} style={intentBtn('approve', stateFor(p, 'approve'))}>approve</button>
+              <button type="button" onClick={() => act(p, 'deny')}    style={intentBtn('deny',    stateFor(p, 'deny'))}>deny</button>
               <button onClick={() => act(p, p.paused ? 'unpause' : 'pause')}
                 style={intentBtn(p.paused ? 'resume' : 'pause', stateFor(p, p.paused ? 'unpause' : 'pause'))}>
                 {p.paused ? 'resume' : 'pause'}
@@ -7683,7 +7683,7 @@ function AdminTeammatePairings({ secret }) {
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {p.partners.map((pe) => (
-                  <a key={pe} href={`mailto:${pe}`} target="_blank" rel="noreferrer"
+                  <a key={pe} href={`mailto:${pe}`} rel="noreferrer"
                     style={{ fontFamily: GM, fontSize: 10, padding: '3px 9px', border: `1px solid ${C.rule}`, color: C.ink, textDecoration: 'none', borderRadius: 4 }}>
                     ✉ {pe}
                   </a>
