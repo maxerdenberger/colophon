@@ -6847,57 +6847,22 @@ function AdminBenchBrowser({ secret }) {
 
   // Buckets are driven by Sheet status PLUS the operator's local action
   // history. If the operator clicked approve at any point (this session or
-  // a prior one) but the Sheet still says 'pending' — almost always because
-  // the original click happened before the Sheet-status architecture
-  // shipped, OR a Sheet write failed silently — we still treat the row as
-  // approved in this view. Same for deny → archived. Once the Sheet
-  // catches up via the bulk-sync button below, the two sources agree
-  // and the localStorage layer becomes redundant.
-  const localApproved = (p) => stateFor(p, 'approve') !== 'empty';
-  const localDenied   = (p) =>
-    stateFor(p, 'deny')   !== 'empty' ||
-    stateFor(p, 'reject') !== 'empty' ||
-    stateFor(p, 'revoke') !== 'empty';
-
-  // Sheet-truth wins when it disagrees with localStorage in the obvious
-  // direction. e.g. if Sheet says 'approved' but localStorage stamped a
-  // later deny, the deny wins (and vice versa). When Sheet is 'pending'
-  // we lean on localStorage as a hint.
-  const isApprovedSheet = (p) => {
-    if (p.status === 'approved') return !localDenied(p);  // unless we later denied
-    if (p.status === 'denied' || p.status === 'cold' || p.status === 'duplicate') return false;
-    return localApproved(p);
-  };
-  const isArchived = (p) => {
-    if (['denied','cold','duplicate'].includes(p.status)) return !localApproved(p);  // unless we later re-approved
-    return localDenied(p) && !localApproved(p);
-  };
-  const isPending = (p) => !isApprovedSheet(p) && !isArchived(p);
-
-  // Diagnostic: rows the operator has locally approved but the Sheet still
-  // says pending. These need a sync to ground the Sheet to the operator's
-  // intent. Surfaced as a banner above the row list.
-  // Suppress the banner for rows we just successfully wrote to the Sheet —
-  // CSV publish-to-web is on a ~5-min cache, so the row will keep reading as
-  // 'pending' for a while after a successful approve. Without this grace
-  // window, the operator sees the same N rows reappear daily and has to
-  // press 'sync' for nothing.
-  const RECENT_WRITE_GRACE_MS = 15 * 60 * 1000;
-  const recentSheetWrites = useRef(new Map());     // rowKey → ts
-  const stampSheetWrite = (row) => {
-    const key = (row.id != null ? String(row.id) : '') + '|' + (row.emailRaw || '').toLowerCase();
-    if (key !== '|') recentSheetWrites.current.set(key, Date.now());
-  };
-  const wasJustWritten = (row) => {
-    const key = (row.id != null ? String(row.id) : '') + '|' + (row.emailRaw || '').toLowerCase();
-    const ts = recentSheetWrites.current.get(key);
-    return ts && Date.now() - ts < RECENT_WRITE_GRACE_MS;
-  };
-  const needsSheetSync = (p) => {
-    if (!(p.status === 'pending' && localApproved(p) && (p.emailRaw || '').includes('@'))) return false;
-    if (wasJustWritten(p)) return false;
-    return true;
-  };
+  // ── Single source of truth: the Sheet's status column ────────────────
+  // No localStorage gates, no two-system drift. A row's category is
+  // defined entirely by what came back from the Sheet. parseSheetCSV
+  // already translates the four-state vocabulary (new|bench|rejected|
+  // paused) AND legacy values (approved|pending|denied|cold|duplicate)
+  // into the in-memory shape below. Click the button → /api/bench-update
+  // writes to the Sheet → next refresh shows the new truth. Russ Rizzo
+  // stays archived because Russ Rizzo's Sheet row says rejected.
+  //
+  // The pastActions/sessionActions map is kept ONLY for cosmetic button
+  // tinting (tint=past session, full=this session). It never overrides
+  // filter decisions anymore.
+  const isApprovedSheet = (p) => p.status === 'approved';
+  const isPaused        = (p) => p.paused === true || p.status === 'paused';
+  const isArchived      = (p) => ['denied','cold','duplicate'].includes(p.status) || isPaused(p);
+  const isPending       = (p) => !isApprovedSheet(p) && !isArchived(p);
 
   const searchHit = (p) =>
     !filter ||
@@ -7085,184 +7050,25 @@ function AdminBenchBrowser({ secret }) {
 
   // ── Migration: seed the Sheet's approval column ───────────────────────
   // One-time bridge from the old localStorage-gate world to the new
-  // Sheet-driven world. Calls /api/migrate-approvals with a list of seed
-  // emails; the server normalizes the Sheet's status column:
-  //   - listed emails       → 'approved'
-  //   - everything else     → 'pending'   (ignored on the public bench)
-  //   - existing 'cold' / 'duplicate' / 'denied' rows are left alone
-  // After running once, the public bench reflects the Sheet exactly.
-  const [migrateBusy, setMigrateBusy] = useState(false);
-  const [migrateEmails, setMigrateEmails] = useState(`torlemhag@gmail.com
-sarafbecker@gmail.com
-scott@helllogoodsports.com
-jwgreynolds@gmail.com
-michaelrosenau@gmail.com
-perryfair@gmail.com
-shira.bogart@gmail.com
-andrewlreed@mac.com
-lindquist.diane@gmail.com
-matti@yawn-son.com
-josh@appliedambition.com`);
-  const migrateOpen = useState(false);
-  const [migrateOpenState, setMigrateOpenState] = migrateOpen;
-  const runMigration = async () => {
-    if (migrateBusy) return;
-    const emails = String(migrateEmails || '')
-      .split(/[\s,;]+/)
-      .map((e) => e.trim().toLowerCase())
-      .filter((e) => e.includes('@'));
-    if (!emails.length) { append('migrate · no valid emails'); return; }
-    if (!window.confirm(`Migrate the Sheet: set status='approved' on ${emails.length} matching rows, set everything else to 'pending'. Existing cold/duplicate/denied rows stay untouched. Continue?`)) return;
-    setMigrateBusy(true);
-    append(`→ migrate · seeding ${emails.length} approved emails`);
+  // (migrate tool removed — the Sheet is now the single source of truth,
+  // so the localStorage→Sheet seeding step is no longer relevant.)
+
+    // ── (removed) sync unsynced approvals ────────────────────────────────
+  // Clear the localStorage button-tint stamps. Use this if the buttons
+  // are showing past-action colors that no longer match reality (e.g. you
+  // approved someone months ago, then later denied them — the deny is on
+  // the Sheet now, but the old approve tint still appears). Does NOT
+  // touch the Sheet — just wipes the cosmetic per-row history.
+  const clearLocalStamps = () => {
+    if (!window.confirm('Drop every local action stamp on this browser? Button colors reset; the Sheet is not touched.')) return;
     try {
-      const r = await fetch('/api/migrate-approvals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
-        body: JSON.stringify({ emails }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.ok) {
-        append(`✗ migrate · ${(j && j.error) || 'failed'}`);
-      } else {
-        append(`✓ migrate · ${j.cellsUpdated} cells updated · ${j.approvedRows} approved · ${j.pendingRows} pending · ${j.untouchedRows} untouched`);
-      }
-    } catch (ex) {
-      append(`✗ migrate · ${ex.message || 'network'}`);
-    }
-    setMigrateBusy(false);
-  };
-
-    // ── Sync unsynced approvals → Sheet ────────────────────────────────────
-  // Walks every row where localStorage says approved but the Sheet says
-  // pending, POSTs approve for each (server writes status='approved' to
-  // the Sheet). Fixes the legacy gap where pre-architecture approvals
-  // stamped only localStorage and never reached the Sheet, plus any
-  // silent /api/bench-update failures along the way.
-  const [unsyncedBusy, setUnsyncedBusy] = useState(false);
-  // Last sync's per-row failures, surfaced inline so the operator can see
-  // exactly what didn't take. Cleared on each new sync run.
-  const [unsyncedFailures, setUnsyncedFailures] = useState([]);
-  const syncUnsyncedApprovals = async (opts = {}) => {
-    const { silent = false } = opts;
-    if (unsyncedBusy) return;
-    const targets = bench.filter(needsSheetSync);
-    if (!targets.length) {
-      if (!silent) { append('sync · 0 rows need a Sheet write'); setUnsyncedFailures([]); }
-      return;
-    }
-    if (!silent) {
-      if (!window.confirm(`Push ${targets.length} locally-approved rows to the Sheet (set status='approved' on each)? Their public-bench visibility depends on this.`)) return;
-    }
-    setUnsyncedBusy(true);
-    if (!silent) setUnsyncedFailures([]);
-    if (!silent) append(`→ sync · pushing ${targets.length} approvals to Sheet`);
-    let ok = 0;
-    const failures = [];
-    for (const row of targets) {
-      const label = row.realName || row.name || row.emailRaw || `id:${row.id}`;
-      try {
-        const r = await fetch('/api/bench-update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
-          body: JSON.stringify({ action: 'approve', email: row.emailRaw, name: row.realName || row.name }),
-        });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) {
-          failures.push({
-            label,
-            email: row.emailRaw || '(no email)',
-            id: row.id,
-            status: r.status,
-            error: (j && j.error) || `HTTP ${r.status}`,
-          });
-          continue;
-        }
-        // Stamp this row so the banner won't recount it during the ~5-min
-        // CSV publish-to-web cache window.
-        stampSheetWrite(row);
-        updateBenchRowStatus({ id: row.id, email: row.emailRaw }, 'approved');
-        ok++;
-      } catch (ex) {
-        failures.push({ label, email: row.emailRaw || '(no email)', id: row.id, status: 0, error: ex.message || 'network' });
-      }
-    }
-    if (silent) {
-      // Auto-sync: only surface failures so the activity log doesn't
-      // churn on every tick. Successful writes are invisible — exactly
-      // the daily-button-press behavior we're replacing.
-      if (failures.length > 0) {
-        setUnsyncedFailures(failures);
-        append(`⚠ auto-sync · ${ok} written · ${failures.length} failed (see panel below)`);
-      } else if (ok > 0) {
-        append(`· auto-sync · ${ok} written to Sheet`);
-      }
-    } else {
-      setUnsyncedFailures(failures);
-      if (failures.length === 0) {
-        append(`✓ sync · ${ok} written to Sheet · 0 failed`);
-      } else {
-        append(`⚠ sync · ${ok} written · ${failures.length} failed (see panel below)`);
-        // First three reasons inline for quick triage
-        const reasons = failures.slice(0, 3).map((f) => `${f.label} → ${f.error}`).join(' · ');
-        append(`  ${reasons}${failures.length > 3 ? ` · +${failures.length - 3} more` : ''}`);
-      }
-    }
-    setUnsyncedBusy(false);
-  };
-
-  // ── Auto-sync ──────────────────────────────────────────────────────────
-  // The user shouldn't have to click 'sync N to Sheet' every day. We
-  // run the sync silently:
-  //   1. Once on bench load (admin mount)
-  //   2. Every 3 minutes while the admin page is open
-  // Successes don't toast; only failures do. The button stays as a
-  // manual override / 'force run now' for impatient days.
-  const syncRef = useRef();
-  syncRef.current = syncUnsyncedApprovals;
-  useEffect(() => {
-    if (benchLoading) return;
-    if (!secret) return;
-    // Defer slightly so the UI mounts and we don't block render.
-    const t = setTimeout(() => { try { syncRef.current && syncRef.current({ silent: true }); } catch {} }, 800);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [benchLoading, bench.length]);
-  useEffect(() => {
-    if (!secret) return;
-    const id = setInterval(() => { try { syncRef.current && syncRef.current({ silent: true }); } catch {} }, 3 * 60 * 1000);
-    return () => clearInterval(id);
-  }, [secret]);
-
-  // Drop the local approve stamps for rows the Sheet refused. Use this
-  // when a row's email doesn't match anything in the Sheet (someone's
-  // record lives in localStorage as 'approved' but the real Sheet row
-  // has a different email or no email at all). Removing the stamp gets
-  // the row out of the unsynced banner so we stop trying.
-  const dropFailedLocalApprovals = () => {
-    if (!unsyncedFailures.length) return;
-    if (!window.confirm(`Drop the local approve stamps for ${unsyncedFailures.length} rows that the Sheet refused? They'll fall back to whatever the Sheet says (usually 'pending'). The Sheet itself is NOT touched.`)) return;
-    setPastActions((p) => {
-      const next = { ...p };
-      for (const f of unsyncedFailures) {
-        const keys = [
-          f.id != null ? String(f.id) : null,
-          f.email && f.email.includes('@') ? `e:${String(f.email).toLowerCase()}` : null,
-        ].filter(Boolean);
-        for (const k of keys) {
-          if (next[k]) {
-            const cleaned = { ...next[k] };
-            delete cleaned.approve;
-            if (Object.keys(cleaned).length > 0) next[k] = cleaned;
-            else delete next[k];
-          }
-        }
-      }
-      saveAdminActions(next);
-      return next;
-    });
-    append(`✓ cleared local approve for ${unsyncedFailures.length} rows · banner should clear`);
-    setUnsyncedFailures([]);
+      localStorage.removeItem('colophon_admin_actions');
+      localStorage.removeItem('colophon_reviewed');
+      localStorage.removeItem('colophon_bench_mutations');
+    } catch {}
+    setPastActions({});
+    setSessionActions({});
+    append('local stamps cleared · Sheet unchanged');
   };
 
   const intentBtn = adminIntentBtn;
@@ -7290,6 +7096,11 @@ josh@appliedambition.com`);
           <button onClick={refreshBench} disabled={benchLoading}
             style={{ ...miniBtn, padding: '4px 10px', fontSize: 9, opacity: benchLoading ? 0.5 : 1 }}>
             {benchLoading ? 'refreshing…' : 'refresh from Sheet ↻'}
+          </button>
+          <button onClick={clearLocalStamps}
+            style={{ ...miniBtn, padding: '4px 10px', fontSize: 9 }}
+            title="wipe per-row click history on this browser (cosmetic only — Sheet is unchanged)">
+            clear local stamps
           </button>
         </div>
       </div>
@@ -7364,83 +7175,9 @@ josh@appliedambition.com`);
           the bench is two-state: approved (on bench) or denied (in bin). */}
       <BulkArchivePendingButton secret={secret} append={append} refreshBench={refreshBench} bench={bench} />
 
-      {/* Banner: locally-approved rows that haven't reached the Sheet yet.
-          Most often: pre-architecture approvals OR a silent API failure.
-          One-click "sync to Sheet" closes the gap row by row. */}
-      {bench.filter(needsSheetSync).length > 0 && (
-        <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px solid rgba(200,124,24,0.4)', background: 'rgba(200,124,24,0.06)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ fontFamily: GM, fontSize: 11, color: '#7A4A0E', lineHeight: 1.6 }}>
-              <strong>{bench.filter(needsSheetSync).length} rows are approved here but still 'pending' on the Sheet.</strong> auto-sync runs in the background. if the count doesn't drop in a few minutes, push manually:
-            </div>
-            <button onClick={syncUnsyncedApprovals} disabled={unsyncedBusy}
-              style={{ ...intentBtn('approve', 'full'), padding: '7px 12px', fontSize: 10, opacity: unsyncedBusy ? 0.5 : 1, cursor: unsyncedBusy ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
-              {unsyncedBusy ? 'syncing…' : `sync ${bench.filter(needsSheetSync).length} to Sheet →`}
-            </button>
-          </div>
-          {unsyncedFailures.length > 0 && (
-            <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(176,64,64,0.06)', border: '1px solid rgba(176,64,64,0.3)', borderRadius: 4 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
-                <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7A1818', margin: 0 }}>
-                  ✗ {unsyncedFailures.length} sync failure{unsyncedFailures.length === 1 ? '' : 's'} — Sheet rejected these
-                </p>
-                <button type="button" onClick={dropFailedLocalApprovals}
-                  style={{ ...miniBtn, padding: '4px 10px', fontSize: 9 }}>
-                  drop these local stamps →
-                </button>
-              </div>
-              <p style={{ fontFamily: GM, fontSize: 10, color: '#3D3C38', lineHeight: 1.55, margin: '0 0 8px' }}>
-                most common cause: the email on the local approve doesn't match any row in the Sheet (typo, edited later, or never saved). dropping the stamp tells the system to stop trying.
-              </p>
-              <ul style={{ margin: '6px 0 0', paddingLeft: 16, fontFamily: GM, fontSize: 10, color: C.ink, lineHeight: 1.7 }}>
-                {unsyncedFailures.slice(0, 12).map((f, i) => (
-                  <li key={i} style={{ marginBottom: 2 }}>
-                    <strong>{f.label}</strong> <span style={{ color: C.soft }}>({f.email})</span> — {f.error}
-                  </li>
-                ))}
-                {unsyncedFailures.length > 12 && (
-                  <li style={{ color: C.soft }}>+{unsyncedFailures.length - 12} more</li>
-                )}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-      {/* Sheet migration — one-time bridge from localStorage gate to Sheet
-          status column. After running, the public bench reads visibility
-          from the Sheet directly; localStorage is just for UI tint. */}
-      <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px dashed rgba(255,81,0,0.35)', background: 'rgba(255,81,0,0.05)' }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#FF5100' }}>
-            seed approvals into the Sheet
-          </span>
-          <button type="button" onClick={() => setMigrateOpenState((b) => !b)}
-            style={{ ...miniBtn, padding: '5px 10px', fontSize: 10 }}>
-            {migrateOpenState ? 'close' : 'open editor →'}
-          </button>
-        </div>
-        <span style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.6, display: 'block' }}>
-          paste the emails that should be 'approved' (one per line). everything else in the Sheet flips to 'pending' (hidden from the public bench). cold / duplicate / denied rows stay untouched. running it twice with the same list is a no-op.
-        </span>
-        {migrateOpenState && (
-          <>
-            <textarea
-              value={migrateEmails}
-              onChange={(e) => setMigrateEmails(e.target.value)}
-              rows={10}
-              style={{ width: '100%', fontFamily: GM, fontSize: 11, padding: 10, border: '1px solid rgba(13,13,11,0.2)', borderRadius: 4, background: '#fff', marginTop: 8, resize: 'vertical', lineHeight: 1.5, color: C.ink }} />
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-              <button type="button" onClick={runMigration} disabled={migrateBusy || !migrateEmails.trim()}
-                style={{ ...intentBtn('approve', 'full'), padding: '7px 12px', fontSize: 10, opacity: (migrateBusy || !migrateEmails.trim()) ? 0.5 : 1, cursor: (migrateBusy || !migrateEmails.trim()) ? 'default' : 'pointer' }}>
-                {migrateBusy ? 'migrating…' : 'run migration →'}
-              </button>
-              <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>
-                {String(migrateEmails || '').split(/[\s,;]+/).filter((e) => e.includes('@')).length} emails · writes Sheet status column · check log below
-              </span>
-            </div>
-          </>
-        )}
-      </div>
+      {/* Sync banner + migrate tool removed: Sheet is the single source
+          of truth now. Use the bench-update endpoint via approve/deny/
+          pause buttons; refresh from Sheet shows the latest state. */}
             <input
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
