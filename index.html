@@ -925,8 +925,17 @@ function BenchProvider({ children }) {
   const _phUsed = new Set();
   const adaptApiRow = (r, i) => {
     const realName = r.name || '';
-    const codeName = PHIL_POOL.find((n) => !_phUsed.has(n)) || `creative ${i+1}`;
-    _phUsed.add(codeName);
+    // Only consume PHIL_POOL for bench rows (the only rows displayed
+    // publicly). Rejected / paused / new rows don't need a code name —
+    // they're admin-only views or hidden. Without this gate, ~500
+    // rejected rows would burn through PHIL_POOL before reaching the
+    // 164 bench rows, leaving the last ~140 bench rows with
+    // 'creative N' fallback names.
+    const isBench = r.status === 'bench';
+    const codeName = isBench
+      ? (PHIL_POOL.find((n) => !_phUsed.has(n)) || `creative ${i+1}`)
+      : (realName || `creative ${i+1}`);
+    if (isBench) _phUsed.add(codeName);
     const name = codeName.toLowerCase();
     const firstName = (realName.split(' ')[0] || codeName).toLowerCase();
     const disciplinesArr = String(r.disciplines || '').split(/[,;]/).map((d) => d.trim().toLowerCase()).filter(Boolean);
