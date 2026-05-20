@@ -901,30 +901,94 @@ function BenchProvider({ children }) {
   // re-renders the CSV every ~5min from the underlying Sheet, so very
   // recent writes still won't appear instantly — that's what
   // injectOptimisticRow is for.
+  // Convert a row from /api/bench (server-parsed JSON) into the in-memory
+  // shape parseSheetCSV produces, so existing consumers (BenchProvider's
+  // derived bench/emergingBench filters, the public bench tables, etc.)
+  // don't need to change. The big wins of this swap:
+  //   - No Google publish-to-web 5-min CSV cache. Reads go to the Sheet
+  //     directly via service account (15-second function-level cache).
+  //   - No mutation cache needed: after every admin action, the next
+  //     /api/bench call sees the truth.
+  //   - No CSV parser fragility: server normalizes everything.
+  // The status field comes through as canonical four-state ('bench' |
+  // 'new' | 'rejected' | 'paused'). The legacy in-memory checks use
+  // 'approved' — keep that contract by mapping 'bench' → 'approved' on
+  // the way in, so existing filter logic keeps working.
+  const STATUS_TO_INMEMORY = { bench: 'approved', new: 'pending', rejected: 'denied', paused: 'paused' };
+  const RATES = ['$', '$$', '$$$', '$$$$'];
+  const adaptApiRow = (r, i) => {
+    const name = (r.name || `creative ${i+1}`).toLowerCase();
+    const realName = r.name || '';
+    const firstName = (realName.split(' ')[0] || name).toLowerCase();
+    const disciplinesArr = String(r.disciplines || '').split(/[,;]/).map((d) => d.trim().toLowerCase()).filter(Boolean);
+    const canonDisc = (d) =>
+      d.includes('copy') ? 'copywriting' :
+      d.includes('brand strategy') ? 'brand strategy' :
+      d.includes('art') ? 'art direction' :
+      d.includes('design lead') || d.includes('leadership') ? 'design leadership' :
+      d.includes('design') ? 'design leadership' :
+      d.includes('ux') ? 'ux / content design' :
+      d.includes('motion') ? 'motion design' :
+      d.includes('creative dir') ? 'creative direction' :
+      'creative direction';
+    const disciplines = [...new Set(disciplinesArr.map(canonDisc))];
+    const discipline = disciplines[0] || 'creative direction';
+    const availRaw = String(r.availability || '').toLowerCase();
+    const availability =
+      availRaw.includes('right thing') || availRaw.includes('selective') ? 'selective' :
+      availRaw.includes('immediate') || availRaw.includes('available now') ? 'available' :
+      availRaw.includes('waitlist') ? 'booked' :
+      availRaw.includes('2') || availRaw.includes('4 week') || availRaw.includes('soon') ? 'soon' :
+      'available';
+    const hourlyRate = parseInt(String(r.hourlyRate || '').replace(/[^0-9]/g, ''), 10) || 0;
+    const rate = hourlyRate >= 400 ? '$$$$' : hourlyRate >= 250 ? '$$$' : hourlyRate >= 150 ? '$$' : hourlyRate > 0 ? '$' : RATES[i % RATES.length];
+    const tz = (() => {
+      const colG = String(r.timezone || '').trim();
+      if (colG) {
+        const norm = colG.toLowerCase().replace(/[\s/–]+/g, '-');
+        if (REGION_TO_TZ[norm]) return REGION_TO_TZ[norm];
+        if (/^utc[−\-+]\d+$/i.test(colG.replace(/\s+/g, ''))) return colG;
+      }
+      return TZ_OVERRIDES[(r.email || '').toLowerCase()] || TZS[i % TZS.length];
+    })();
+    const clients = String(r.topClients || '').split(',').map((c) => c.trim().toLowerCase()).filter(Boolean).slice(0, 8);
+    const partners = String(r.partners || '').split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
+    return {
+      id: r.rowNumber || i + 1,
+      name, realName, firstName,
+      emailRaw: r.email || '',
+      emailEnc: r.email ? btoa(r.email) : '',
+      portfolio: r.portfolio || '',
+      linkedin: r.linkedin || '',
+      updatedAt: r.lastUpdatedTs || r.createdAtTs || 0,
+      discipline, disciplines,
+      rawDisciplines: disciplinesArr,
+      availability, hourlyRate, tz, rate,
+      yoe: r.yoe || 0,
+      clients: clients.length ? clients : ['portfolio available'],
+      note: String(r.valueProp || '').slice(0, 200),
+      partners,
+      status: STATUS_TO_INMEMORY[r.status] || 'pending',
+      confirmed: !!r.confirmed,
+      paused: r.status === 'paused',
+      legend: false,
+      isSocial: !!r.social,
+    };
+  };
+
   const refreshBench = () => {
     setLoading(true);
-    return fetch(SHEETS_CSV + '&_=' + Date.now())
-      .then((r) => r.text())
-      .then((t) => {
-        const p = parseSheetCSV(t);
-        if (p.length > 5) {
-          setAllBench((prev) => {
-            // Keep optimistic rows whose email hasn't yet appeared on the
-            // Sheet (Google's 5-min CSV regen lag). When their email finally
-            // shows up in the parsed Sheet, drop the optimistic dup.
-            const sheetEmails = new Set(p.map((r) => (r.emailRaw || '').toLowerCase()).filter(Boolean));
-            const optsKept = (prev || []).filter((r) =>
-              typeof r.id === 'string' && String(r.id).startsWith('opt:') &&
-              !sheetEmails.has((r.emailRaw || '').toLowerCase())
-            );
-            // Apply mutation cache LAST so recent local actions take
-            // precedence over stale CSV data. If you clicked approve 30s
-            // ago and the Sheet hasn't published yet, the row stays
-            // approved here.
-            const next = _applyMutationCache([...optsKept, ...p]);
-            _saveSnapshot(next);   // persist so next admin load is instant
-            return next;
-          });
+    // /api/bench?status=all gives us bench + paused + (any legacy) so the
+    // emerging/noData filters can still work. Public consumers further
+    // filter to status='approved' (which is 'bench' from the API).
+    return fetch('/api/bench?status=all&_=' + Date.now())
+      .then((r) => r.json())
+      .then((j) => {
+        const apiRows = (j && j.rows) || [];
+        if (apiRows.length > 0) {
+          const adapted = apiRows.map(adaptApiRow);
+          setAllBench(adapted);
+          _saveSnapshot(adapted);
           setLastSync(Date.now());
         }
       })
