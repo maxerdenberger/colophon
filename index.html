@@ -7046,6 +7046,108 @@ function PromoteLocalStampsButton({ secret, append, pastActions, setPastActions,
 // Read-only bench browser with per-row approve/deny/revoke + manual-add.
 // Action buttons POST to /api/bench-update (server-side endpoint must
 // implement the Sheets write-back). Failures surface in the inline log.
+// ─── Daily freshness check ─────────────────────────────────────────────
+// Surfaces the freshness state of the bench and lets the operator run
+// the daily-check job manually. The same endpoint (/api/daily) also
+// fires automatically every morning via Vercel Cron at 13:00 UTC.
+// What runs in one pass:
+//   • Auto-pause rows >90 days stale (status → 'paused')
+//   • Auto-flip 45–90 day stale rows to availability='selective'
+//   • Ping the 25 stalest rows past 21 days — typically <10 emails/day
+//     at steady state. Zero emails on days when everyone's fresh.
+function FreshnessCheckPanel({ secret }) {
+  const [busy, setBusy] = React.useState(false);
+  const [preview, setPreview] = React.useState(null);
+  const [lastRun, setLastRun] = React.useState(null);
+  const [log, setLog] = React.useState([]);
+  const append = (msg) => setLog((L) => [...L.slice(-20), `${new Date().toLocaleTimeString()} · ${msg}`]);
+
+  const fetchPreview = React.useCallback(async () => {
+    setBusy(true);
+    try {
+      const r = await fetch('/api/daily?dryRun=1', { headers: { Authorization: `Bearer ${secret}` } });
+      const j = await r.json();
+      if (r.ok) setPreview(j);
+      else append(`✗ preview · ${j.error || r.status}`);
+    } catch (ex) { append(`✗ preview · ${ex.message || 'network'}`); }
+    setBusy(false);
+  }, [secret]);
+  React.useEffect(() => { fetchPreview(); }, [fetchPreview]);
+
+  const runNow = async () => {
+    if (!preview || !preview.counts) return;
+    const waiting = preview.counts.stalePool;
+    const toAct = (preview.counts.autoPaused || 0) + (preview.counts.autoSelective || 0);
+    const willPing = Math.min(waiting, preview.thresholds.dailyBatch);
+    if (!willPing && !toAct) {
+      append('nothing to do — bench is fresh');
+      return;
+    }
+    if (!window.confirm(`Run the daily freshness check now? Will ping ${willPing} stale row${willPing === 1 ? '' : 's'}, auto-flip ${toAct} (paused + selective transitions). Sheet writes are live.`)) return;
+    setBusy(true);
+    try {
+      const r = await fetch('/api/daily', { headers: { Authorization: `Bearer ${secret}` } });
+      const j = await r.json();
+      if (!r.ok || !j.ok) {
+        append(`✗ run · ${(j && j.error) || r.status}`);
+      } else {
+        setLastRun(j);
+        append(`✓ ran · ${j.counts.pingedThisRun} pinged · ${j.counts.autoSelective} → selective · ${j.counts.autoPaused} → paused`);
+        await fetchPreview();   // refresh the counts
+      }
+    } catch (ex) { append(`✗ run · ${ex.message || 'network'}`); }
+    setBusy(false);
+  };
+
+  const c = (preview && preview.counts) || {};
+  const t = (preview && preview.thresholds) || { freshDays: 21, selectiveDays: 45, pauseDays: 90, dailyBatch: 25 };
+  const willPing = Math.min(c.stalePool || 0, t.dailyBatch);
+
+  return (
+    <div style={{ marginBottom: 24, border: '1px solid rgba(13,13,11,0.08)', padding: 18, background: '#fff' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+        <p style={{ fontFamily: GM, fontSize: 10, color: '#3D3C38', letterSpacing: '0.16em', textTransform: 'uppercase', margin: 0 }}>daily freshness check</p>
+        <span style={{ fontFamily: GM, fontSize: 9, color: C.soft }}>
+          21d fresh · 45d → selective · 90d → paused · auto cron 13:00 UTC
+        </span>
+      </div>
+      <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.6, margin: '0 0 14px' }}>
+        runs once a day automatically. quiet when the bench is fresh. emails only the rows that have actually aged past 21 days, capped at {t.dailyBatch} per run so resend's free tier (100/day) never strains.
+      </p>
+      {preview && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
+          <FreshTile label="stale (waiting)" count={c.stalePool || 0} accent="#C87C18" />
+          <FreshTile label={`will ping next run`} count={willPing} accent="#3F7F4A" />
+          <FreshTile label="→ selective" count={c.autoSelective || 0} accent="#7A4A0E" />
+          <FreshTile label="→ paused" count={c.autoPaused || 0} accent="#B04040" />
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" onClick={fetchPreview} disabled={busy}
+          style={{ ...adminIntentBtn('neutral'), padding: '6px 12px', fontSize: 10, opacity: busy ? 0.5 : 1 }}>
+          refresh preview
+        </button>
+        <button type="button" onClick={runNow} disabled={busy || !preview || (!willPing && !((c.autoSelective || 0) + (c.autoPaused || 0)))}
+          style={{ ...adminIntentBtn('approve', 'full'), padding: '6px 12px', fontSize: 10, opacity: busy ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+          {busy ? 'running…' : willPing ? `ping ${willPing} stale rows now` : 'nothing to ping'}
+        </button>
+      </div>
+      {log.length > 0 && (
+        <pre style={{ fontFamily: GM, fontSize: 10, color: '#0d0d0b', background: '#F2EDE4', padding: 10, borderRadius: 4, lineHeight: 1.55, whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto', marginTop: 12 }}>{log.join('\n')}</pre>
+      )}
+    </div>
+  );
+}
+
+function FreshTile({ label, count, accent }) {
+  return (
+    <div style={{ padding: '12px 14px', background: '#fff', border: `1px solid ${accent}33` }}>
+      <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 26, color: accent, lineHeight: 1, marginBottom: 6 }}>{count}</div>
+      <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</div>
+    </div>
+  );
+}
+
 // ─── BenchAdmin ─────────────────────────────────────────────────────────
 // THE single admin component for bench management. Replaces the legacy
 // AdminBenchBrowser + AdminFormspreeApproval + helper panels.
@@ -8221,6 +8323,10 @@ function AdminPage({ accent, setPage }) {
 
         {/* ── Revenue + sunk costs (Stripe summary). ───────────────────── */}
         <AdminRevenuePanel secret={secret} />
+
+        {/* ── Daily freshness check. Cron-fired at 13:00 UTC.
+              Manual button for impatient days. ─────────────────────── */}
+        <FreshnessCheckPanel secret={secret} />
 
         {/* ── BENCH ADMIN — queue / bench / rejected / paused.
               Single source of truth: the Sheet. Zero localStorage. ──── */}
