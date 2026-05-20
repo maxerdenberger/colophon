@@ -6680,7 +6680,6 @@ function BenchMigrateFromStampsButton({ secret, append, pastActions, bench, refr
   // Note: removed the auto-hide-after-first-run gate. The migration is
   // additive now (only promotes — never demotes), so re-running it any
   // time is safe and often necessary as the bench data fills in over time.
-  const [showEditor, setShowEditor] = React.useState(false);
 
   // recordAction stamps EVERY key it has for a row: numeric id, 'n:name',
   // 'n:realName', and 'e:email'. The previous extraction only walked
@@ -6784,41 +6783,36 @@ function BenchMigrateFromStampsButton({ secret, append, pastActions, bench, refr
   };
   return (
     <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px dashed rgba(255,81,0,0.35)', background: 'rgba(255,81,0,0.05)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12 }}>
-        <div style={{ fontFamily: GM, fontSize: 11, color: '#7A4A0E', lineHeight: 1.6 }}>
-          <strong>promote to bench</strong> · {editedEmails.length} email{editedEmails.length === 1 ? '' : 's'} ready ({approvedEmails.length} resolved from {breakdown.totalKeys} local stamps: {breakdown.fromEmail} email · {breakdown.fromName} name · {breakdown.fromId} id). paste additional emails or remove false positives before promoting. safe to run multiple times — other rows are not touched.
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <button type="button" onClick={() => setShowEditor((b) => !b)}
-            style={{ ...adminIntentBtn('neutral'), padding: '7px 10px', fontSize: 10, whiteSpace: 'nowrap' }}>
-            {showEditor ? 'hide editor' : `edit list (${editedEmails.length}) →`}
-          </button>
+      <div style={{ borderBottom: '1px solid rgba(122,74,14,0.25)', paddingBottom: 8, marginBottom: 10 }}>
+        <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: '#7A4A0E', textTransform: 'uppercase', margin: '0 0 4px' }}>promote to bench</p>
+        <p style={{ fontFamily: GM, fontSize: 11, color: '#7A4A0E', lineHeight: 1.5, margin: 0 }}>
+          paste emails below (one per line). every match on the Sheet flips to <strong>bench</strong>. nothing else is touched. safe to run any number of times — bench can only grow.
+        </p>
+      </div>
+      <textarea value={emailsText} onChange={(e) => setEmailsText(e.target.value)}
+        rows={14}
+        placeholder="paste emails — one per line"
+        style={{ width: '100%', boxSizing: 'border-box', fontFamily: GM, fontSize: 12, padding: 12, border: '1.5px solid rgba(122,74,14,0.4)', borderRadius: 4, background: '#fff', resize: 'vertical', lineHeight: 1.55, color: C.ink, minHeight: 220 }} />
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+        <span style={{ fontFamily: GM, fontSize: 11, color: '#7A4A0E', lineHeight: 1.5 }}>
+          <strong>{editedEmails.length}</strong> valid email{editedEmails.length === 1 ? '' : 's'} in the box.{' '}
+          {approvedEmails.length > 0 && (
+            <span style={{ color: C.soft }}>({approvedEmails.length} resolved from your localStorage stamps: {breakdown.fromEmail} via email · {breakdown.fromName} via name · {breakdown.fromId} via id.)</span>
+          )}
+        </span>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {approvedEmails.length > 0 && (
+            <button type="button" onClick={() => setEmailsText(approvedEmails.join('\n'))}
+              style={{ ...adminIntentBtn('neutral'), padding: '7px 10px', fontSize: 10, whiteSpace: 'nowrap' }}>
+              reset to {approvedEmails.length} local stamps
+            </button>
+          )}
           <button type="button" onClick={() => run('additive')} disabled={busy || !editedEmails.length}
-            style={{ ...adminIntentBtn('approve', 'full'), padding: '7px 12px', fontSize: 10, opacity: busy ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+            style={{ ...adminIntentBtn('approve', 'full'), padding: '9px 16px', fontSize: 12, opacity: busy ? 0.5 : 1, whiteSpace: 'nowrap', fontWeight: 600 }}>
             {busy ? 'promoting…' : `promote ${editedEmails.length} → bench →`}
           </button>
         </div>
       </div>
-      {showEditor && (
-        <div style={{ marginTop: 10 }}>
-          <textarea value={emailsText} onChange={(e) => setEmailsText(e.target.value)}
-            rows={12}
-            placeholder="one email per line"
-            style={{ width: '100%', boxSizing: 'border-box', fontFamily: GM, fontSize: 11, padding: 10, border: '1px solid rgba(13,13,11,0.2)', borderRadius: 4, background: '#fff', resize: 'vertical', lineHeight: 1.5, color: C.ink }} />
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>{editedEmails.length} valid email{editedEmails.length === 1 ? '' : 's'} parsed.</span>
-            <button type="button" onClick={() => setEmailsText(approvedEmails.join('\n'))}
-              style={{ ...adminIntentBtn('neutral'), padding: '5px 9px', fontSize: 9 }}>
-              reset to resolved stamps
-            </button>
-            <button type="button" onClick={() => run('normalize')} disabled={busy || !editedEmails.length}
-              style={{ ...adminIntentBtn('reject', 'full'), padding: '5px 9px', fontSize: 9, opacity: busy ? 0.5 : 1 }}
-              title="DESTRUCTIVE — flips every other non-rejected row to 'new'. Use only on a known-complete list.">
-              {busy ? 'normalizing…' : 'promote + demote rest (destructive) →'}
-            </button>
-          </div>
-        </div>
-      )}
       {done && (
         <p style={{ fontFamily: GM, fontSize: 10, color: '#7A4A0E', margin: '10px 0 0' }}>
           ✓ {done.approvedRows} flipped to bench{done.pendingRows ? ` · ${done.pendingRows} flipped to new` : ''} · {done.untouchedRows} untouched. hit <em>refresh from Sheet ↻</em> to see the new bench count.
