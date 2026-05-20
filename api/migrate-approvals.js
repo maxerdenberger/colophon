@@ -34,8 +34,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    const mode = (req.body && req.body.mode === 'normalize') ? 'normalize' : 'additive';
-    const result = await migrateApprovalsBulk(cleaned, { mode });
+    // Destructive 'normalize' mode is no longer accepted — it caused the
+    // 140→8 collapse when run with an incomplete email list. Only the
+    // additive path remains: promote listed emails, leave everything else
+    // untouched. Going forward, approve/deny/pause via /api/bench-update
+    // is the single channel that mutates Sheet status.
+    if (req.body && req.body.mode === 'normalize') {
+      return res.status(400).json({
+        error: 'normalize mode disabled. Use approve/deny/pause via /api/bench-update instead.',
+      });
+    }
+    const result = await migrateApprovalsBulk(cleaned, { mode: 'additive' });
     return res.status(200).json({ ok: true, ...result, seedEmails: cleaned.length });
   } catch (err) {
     return res.status(500).json({

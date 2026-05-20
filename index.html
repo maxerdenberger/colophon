@@ -7331,12 +7331,11 @@ function AdminBenchBrowser({ secret }) {
           the bench is two-state: approved (on bench) or denied (in bin). */}
       <BulkArchivePendingButton secret={secret} append={append} refreshBench={refreshBench} bench={bench} />
 
-      {/* One-time migration: read every approve stamp from this browser's
-          localStorage, POST those emails to /api/migrate-approvals. The
-          server flips matched rows to 'bench', everything else (that isn't
-          already rejected/paused) to 'new'. Run once per operator-browser
-          combo; auto-hides after a successful run on this machine. */}
-      <BenchMigrateFromStampsButton secret={secret} append={append} pastActions={pastActions} bench={bench} refreshBench={refreshBench} />
+      {/* Migration tool removed — was a one-shot bridge from the
+          localStorage-gate era to the Sheet-as-truth era. The destructive
+          'demote rest' path caused the 140→8 collapse. Approve / deny /
+          pause already write to the Sheet directly via /api/bench-update;
+          no migration step needed going forward. */}
 
       {/* Sync banner + migrate tool removed: Sheet is the single source
           of truth now. Use the bench-update endpoint via approve/deny/
