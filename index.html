@@ -1028,6 +1028,13 @@ function BenchProvider({ children }) {
     // hash-of-email distribution across the four experience buckets.
     // Real data overrides whenever someone's Experience cell has actual
     // text the server can parse.
+    // Distribute across mid / senior / lead only. The paid bench is
+    // curated as 4+ yrs by design — under-4-yrs creatives belong on
+    // /emerging (the free tier). Synthetic juniors here would put
+    // fake under-4-yrs rows on the paid bench, which is the wrong
+    // signal. A real applicant with yoe<4 can still land here if the
+    // operator explicitly sets their experience cell — that overrides
+    // the distribution.
     const _distYoe = (seed) => {
       const h = (() => {
         const e = String(seed || '_' + i);
@@ -1035,10 +1042,9 @@ function BenchProvider({ children }) {
         for (let k = 0; k < e.length; k++) x = ((x << 5) + x + e.charCodeAt(k)) | 0;
         return Math.abs(x);
       })() % 100;
-      if (h < 25) return 3;    // junior  25%
-      if (h < 60) return 6;    // mid     35%
-      if (h < 90) return 10;   // senior  30%
-      return 15;               // lead    10%
+      if (h < 35) return 6;    // mid     35%
+      if (h < 80) return 10;   // senior  45%
+      return 15;               // lead    20%
     };
     const yoeResolved = r.yoe || _distYoe(r.email || r.name);
     return {
