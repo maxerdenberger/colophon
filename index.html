@@ -1056,10 +1056,13 @@ function BenchProvider({ children }) {
   // Status values: 'approved' (visible) | 'pending' | 'denied' | 'cold' |
   // 'duplicate'. Anything but 'approved' is hidden from the public bench.
   const { bench, emergingBench, noDataBench } = useMemo(() => ({
-    // Paid public bench — 4+ yrs experience, status='approved' on the Sheet.
-    bench:         allBench.filter((p) => (p.yoe || 0) >= 4 && p.status === 'approved'),
-    // Emerging — 1-3 yrs, must have explicitly confirmed (col 20 of the
-    // Sheet flips this true after they engage with the referral email).
+    // Public bench — every row with status='approved' (canonical 'bench'
+    // from the Sheet). The status column IS the curation gate; no
+    // secondary yoe filter that would knock out rows whose experience-
+    // level cell isn't in the recognized format.
+    bench:         allBench.filter((p) => p.status === 'approved'),
+    // Emerging — 1-3 yrs (when explicit), must have confirmed. Still
+    // requires yoe to be parsed cleanly into that band.
     emergingBench: allBench.filter((p) => (p.yoe || 0) >= 1 && (p.yoe || 0) < 4 && p.confirmed && p.status === 'approved'),
     // Admin-only — 0-yoe rows that need a data-update follow-up email.
     noDataBench:   allBench.filter((p) => (p.yoe || 0) === 0),

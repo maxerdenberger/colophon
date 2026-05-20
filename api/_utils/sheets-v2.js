@@ -169,11 +169,20 @@ export async function readBench({ force = false } = {}) {
       return m ? parseInt(m[0], 10) : 0;
     })();
     const expRaw = pick(r, 'expLevel').toLowerCase();
-    const yoe = /12\+|veteran|executive/.test(expRaw) ? 15
+    const yoeFromBucket = /12\+|veteran|executive/.test(expRaw) ? 15
               : /lead|principal|8.{0,3}12/.test(expRaw) ? 10
               : /senior|4.{0,3}7/.test(expRaw) ? 6
               : /junior|mid|1.{0,3}3/.test(expRaw) ? 2
               : 0;
+    // Fallback: if no bucket matched, try to pull any number from the cell.
+    // Handles entries like '20 years', '8-14 yrs', '7+', etc. — anything
+    // numeric. Without this, every row whose expLevel column is free-text
+    // (or empty) ends up with yoe=0 and gets filtered out of stats.
+    const yoeFromNumber = (() => {
+      const m = expRaw.match(/(\d+)/);
+      return m ? parseInt(m[1], 10) : 0;
+    })();
+    const yoe = yoeFromBucket || yoeFromNumber;
     const social = (() => {
       const v = pick(r, 'social').toLowerCase();
       return v === 'yes' || v === 'true' || v === '1' || v === '♥';
