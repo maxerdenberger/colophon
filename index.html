@@ -700,17 +700,29 @@ function parseSheetCSV(text) {
     // emails; empty by default until the post-launch follow-up email runs.
     const partners = (row[17] || '').split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
     const statusRaw = (row[18] || '').toLowerCase().trim();
-    // New schema: pending|approved|denied|cold|duplicate. Legacy 'active'
-    // maps to 'approved' for backward compat (pre-migration rows). Empty
-    // → 'pending' so unreviewed rows don't accidentally show on the bench.
-    const status =
-      statusRaw === 'approved'  ? 'approved'  :
-      statusRaw === 'pending'   ? 'pending'   :
-      statusRaw === 'denied'    ? 'denied'    :
-      statusRaw === 'cold'      ? 'cold'      :
-      statusRaw === 'duplicate' ? 'duplicate' :
-      statusRaw === 'active'    ? 'approved'  :  // legacy
-      'pending';
+    // Canonical four-state vocabulary (new|bench|rejected|paused) plus
+    // legacy values (approved|pending|denied|cold|duplicate|active) all
+    // accepted on read. Translated into the in-memory shape the rest of
+    // the app already speaks (approved/pending/denied/cold/duplicate) so
+    // BenchProvider's `p.status === 'approved'` filters keep working
+    // without a sweeping rename. Paused is its own state, surfaced via
+    // p.paused=true so the bench browser shows the paused tint + button.
+    const STATUS_READ_MAP = {
+      // canonical four-state
+      'new':       'pending',
+      'bench':     'approved',
+      'rejected':  'denied',
+      'paused':    'paused',
+      // legacy
+      'approved':  'approved',
+      'pending':   'pending',
+      'denied':    'denied',
+      'cold':      'cold',
+      'duplicate': 'duplicate',
+      'active':    'approved',
+    };
+    const status = STATUS_READ_MAP[statusRaw] || 'pending';
+    const isPausedRow = statusRaw === 'paused';
     const confRaw = (row[20] || '').toLowerCase().trim();
     const confirmed = confRaw === 'yes' || confRaw === 'true' || confRaw === '1';
     // Col 21 — social-specialist flag, set by the apply form's heart toggle.
@@ -739,7 +751,8 @@ function parseSheetCSV(text) {
       note,
       partners,
       status, confirmed, isSocial,
-      paused: false, legend: false,  // admin-toggleable; persisted via /api/bench-update
+      paused: isPausedRow,           // true when Sheet status='paused'
+      legend: false,                 // admin-toggleable; UI-tint only via /api/bench-update
     };
   }).filter(Boolean).filter((p) => p.status !== 'cold' && p.status !== 'duplicate')
     .filter((p) => p.realName && p.realName.replace(/\s+/g,'').length > 1)

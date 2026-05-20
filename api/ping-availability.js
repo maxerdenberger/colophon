@@ -131,7 +131,11 @@ export default async function handler(req, res) {
       const name = String(row[1] || '').trim();
       const status = String(row[18] || '').trim().toLowerCase();
       // 'active' is the legacy synonym for 'approved' (parser bridges it).
-      if ((status === 'approved' || status === 'active') && email.includes('@')) {
+      // Bench = visible to hirers + eligible for the availability ping.
+      // 'bench' is the new canonical value; 'approved' / 'active' are
+      // accepted during the migration period. 'paused' rows are skipped
+      // — pinging someone on vacation defeats the point.
+      if ((status === 'bench' || status === 'approved' || status === 'active') && email.includes('@')) {
         const lastTs = Date.parse(String(row[19] || '').trim()) || 0;
         approvedRows.push({
           email, name,

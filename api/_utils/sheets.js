@@ -180,7 +180,14 @@ export async function updateBenchRow(rowNumber, { availability, portfolio, partn
 export async function updateBenchStatusByEmail(email, newStatus) {
   const target = String(email || '').trim().toLowerCase();
   if (!target.includes('@')) throw new Error('email required');
-  const VALID = ['approved', 'pending', 'denied', 'cold', 'duplicate'];
+  // Canonical four-state vocabulary + legacy values for the migration
+  // period. The handler that calls this already maps aliases (approve →
+  // bench, deny → rejected, etc) before we get here; legacy values are
+  // accepted so a Sheet that hasn't been migrated yet still functions.
+  const VALID = [
+    'new','bench','rejected','paused',          // canonical
+    'approved','pending','denied','cold','duplicate','active',  // legacy
+  ];
   if (!VALID.includes(newStatus)) throw new Error(`invalid status: ${newStatus}`);
   const found = await findBenchRowByEmail(target);
   if (!found) return { updated: 0, rowNumber: null };

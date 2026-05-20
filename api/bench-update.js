@@ -1,20 +1,27 @@
 // /api/bench-update
 //
-// Admin-only mutation endpoint for the bench Sheet. Single source of truth
-// for whether a row appears on the public bench: the `status` column (S /
-// index 18) on the source Sheet. The /admin panel POSTs here for every
-// approve/deny/revoke action; the public bench reads the resulting CSV
-// and filters where status === 'approved'. No more localStorage gates.
+// Admin-only mutation endpoint for the bench Sheet — the single source of
+// truth for every row's lifecycle. The four canonical states (Sheet col S):
 //
-// Actions:
-//   add       → append a new row. Defaults to status='approved' (one-click
-//                approval from the formspree queue). Pass status='pending'
-//                if the import should land in the pending queue instead.
-//   approve   → set existing row's status='approved' (visible on public bench)
-//   deny      → set status='denied' (hidden, soft-rejected — recoverable)
-//   revoke    → alias for deny
-//   pending   → set status='pending' (back into the review queue)
-//   cold      → set status='cold'
+//   new       — landed, never touched. The admin queue.
+//   bench     — approved, visible on the public bench.
+//   rejected  — never showing. Replaces old denied / cold / duplicate.
+//   paused    — was on the bench, temporarily hidden (vacations, etc).
+//
+// Legacy values ('approved', 'active', 'pending', 'denied', 'cold',
+// 'duplicate') still parse correctly on read so live behavior is unbroken
+// until the step-2 migration flips every row to the new vocabulary.
+//
+// Actions (case-insensitive — multiple aliases map to the same write):
+//   add                          → append a new row (default status='bench')
+//   approve | bench              → flip to 'bench'
+//   deny | reject | revoke       → flip to 'rejected' (and append if not found)
+//   pause                        → flip to 'paused'
+//   unpause | resume             → flip to 'bench'
+//   pending | new                → flip to 'new'
+//   cold                         → flip to 'rejected' (cold collapses in)
+//   archive-all-pending          → bulk-flip every new/pending row to 'rejected'
+//   legend | unlegend | skip     → still localStorage-only (UI tints, not Sheet state)
 
 import { appendBenchRow, updateBenchStatusByEmail, findBenchRowByEmail, updateBenchRow, bulkArchivePending } from './_utils/sheets.js';
 
@@ -54,11 +61,11 @@ export default async function handler(req, res) {
         // Persist the apply-form's referrer field to col L. Previously
         // dropped silently — now every approval keeps its source.
         referralContext: body.referralContext || body.referrer || body.referral,
-        // Default new rows from the formspree queue to 'approved' so they
+        // Default new rows from the formspree queue to 'bench' so they
         // appear on the public bench immediately. The operator already
-        // vetted them by clicking "approve → sheet". Pass status='pending'
+        // vetted them by clicking "approve → sheet". Pass status='new'
         // explicitly if you want a two-step review instead.
-        status:        body.status || 'approved',
+        status:        body.status || 'bench',
         confirmed:     body.confirmed,
       });
       return res.status(200).json({ ok: true, action, ...result });
@@ -76,8 +83,8 @@ export default async function handler(req, res) {
         try {
           const found = await findBenchRowByEmail(email);
           if (found) {
-            const r = await updateBenchRow(found.rowNumber, { status: 'denied' });
-            return res.status(200).json({ ok: true, action, status: 'denied', mode: 'updated', rowNumber: found.rowNumber, updated: r.updated });
+            const r = await updateBenchRow(found.rowNumber, { status: 'rejected' });
+            return res.status(200).json({ ok: true, action, status: 'rejected', mode: 'updated', rowNumber: found.rowNumber, updated: r.updated });
           }
         } catch (_) {}
       }
@@ -97,10 +104,10 @@ export default async function handler(req, res) {
         partnerEmails: body.partnerEmails,
         social:        body.social,
         referralContext: body.referralContext || body.referrer || body.referral,
-        status:        'denied',
+        status:        'rejected',
         confirmed:     body.confirmed,
       });
-      return res.status(200).json({ ok: true, action, status: 'denied', mode: 'appended', ...appended });
+      return res.status(200).json({ ok: true, action, status: 'rejected', mode: 'appended', ...appended });
     }
 
     // ── Bulk archive ─────────────────────────────────────────────────
@@ -113,13 +120,26 @@ export default async function handler(req, res) {
     }
 
     // Status-changing actions. All require an email to look up the row.
+    // Maps action -> canonical four-state value. Old action names (deny,
+    // revoke, pending, cold) keep working but write the new vocabulary.
     const STATUS_FOR_ACTION = {
-      approve: 'approved',
-      deny:    'denied',
-      reject:  'denied',
-      revoke:  'denied',
-      pending: 'pending',
-      cold:    'cold',
+      // approvals
+      approve: 'bench',
+      bench:   'bench',
+      unpause: 'bench',
+      resume:  'bench',
+      // rejections — all collapse into a single 'rejected' state
+      deny:     'rejected',
+      reject:   'rejected',
+      revoke:   'rejected',
+      rejected: 'rejected',
+      cold:     'rejected',
+      // queue
+      pending: 'new',
+      new:     'new',
+      // pause
+      pause:  'paused',
+      paused: 'paused',
     };
     if (action in STATUS_FOR_ACTION) {
       const newStatus = STATUS_FOR_ACTION[action];
@@ -137,11 +157,12 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, action, status: newStatus, ...r });
     }
 
-    // pause/unpause/legend/unlegend → still localStorage-only (return 200
-    // so the client doesn't surface an error; the UI tint state remains
-    // local for these for now).
-    if (['pause','unpause','resume','legend','unlegend','skip'].includes(action)) {
-      return res.status(200).json({ ok: true, action, note: 'localStorage-only — Sheet status not changed' });
+    // legend/unlegend/skip → still localStorage-only. legend is a UI tint
+    // ('star' a row in the bench browser); skip is a transient queue
+    // dismissal. Neither is a Sheet status. pause/unpause now write to
+    // the Sheet via STATUS_FOR_ACTION above, so they're not in this list.
+    if (['legend','unlegend','skip'].includes(action)) {
+      return res.status(200).json({ ok: true, action, note: 'localStorage-only — UI hint, not Sheet status' });
     }
 
     return res.status(400).json({ error: `unknown action: ${action}` });
