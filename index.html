@@ -6783,6 +6783,83 @@ function BulkArchivePendingButton({ secret, append, refreshBench, bench }) {
   );
 }
 
+// One-button recovery: read every approve stamp from this browser's
+// localStorage, resolve to emails via id/name/email keys against the
+// current bench, POST additively to /api/migrate-approvals. Skips
+// rows already in bench (no-op), skips rejected/paused (safety). After
+// promotion is done, hit 'clear local stamps' in the bench header to
+// wipe the localStorage and the panel disappears naturally. Always
+// additive — no destructive mode anywhere in this flow.
+function PromoteLocalStampsButton({ secret, append, pastActions, bench, refreshBench }) {
+  const [busy, setBusy] = React.useState(false);
+  const [done, setDone] = React.useState(null);
+  // Resolve every approve stamp (any key type) to an email via the current bench.
+  const approvedEmails = React.useMemo(() => {
+    const byId = new Map(), byName = new Map();
+    for (const r of (bench || [])) {
+      if (!r || !r.emailRaw) continue;
+      const email = String(r.emailRaw).toLowerCase();
+      if (r.id != null) byId.set(String(r.id), email);
+      if (r.name)     byName.set(String(r.name).toLowerCase(), email);
+      if (r.realName) byName.set(String(r.realName).toLowerCase(), email);
+    }
+    const seen = new Set();
+    for (const [key, ops] of Object.entries(pastActions || {})) {
+      if (!ops || !ops.approve) continue;
+      if (ops.deny || ops.reject || ops.revoke) continue;
+      let email = null;
+      if (key.startsWith('e:')) email = key.slice(2);
+      else if (key.startsWith('n:')) email = byName.get(key.slice(2)) || null;
+      else email = byId.get(key) || null;
+      if (email && email.includes('@')) seen.add(email);
+    }
+    return Array.from(seen).sort();
+  }, [pastActions, bench]);
+  const run = async () => {
+    if (!approvedEmails.length) return;
+    if (!window.confirm(`Promote ${approvedEmails.length} email${approvedEmails.length === 1 ? '' : 's'} to bench? Already-bench rows unchanged. Rejected/paused rows skipped (never auto-resurrected). Nothing else on the Sheet is touched.`)) return;
+    setBusy(true);
+    try {
+      const r = await fetch('/api/migrate-approvals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify({ emails: approvedEmails }),    // server defaults to additive
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) {
+        append(`✗ promote · ${(j && j.error) || r.status}`);
+      } else {
+        setDone(j);
+        append(`✓ promote · ${j.approvedRows} on bench · ${j.cellsUpdated} cells written · ${j.untouchedRows} untouched`);
+        if (refreshBench) setTimeout(refreshBench, 600);
+      }
+    } catch (ex) {
+      append(`✗ promote · ${ex.message || 'network'}`);
+    }
+    setBusy(false);
+  };
+  // Hide the panel when there's nothing to recover.
+  if (!approvedEmails.length && !done) return null;
+  return (
+    <div style={{ marginBottom: 14, padding: '12px 14px', border: '2px solid #FF5100', background: 'rgba(255,81,0,0.06)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ fontFamily: GM, fontSize: 12, color: '#0d0d0b', lineHeight: 1.5 }}>
+          <strong>recover {approvedEmails.length} local stamp{approvedEmails.length === 1 ? '' : 's'} → bench.</strong> <span style={{ color: C.soft }}>safe to run. promotes only — no demotions. when you're done, hit <em>clear local stamps</em> in the header.</span>
+        </div>
+        <button type="button" onClick={run} disabled={busy || !approvedEmails.length}
+          style={{ ...adminIntentBtn('approve', 'full'), padding: '9px 16px', fontSize: 12, fontWeight: 600, opacity: busy ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+          {busy ? 'promoting…' : `promote ${approvedEmails.length} → bench`}
+        </button>
+      </div>
+      {done && (
+        <p style={{ fontFamily: GM, fontSize: 10, color: '#0d0d0b', margin: '10px 0 0' }}>
+          ✓ {done.approvedRows} on bench · {done.untouchedRows} untouched · refresh from Sheet to see them
+        </p>
+      )}
+    </div>
+  );
+}
+
 // Read-only bench browser with per-row approve/deny/revoke + manual-add.
 // Action buttons POST to /api/bench-update (server-side endpoint must
 // implement the Sheets write-back). Failures surface in the inline log.
@@ -7175,11 +7252,10 @@ function AdminBenchBrowser({ secret }) {
           the bench is two-state: approved (on bench) or denied (in bin). */}
       <BulkArchivePendingButton secret={secret} append={append} refreshBench={refreshBench} bench={bench} />
 
-      {/* Migration tool removed — was a one-shot bridge from the
-          localStorage-gate era to the Sheet-as-truth era. The destructive
-          'demote rest' path caused the 140→8 collapse. Approve / deny /
-          pause already write to the Sheet directly via /api/bench-update;
-          no migration step needed going forward. */}
+      {/* Local-stamps recovery — surfaces only when localStorage has approve
+          stamps not yet reflected on the Sheet. Safe (additive only). When
+          everything is reconciled, the panel disappears naturally. */}
+      <PromoteLocalStampsButton secret={secret} append={append} pastActions={pastActions} bench={bench} refreshBench={refreshBench} />
 
       {/* Sync banner + migrate tool removed: Sheet is the single source
           of truth now. Use the bench-update endpoint via approve/deny/
