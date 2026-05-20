@@ -916,10 +916,19 @@ function BenchProvider({ children }) {
   // the way in, so existing filter logic keeps working.
   const STATUS_TO_INMEMORY = { bench: 'approved', new: 'pending', rejected: 'denied', paused: 'paused' };
   const RATES = ['$', '$$', '$$$', '$$$$'];
+  // Code-name assignment: every row gets a stable display name from
+  // PHIL_POOL. Real names live on `realName` and only show when the
+  // bench is unlocked (paid pass or admin). This is the privacy gate
+  // the old parseSheetCSV implemented; the new API-driven path needs
+  // to maintain it. The `used` set is scoped to a single adapt pass
+  // so re-renders within a session produce identical assignments.
+  const _phUsed = new Set();
   const adaptApiRow = (r, i) => {
-    const name = (r.name || `creative ${i+1}`).toLowerCase();
     const realName = r.name || '';
-    const firstName = (realName.split(' ')[0] || name).toLowerCase();
+    const codeName = PHIL_POOL.find((n) => !_phUsed.has(n)) || `creative ${i+1}`;
+    _phUsed.add(codeName);
+    const name = codeName.toLowerCase();
+    const firstName = (realName.split(' ')[0] || codeName).toLowerCase();
     const disciplinesArr = String(r.disciplines || '').split(/[,;]/).map((d) => d.trim().toLowerCase()).filter(Boolean);
     const canonDisc = (d) =>
       d.includes('copy') ? 'copywriting' :
