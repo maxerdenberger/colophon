@@ -1,10 +1,9 @@
 // /api/dedupe
 //
-// Marks specific bench rows as status='duplicate'. The CSV parser then
-// filters them out alongside 'cold' rows, so they disappear from the
-// live bench, the bench browser, and any tokenized views — without
-// being deleted from the Sheet (so the data is recoverable: edit col S
-// back to 'active' on the row to restore).
+// Marks specific bench rows as status='rejected' (canonical four-state).
+// They disappear from the public bench but stay on the Sheet so the
+// audit trail is preserved. Reversible — edit col S back to 'bench'
+// on the row to restore.
 //
 // POST body:
 //   { rows: [rowNumber, rowNumber, ...] }   — 1-indexed Sheet rows
@@ -13,6 +12,7 @@
 //   { ok: true, marked: N }
 
 import { google } from 'googleapis';
+import { invalidateBenchCache } from './_utils/sheets-v2.js';
 
 const TAB_NAME = process.env.SHEETS_TAB_NAME || 'Form Responses 1';
 
@@ -45,19 +45,22 @@ export default async function handler(req, res) {
     });
     const sheets = google.sheets({ version: 'v4', auth: auth2 });
 
-    // One batchUpdate, one cell per row (col S = status, index 18, A1 'S').
-    const data = rowNums.map((n) => ({
-      range: `${TAB_NAME}!S${n}`,
-      values: [['duplicate']],
-    }));
+    // One batchUpdate, status='rejected' on col S + Last Updated on col T
+    const now = new Date().toISOString();
+    const data = [];
+    for (const n of rowNums) {
+      data.push({ range: `${TAB_NAME}!S${n}`, values: [['rejected']] });
+      data.push({ range: `${TAB_NAME}!T${n}`, values: [[now]] });
+    }
     const r = await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
       requestBody: { valueInputOption: 'RAW', data },
     });
+    invalidateBenchCache();
 
     return res.status(200).json({
       ok: true,
-      marked: r.data.totalUpdatedCells || rowNums.length,
+      marked: rowNums.length,
       rows: rowNums,
     });
   } catch (err) {
