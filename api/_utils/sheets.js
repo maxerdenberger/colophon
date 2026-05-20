@@ -370,11 +370,13 @@ export async function appendReferralLog(entries) {
 }
 
 
-// Bulk-archive everything not on the bench. Flips every row whose current
-// status is empty OR 'pending' to 'denied'. Approved/cold/duplicate/denied
-// rows are left alone. Used by the admin's 'archive all pending' button
-// to clear the parking-lot pending state — every applicant ends up either
-// approved (on the bench) or denied (in the rejects bin). No middle.
+// Bulk-archive every parking-lot row. Flips status to 'rejected' for any
+// row whose current value is '', 'pending', or 'new' (all three are
+// unactioned states in the new four-state vocabulary + legacy schema).
+// Approved/bench/cold/duplicate/denied/rejected/paused rows are left
+// alone. Used by the admin's 'archive all pending' button so the
+// in-review tab drains to zero — every applicant ends up either on the
+// bench or in the rejects bin. No middle.
 export async function bulkArchivePending() {
   if (!process.env.SHEETS_SPREADSHEET_ID) {
     throw new Error('SHEETS_SPREADSHEET_ID not configured');
@@ -387,14 +389,15 @@ export async function bulkArchivePending() {
   const rows = res.data.values || [];
   const data = [];
   let count = 0;
+  const ARCHIVE_STATES = new Set(['', 'pending', 'new']);
   for (let i = 1; i < rows.length; i++) {
     const email = String(rows[i][2] || '').trim().toLowerCase();
     if (!email || !email.includes('@')) continue;
     const cur = String(rows[i][18] || '').trim().toLowerCase();
-    if (cur === '' || cur === 'pending') {
+    if (ARCHIVE_STATES.has(cur)) {
       data.push({
         range: `${TAB_NAME}!S${i + 1}`,
-        values: [['denied']],
+        values: [['rejected']],
       });
       count++;
     }
