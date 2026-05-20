@@ -6666,6 +6666,100 @@ function PingAvailabilitySection({ secret, append }) {
   );
 }
 
+// One-time migration tool: scrape every approve stamp from THIS
+// browser's localStorage and POST those emails to /api/migrate-approvals.
+// The server flips the matching Sheet rows to status='bench'; every other
+// row that isn't already rejected/paused flips to status='new'. After a
+// successful run, the panel writes a 'colophon_migrated_at' flag to
+// localStorage and hides itself — this is a one-time-per-browser action,
+// not a recurring chore.
+function BenchMigrateFromStampsButton({ secret, append, pastActions, refreshBench }) {
+  const [busy, setBusy]   = React.useState(false);
+  const [done, setDone]   = React.useState(null);
+  const [hidden, setHidden] = React.useState(() => {
+    try { return !!localStorage.getItem('colophon_migrated_at'); } catch { return false; }
+  });
+  // Pull every email-keyed action entry that has an approve stamp and no
+  // later deny/reject/revoke. The exclusive-group logic clears prior
+  // approve when the operator clicked deny — so the surviving approve
+  // stamps are the operator's intended bench list.
+  const approvedEmails = React.useMemo(() => {
+    const seen = new Set();
+    for (const [key, ops] of Object.entries(pastActions || {})) {
+      if (!key.startsWith('e:')) continue;
+      const email = key.slice(2);
+      if (!email.includes('@')) continue;
+      if (!ops || !ops.approve) continue;
+      if (ops.deny || ops.reject || ops.revoke) continue;
+      seen.add(email);
+    }
+    return Array.from(seen).sort();
+  }, [pastActions]);
+  const run = async () => {
+    if (!approvedEmails.length) {
+      append('migrate · no approve stamps on this browser');
+      return;
+    }
+    if (!window.confirm(`One-time migration: flip ${approvedEmails.length} approved-locally email${approvedEmails.length === 1 ? '' : 's'} on the Sheet to 'bench'. Everything else (not already rejected/paused) flips to 'new'. Continue?`)) return;
+    setBusy(true);
+    try {
+      const r = await fetch('/api/migrate-approvals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify({ emails: approvedEmails }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) {
+        append(`✗ migrate · ${(j && j.error) || r.status}`);
+        setBusy(false);
+        return;
+      }
+      setDone(j);
+      append(`✓ migrate · ${j.cellsUpdated} cells updated · ${j.approvedRows} → bench · ${j.pendingRows} → new · ${j.untouchedRows} untouched`);
+      try { localStorage.setItem('colophon_migrated_at', new Date().toISOString()); } catch {}
+      if (refreshBench) setTimeout(refreshBench, 600);
+    } catch (ex) {
+      append(`✗ migrate · ${ex.message || 'network'}`);
+    }
+    setBusy(false);
+  };
+  const undoHide = () => {
+    try { localStorage.removeItem('colophon_migrated_at'); } catch {}
+    setHidden(false);
+  };
+  if (hidden && !done) {
+    // Already migrated on this browser. Render a quiet 'rerun if needed'
+    // hairline so the operator can still get back to it.
+    return (
+      <p style={{ fontFamily: GM, fontSize: 9, color: C.soft, margin: '0 0 14px', textAlign: 'right' }}>
+        one-time stamp→Sheet migration already run on this browser ·{' '}
+        <button type="button" onClick={undoHide}
+          style={{ background: 'transparent', border: 'none', color: '#FF5100', textDecoration: 'underline', cursor: 'pointer', fontFamily: GM, fontSize: 9, padding: 0 }}>
+          show again
+        </button>
+      </p>
+    );
+  }
+  return (
+    <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px dashed rgba(255,81,0,0.35)', background: 'rgba(255,81,0,0.05)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ fontFamily: GM, fontSize: 11, color: '#7A4A0E', lineHeight: 1.6 }}>
+          <strong>one-time migration</strong> · this browser has {approvedEmails.length} approve stamp{approvedEmails.length === 1 ? '' : 's'} stored locally. promote them to <em>bench</em> on the Sheet; everything else not yet rejected/paused becomes <em>new</em>.
+        </div>
+        <button type="button" onClick={run} disabled={busy || !approvedEmails.length}
+          style={{ ...adminIntentBtn('approve', 'full'), padding: '7px 12px', fontSize: 10, opacity: busy ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+          {busy ? 'migrating…' : `migrate ${approvedEmails.length} → bench →`}
+        </button>
+      </div>
+      {done && (
+        <p style={{ fontFamily: GM, fontSize: 10, color: '#7A4A0E', margin: '10px 0 0' }}>
+          ✓ {done.approvedRows} flipped to bench · {done.pendingRows} flipped to new · {done.untouchedRows} untouched (rejected/paused)
+        </p>
+      )}
+    </div>
+  );
+}
+
 // One-click 'send everything not on the bench → rejects bin'. The user's
 // flow needs to be: review applications -> approve onto the bench. Anything
 // else is a reject. This button collapses the leftover pending parking-lot
@@ -7174,6 +7268,13 @@ function AdminBenchBrowser({ secret }) {
       {/* Bulk archive — collapses pending parking-lot into rejects bin so
           the bench is two-state: approved (on bench) or denied (in bin). */}
       <BulkArchivePendingButton secret={secret} append={append} refreshBench={refreshBench} bench={bench} />
+
+      {/* One-time migration: read every approve stamp from this browser's
+          localStorage, POST those emails to /api/migrate-approvals. The
+          server flips matched rows to 'bench', everything else (that isn't
+          already rejected/paused) to 'new'. Run once per operator-browser
+          combo; auto-hides after a successful run on this machine. */}
+      <BenchMigrateFromStampsButton secret={secret} append={append} pastActions={pastActions} refreshBench={refreshBench} />
 
       {/* Sync banner + migrate tool removed: Sheet is the single source
           of truth now. Use the bench-update endpoint via approve/deny/

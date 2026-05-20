@@ -195,10 +195,13 @@ export async function updateBenchStatusByEmail(email, newStatus) {
   return { updated: r.updated, rowNumber: found.rowNumber };
 }
 
-// Bulk migration. Reads the entire bench, sets every row's status:
-//   - emails listed in `approvedEmails` (case-insensitive) → 'approved'
-//   - everything else currently 'active' or empty           → 'pending'
-//   - existing 'cold'/'duplicate'/'denied' rows are untouched
+// Bulk migration to the four-state vocabulary. Reads the entire bench,
+// sets every row's status:
+//   - emails in `approvedEmails` (case-insensitive)         → 'bench'
+//   - everything else not already rejected/paused/legacy-no → 'new'
+//   - existing rejected / denied / cold / duplicate / paused → untouched
+// (Legacy values like 'active' / 'approved' on rows NOT in the approved
+// list flip to 'new' so the operator can re-review them.)
 // One batchUpdate call → fast even on hundreds of rows.
 export async function migrateApprovalsBulk(approvedEmails) {
   if (!process.env.SHEETS_SPREADSHEET_ID) throw new Error('SHEETS_SPREADSHEET_ID not configured');
@@ -211,19 +214,20 @@ export async function migrateApprovalsBulk(approvedEmails) {
   const rows = res.data.values || [];
   const data = [];
   let approvedCount = 0, pendingCount = 0, untouchedCount = 0;
+  const REJECTED_STATES = new Set(['rejected','denied','cold','duplicate','paused']);
   // i=1 skips header row
   for (let i = 1; i < rows.length; i++) {
     const email = String(rows[i][2] || '').trim().toLowerCase();
     const currentStatus = String(rows[i][18] || '').trim().toLowerCase();
     let nextStatus = null;
     if (approvedSet.has(email)) {
-      if (currentStatus !== 'approved') nextStatus = 'approved';
+      if (currentStatus !== 'bench') nextStatus = 'bench';
       approvedCount++;
-    } else if (currentStatus === 'cold' || currentStatus === 'duplicate' || currentStatus === 'denied') {
+    } else if (REJECTED_STATES.has(currentStatus)) {
       untouchedCount++;
     } else {
-      // 'active', '', 'approved' (orphaned), or unknown → 'pending'
-      if (currentStatus !== 'pending') nextStatus = 'pending';
+      // 'active', '', 'approved' (orphaned), 'new', or unknown → 'new'
+      if (currentStatus !== 'new') nextStatus = 'new';
       pendingCount++;
     }
     if (nextStatus) {
