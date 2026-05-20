@@ -7242,6 +7242,11 @@ function BenchAdmin({ secret }) {
   const [filter, setFilter] = React.useState('');
   const [log, setLog] = React.useState([]);
   const [busyEmail, setBusyEmail] = React.useState(null);
+  // Per-session toggle: when checked, queue approves do NOT fire the
+  // welcome email. Defaults off (welcome fires) — matches the original
+  // contract that approve = onboarding. Flip on when re-approving an
+  // existing creative or when you'd rather email them manually later.
+  const [skipWelcome, setSkipWelcome] = React.useState(false);
   const append = (msg) => setLog((L) => [...L.slice(-40), `${new Date().toLocaleTimeString()} · ${msg}`]);
 
   const fetchAll = React.useCallback(async () => {
@@ -7301,7 +7306,9 @@ function BenchAdmin({ secret }) {
         append(`✗ ${action} ${email} · ${(j && j.error) || r.status}`);
       } else {
         const mode = j.mode === 'appended' ? '(new row)' : j.mode === 'updated' ? `(${j.rowsTouched} row${j.rowsTouched === 1 ? '' : 's'} touched)` : '';
-        const welcome = j.welcome && j.welcome.sent ? ' · welcome email sent' : '';
+        const welcome = j.welcome && j.welcome.sent ? ' · welcome email sent'
+                      : (action === 'approve' && opts.sendWelcome === false) ? ' · welcome skipped'
+                      : '';
         append(`✓ ${action} ${row.name || email} ${mode}${welcome}`);
       }
       // Refetch — server is the truth, no optimistic local state to manage.
@@ -7401,7 +7408,7 @@ function BenchAdmin({ secret }) {
           {row.valueProp && <div style={{ marginTop: 4, fontSize: 11, color: C.ink, fontStyle: 'italic' }}>"{String(row.valueProp).slice(0, 200)}{String(row.valueProp).length > 200 ? '…' : ''}"</div>}
         </div>
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {isQueue && actionBtn('approve →', 'approve', () => act('approve', row, { sendWelcome: true }), busy)}
+          {isQueue && actionBtn('approve →', 'approve', () => act('approve', row, { sendWelcome: !skipWelcome }), busy)}
           {!isQueue && tab === 'bench' && actionBtn('pause', 'skip', () => act('pause', row), busy)}
           {!isQueue && tab === 'paused' && actionBtn('unpause', 'approve', () => act('unpause', row), busy)}
           {!isQueue && tab === 'rejected' && actionBtn('approve', 'approve', () => act('approve', row), busy)}
@@ -7441,8 +7448,19 @@ function BenchAdmin({ secret }) {
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
         placeholder="filter by name, email, discipline, referrer…"
-        style={{ ...FIELD, marginBottom: 14 }}
+        style={{ ...FIELD, marginBottom: 10 }}
       />
+      {tab === 'queue' && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 14, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={skipWelcome}
+            onChange={(e) => setSkipWelcome(e.target.checked)}
+            style={{ accentColor: '#FF5100' }}
+          />
+          skip welcome email on approve · {skipWelcome ? 'silent approval' : 'creative gets the onboarding email'}
+        </label>
+      )}
       {!loading && visible.length === 0 && (
         <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, padding: '24px 14px', textAlign: 'center' }}>
           {tab === 'queue' ? 'queue is empty — no new applications waiting.' : `no rows in ${tab}.`}
