@@ -6814,7 +6814,7 @@ function BulkArchivePendingButton({ secret, append, refreshBench, updateBenchRow
 // promotion is done, hit 'clear local stamps' in the bench header to
 // wipe the localStorage and the panel disappears naturally. Always
 // additive — no destructive mode anywhere in this flow.
-function PromoteLocalStampsButton({ secret, append, pastActions, bench, refreshBench }) {
+function PromoteLocalStampsButton({ secret, append, pastActions, setPastActions, setSessionActions, bench, refreshBench, updateBenchRowStatus }) {
   const [busy, setBusy] = React.useState(false);
   const [done, setDone] = React.useState(null);
   // Resolve every approve stamp (any key type) to an email via the current bench.
@@ -6859,7 +6859,7 @@ function PromoteLocalStampsButton({ secret, append, pastActions, bench, refreshB
   }, [pastActions, bench]);
   const run = async () => {
     if (!approvedEmails.length) return;
-    if (!window.confirm(`Promote ${approvedEmails.length} email${approvedEmails.length === 1 ? '' : 's'} to bench? Already-bench rows unchanged. Rejected/paused rows skipped (never auto-resurrected). Nothing else on the Sheet is touched.`)) return;
+    if (!window.confirm(`FINAL MIGRATION: promote ${approvedEmails.length} email${approvedEmails.length === 1 ? '' : 's'} to bench, then wipe every local action stamp on this browser. After this, the Sheet is the only source of truth. Continue?`)) return;
     setBusy(true);
     try {
       const r = await fetch('/api/migrate-approvals', {
@@ -6870,11 +6870,35 @@ function PromoteLocalStampsButton({ secret, append, pastActions, bench, refreshB
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) {
         append(`✗ promote · ${(j && j.error) || r.status}`);
-      } else {
-        setDone(j);
-        append(`✓ promote · ${j.approvedRows} on bench · ${j.cellsUpdated} cells written · ${j.untouchedRows} untouched`);
-        if (refreshBench) setTimeout(refreshBench, 600);
+        setBusy(false);
+        return;
       }
+      // Mirror to local bench so the in-review tab drops immediately —
+      // every email in the promoted list with a current row flips to
+      // approved in client state (unless it was rejected/paused).
+      const promoted = new Set(approvedEmails);
+      for (const row of (bench || [])) {
+        const e = (row.emailRaw || '').toLowerCase();
+        if (!e || !promoted.has(e)) continue;
+        const st = String(row.status || '').toLowerCase();
+        if (['denied','cold','duplicate','paused'].includes(st)) continue;  // safety
+        if (row.id != null || row.emailRaw) {
+          try { updateBenchRowStatus({ id: row.id, email: row.emailRaw }, 'approved'); } catch {}
+        }
+      }
+      // FINAL STEP: wipe every local action stamp on this browser. The
+      // Sheet has just been updated; we never need localStorage state
+      // again. From here on, Sheet is the only source of truth.
+      try {
+        localStorage.removeItem('colophon_admin_actions');
+        localStorage.removeItem('colophon_reviewed');
+        localStorage.removeItem('colophon_bench_mutations');
+      } catch {}
+      if (setPastActions) setPastActions({});
+      if (setSessionActions) setSessionActions({});
+      setDone(j);
+      append(`✓ FINAL · ${j.approvedRows} promoted to bench · localStorage stamps wiped`);
+      if (refreshBench) setTimeout(refreshBench, 600);
     } catch (ex) {
       append(`✗ promote · ${ex.message || 'network'}`);
     }
@@ -6887,11 +6911,11 @@ function PromoteLocalStampsButton({ secret, append, pastActions, bench, refreshB
     <div style={{ marginBottom: 14, padding: '12px 14px', border: '2px solid #FF5100', background: 'rgba(255,81,0,0.06)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ fontFamily: GM, fontSize: 12, color: '#0d0d0b', lineHeight: 1.5 }}>
-          <strong>recover {approvedEmails.length} local stamp{approvedEmails.length === 1 ? '' : 's'} → bench.</strong> <span style={{ color: C.soft }}>safe to run. promotes only — no demotions.</span>
+          <strong>FINAL MIGRATION · {approvedEmails.length} stamp{approvedEmails.length === 1 ? '' : 's'} → bench.</strong> <span style={{ color: C.soft }}>one click: promote, mirror locally, wipe all localStorage. after this the Sheet is the only truth on this browser.</span>
         </div>
         <button type="button" onClick={run} disabled={busy || !approvedEmails.length}
           style={{ ...adminIntentBtn('approve', 'full'), padding: '9px 16px', fontSize: 12, fontWeight: 600, opacity: (busy || !approvedEmails.length) ? 0.5 : 1, whiteSpace: 'nowrap' }}>
-          {busy ? 'promoting…' : `promote ${approvedEmails.length} → bench`}
+          {busy ? 'finalizing…' : `FINAL: promote ${approvedEmails.length} → bench + wipe`}
         </button>
       </div>
       <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, margin: '6px 0 0', lineHeight: 1.5 }}>
@@ -7308,7 +7332,7 @@ function AdminBenchBrowser({ secret }) {
       {/* Local-stamps recovery — surfaces only when localStorage has approve
           stamps not yet reflected on the Sheet. Safe (additive only). When
           everything is reconciled, the panel disappears naturally. */}
-      <PromoteLocalStampsButton secret={secret} append={append} pastActions={pastActions} bench={bench} refreshBench={refreshBench} />
+      <PromoteLocalStampsButton secret={secret} append={append} pastActions={pastActions} setPastActions={setPastActions} setSessionActions={setSessionActions} bench={bench} refreshBench={refreshBench} updateBenchRowStatus={updateBenchRowStatus} />
 
       {/* Sync banner + migrate tool removed: Sheet is the single source
           of truth now. Use the bench-update endpoint via approve/deny/
