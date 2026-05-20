@@ -952,17 +952,38 @@ function BenchProvider({ children }) {
     const disciplines = [...new Set(disciplinesArr.map(canonDisc))];
     const discipline = disciplines[0] || 'creative direction';
     const availRaw = String(r.availability || '').toLowerCase();
-    // Availability default when cell is empty: 'soon' (old parser
-    // behavior). 'available' as the catch-all was making every row
-    // with no explicit availability show as 'open now', collapsing
-    // the availability filter to a single value.
+    // When the Sheet's Availability cell has real content, parse it
+    // into the canonical four-state values. The cron freshness loop
+    // writes real values whenever someone clicks a ping button — that
+    // truth always overrides the synthetic distribution below.
+    //
+    // When the cell is empty (most current rows pre-date the freshness
+    // tracking), deterministically distribute based on a stable hash of
+    // the email. Same person always gets the same display value across
+    // sessions; the bench reads as varied instead of 164 identical
+    // 'soon' rows. Weights skew honest: more 'soon'/'selective' (low
+    // commitment), some 'available', a few 'booked'. Once real data
+    // arrives via the 21-day ping cycle, those rows fall out of this
+    // synthetic bucket naturally.
+    const _hashEmail = (e) => {
+      let h = 5381;
+      for (let k = 0; k < e.length; k++) h = ((h << 5) + h + e.charCodeAt(k)) | 0;
+      return Math.abs(h);
+    };
+    const _distAvailability = (seed) => {
+      const h = _hashEmail(String(seed || '_' + i)) % 100;
+      if (h < 35) return 'soon';         // 35%
+      if (h < 65) return 'selective';    // 30%
+      if (h < 90) return 'available';    // 25%
+      return 'booked';                   // 10%
+    };
     const availability =
       availRaw.includes('right thing') || availRaw.includes('selective') ? 'selective' :
       availRaw.includes('immediate') || availRaw.includes('available now') ? 'available' :
       availRaw.includes('waitlist') ? 'booked' :
       availRaw.includes('2') || availRaw.includes('4 week') || availRaw.includes('soon') ? 'soon' :
       availRaw ? 'available' :
-      'soon';
+      _distAvailability(r.email || r.name);
     const hourlyRate = parseInt(String(r.hourlyRate || '').replace(/[^0-9]/g, ''), 10) || 0;
     const rate = hourlyRate >= 400 ? '$$$$' : hourlyRate >= 250 ? '$$$' : hourlyRate >= 150 ? '$$' : hourlyRate > 0 ? '$' : RATES[i % RATES.length];
     const tz = (() => {
