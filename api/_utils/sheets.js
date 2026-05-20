@@ -229,8 +229,17 @@ export async function migrateApprovalsBulk(approvedEmails, opts = {}) {
     const currentStatus = String(rows[i][18] || '').trim().toLowerCase();
     let nextStatus = null;
     if (approvedSet.has(email)) {
-      if (currentStatus !== 'bench') nextStatus = 'bench';
-      approvedCount++;
+      // Safety: don't auto-resurrect a previously-rejected or paused row
+      // just because an old approve stamp listed it. The operator must
+      // explicitly approve via /api/bench-update to undo a rejection.
+      if (REJECTED_STATES.has(currentStatus)) {
+        untouchedCount++;
+      } else if (currentStatus !== 'bench') {
+        nextStatus = 'bench';
+        approvedCount++;
+      } else {
+        approvedCount++;
+      }
     } else if (REJECTED_STATES.has(currentStatus)) {
       untouchedCount++;
     } else if (mode === 'additive') {
