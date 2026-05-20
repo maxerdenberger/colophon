@@ -6794,7 +6794,10 @@ function PromoteLocalStampsButton({ secret, append, pastActions, bench, refreshB
   const [busy, setBusy] = React.useState(false);
   const [done, setDone] = React.useState(null);
   // Resolve every approve stamp (any key type) to an email via the current bench.
-  const approvedEmails = React.useMemo(() => {
+  // Also count: total stamps in localStorage, vs. resolved emails. Surfaces
+  // both so the operator can debug 'why is N small?' (usually: the bench
+  // doesn't include those rows so name/id keys can't be looked up).
+  const { approvedEmails, totalStamps, perKind, unresolved } = React.useMemo(() => {
     const byId = new Map(), byName = new Map();
     for (const r of (bench || [])) {
       if (!r || !r.emailRaw) continue;
@@ -6804,16 +6807,31 @@ function PromoteLocalStampsButton({ secret, append, pastActions, bench, refreshB
       if (r.realName) byName.set(String(r.realName).toLowerCase(), email);
     }
     const seen = new Set();
+    let total = 0, fromEmail = 0, fromName = 0, fromId = 0, lost = 0;
+    const lostKeys = [];
     for (const [key, ops] of Object.entries(pastActions || {})) {
       if (!ops || !ops.approve) continue;
       if (ops.deny || ops.reject || ops.revoke) continue;
+      total++;
       let email = null;
-      if (key.startsWith('e:')) email = key.slice(2);
-      else if (key.startsWith('n:')) email = byName.get(key.slice(2)) || null;
-      else email = byId.get(key) || null;
+      if (key.startsWith('e:')) {
+        email = key.slice(2);
+        if (email && email.includes('@')) fromEmail++;
+      } else if (key.startsWith('n:')) {
+        email = byName.get(key.slice(2)) || null;
+        if (email) fromName++; else { lost++; lostKeys.push(key); }
+      } else {
+        email = byId.get(key) || null;
+        if (email) fromId++; else { lost++; lostKeys.push(key); }
+      }
       if (email && email.includes('@')) seen.add(email);
     }
-    return Array.from(seen).sort();
+    return {
+      approvedEmails: Array.from(seen).sort(),
+      totalStamps: total,
+      perKind: { fromEmail, fromName, fromId, lost },
+      unresolved: lostKeys.slice(0, 20),
+    };
   }, [pastActions, bench]);
   const run = async () => {
     if (!approvedEmails.length) return;
@@ -6838,19 +6856,30 @@ function PromoteLocalStampsButton({ secret, append, pastActions, bench, refreshB
     }
     setBusy(false);
   };
-  // Hide the panel when there's nothing to recover.
-  if (!approvedEmails.length && !done) return null;
+  // Always render when there are approve stamps in localStorage.
+  // The diagnostic block below explains why a count might be 0.
+  if (!totalStamps && !done) return null;
   return (
     <div style={{ marginBottom: 14, padding: '12px 14px', border: '2px solid #FF5100', background: 'rgba(255,81,0,0.06)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ fontFamily: GM, fontSize: 12, color: '#0d0d0b', lineHeight: 1.5 }}>
-          <strong>recover {approvedEmails.length} local stamp{approvedEmails.length === 1 ? '' : 's'} → bench.</strong> <span style={{ color: C.soft }}>safe to run. promotes only — no demotions. when you're done, hit <em>clear local stamps</em> in the header.</span>
+          <strong>recover {approvedEmails.length} local stamp{approvedEmails.length === 1 ? '' : 's'} → bench.</strong> <span style={{ color: C.soft }}>safe to run. promotes only — no demotions.</span>
         </div>
         <button type="button" onClick={run} disabled={busy || !approvedEmails.length}
-          style={{ ...adminIntentBtn('approve', 'full'), padding: '9px 16px', fontSize: 12, fontWeight: 600, opacity: busy ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+          style={{ ...adminIntentBtn('approve', 'full'), padding: '9px 16px', fontSize: 12, fontWeight: 600, opacity: (busy || !approvedEmails.length) ? 0.5 : 1, whiteSpace: 'nowrap' }}>
           {busy ? 'promoting…' : `promote ${approvedEmails.length} → bench`}
         </button>
       </div>
+      <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, margin: '6px 0 0', lineHeight: 1.5 }}>
+        {totalStamps} approve stamp{totalStamps === 1 ? '' : 's'} in localStorage on this browser ·{' '}
+        resolved {approvedEmails.length} to emails ({perKind.fromEmail} via email, {perKind.fromName} via name, {perKind.fromId} via id)
+        {perKind.lost > 0 && ` · ${perKind.lost} couldn't be matched to a bench row`}
+      </p>
+      {totalStamps > 0 && approvedEmails.length === 0 && (
+        <p style={{ fontFamily: GM, fontSize: 10, color: '#7A1818', margin: '8px 0 0', lineHeight: 1.5 }}>
+          stamps exist but none match a row currently on the bench. usually means: the bench is empty/loading, or those rows were rejected/paused and have been excluded. wait for the bench to load (lower table shows row count), then check again.
+        </p>
+      )}
       {done && (
         <p style={{ fontFamily: GM, fontSize: 10, color: '#0d0d0b', margin: '10px 0 0' }}>
           ✓ {done.approvedRows} on bench · {done.untouchedRows} untouched · refresh from Sheet to see them
