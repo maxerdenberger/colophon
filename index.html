@@ -6950,6 +6950,249 @@ function PromoteLocalStampsButton({ secret, append, pastActions, setPastActions,
 // Read-only bench browser with per-row approve/deny/revoke + manual-add.
 // Action buttons POST to /api/bench-update (server-side endpoint must
 // implement the Sheets write-back). Failures surface in the inline log.
+// ─── BenchAdmin ─────────────────────────────────────────────────────────
+// THE single admin component for bench management. Replaces the legacy
+// AdminBenchBrowser + AdminFormspreeApproval + helper panels.
+//
+// Reads /api/bench + /api/queue. Every action POSTs to /api/action.
+// Zero localStorage. Refetches after each action. Sheet is the truth;
+// this is just the interface.
+//
+// Four tabs: Queue (new submissions) · Bench (status=bench) ·
+// Rejected (status=rejected) · Paused (status=paused). Counts in the
+// label come straight from the API response, no client-side bookkeeping.
+function BenchAdmin({ secret }) {
+  const [bench, setBench] = React.useState(null);     // /api/bench { rows, count }
+  const [queue, setQueue] = React.useState(null);     // /api/queue { queue, queueCount, newsletter, ... }
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState('');
+  const [tab, setTab] = React.useState('queue');
+  const [filter, setFilter] = React.useState('');
+  const [log, setLog] = React.useState([]);
+  const [busyEmail, setBusyEmail] = React.useState(null);
+  const append = (msg) => setLog((L) => [...L.slice(-40), `${new Date().toLocaleTimeString()} · ${msg}`]);
+
+  const fetchAll = React.useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      const [bRes, qRes] = await Promise.all([
+        fetch('/api/bench?status=all', { headers: { Authorization: `Bearer ${secret}` } }),
+        fetch('/api/queue', { headers: { Authorization: `Bearer ${secret}` } }),
+      ]);
+      const b = await bRes.json();
+      const q = await qRes.json();
+      if (!bRes.ok) { setError(b.error || `bench: ${bRes.status}`); }
+      else setBench(b);
+      if (!qRes.ok) { setError((e) => e || q.error || `queue: ${qRes.status}`); }
+      else setQueue(q);
+    } catch (ex) {
+      setError(ex.message || 'fetch failed');
+    }
+    setLoading(false);
+  }, [secret]);
+
+  React.useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const act = async (action, row, opts = {}) => {
+    const email = (row.email || '').toLowerCase();
+    if (!email.includes('@')) {
+      append(`✗ ${action}: no email on row (${row.name || 'unnamed'})`);
+      return;
+    }
+    setBusyEmail(email);
+    try {
+      const body = {
+        action,
+        email,
+        name:        row.name,
+        portfolio:   row.portfolio,
+        linkedin:    row.linkedin,
+        disciplines: row.disciplines || row.discipline,
+        timezone:    row.timezone || row.tz,
+        availability:row.availability,
+        hourlyRate:  row.hourlyRate,
+        topClients:  row.topClients,
+        expLevel:    row.expLevel,
+        valueProp:   row.valueProp || row.summary,
+        partners:    row.partners,
+        referral:    row.referral,
+        social:      row.social,
+        sendWelcome: !!opts.sendWelcome,
+      };
+      const r = await fetch('/api/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) {
+        append(`✗ ${action} ${email} · ${(j && j.error) || r.status}`);
+      } else {
+        const mode = j.mode === 'appended' ? '(new row)' : j.mode === 'updated' ? `(${j.rowsTouched} row${j.rowsTouched === 1 ? '' : 's'} touched)` : '';
+        const welcome = j.welcome && j.welcome.sent ? ' · welcome email sent' : '';
+        append(`✓ ${action} ${row.name || email} ${mode}${welcome}`);
+      }
+      // Refetch — server is the truth, no optimistic local state to manage.
+      await fetchAll();
+    } catch (ex) {
+      append(`✗ ${action} ${email} · ${ex.message || 'network'}`);
+    }
+    setBusyEmail(null);
+  };
+
+  const benchRows = (bench && bench.rows) || [];
+  const queueRows = (queue && queue.queue) || [];
+  const newsletter = (queue && queue.newsletter) || [];
+
+  const counts = {
+    queue:    queueRows.length,
+    bench:    benchRows.filter((r) => r.status === 'bench').length,
+    rejected: benchRows.filter((r) => r.status === 'rejected').length,
+    paused:   benchRows.filter((r) => r.status === 'paused').length,
+    newish:   benchRows.filter((r) => r.status === 'new').length,
+  };
+
+  const matchFilter = (row) => {
+    if (!filter) return true;
+    const q = filter.toLowerCase();
+    return (
+      String(row.name || '').toLowerCase().includes(q) ||
+      String(row.email || '').toLowerCase().includes(q) ||
+      String(row.disciplines || '').toLowerCase().includes(q) ||
+      String(row.referral || '').toLowerCase().includes(q)
+    );
+  };
+
+  let visible = [];
+  if (tab === 'queue')   visible = queueRows.filter(matchFilter);
+  if (tab === 'bench')   visible = benchRows.filter((r) => r.status === 'bench').filter(matchFilter);
+  if (tab === 'rejected')visible = benchRows.filter((r) => r.status === 'rejected').filter(matchFilter);
+  if (tab === 'paused')  visible = benchRows.filter((r) => r.status === 'paused').filter(matchFilter);
+  if (tab === 'newish')  visible = benchRows.filter((r) => r.status === 'new').filter(matchFilter);
+
+  // Newest-first for queue (FIFO already from server), most-recently-touched first elsewhere.
+  if (tab !== 'queue') {
+    visible = visible.slice().sort((a, b) => (b.lastUpdatedTs || b.createdAtTs || 0) - (a.lastUpdatedTs || a.createdAtTs || 0));
+  }
+
+  const tabBtn = (key, label) => {
+    const active = tab === key;
+    return (
+      <button type="button" key={key} onClick={() => setTab(key)}
+        style={{
+          fontFamily: GM, fontSize: 11, letterSpacing: '0.05em',
+          padding: '8px 14px', cursor: 'pointer', borderRadius: 4,
+          background: active ? C.ink : 'transparent',
+          color:      active ? C.cream : C.ink,
+          border: `1px solid ${active ? C.ink : 'rgba(13,13,11,0.18)'}`,
+          transition: 'background 0.12s ease, color 0.12s ease',
+        }}>
+        {label}
+      </button>
+    );
+  };
+
+  const actionBtn = (label, intent, onClick, disabled) => (
+    <button type="button" onClick={onClick} disabled={disabled}
+      style={{ ...adminIntentBtn(intent, disabled ? 'empty' : 'full'), padding: '5px 11px', fontSize: 10, opacity: disabled ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+      {label}
+    </button>
+  );
+
+  const renderRow = (row, idx) => {
+    const isQueue = tab === 'queue';
+    const email = String(row.email || '').toLowerCase();
+    const busy = busyEmail === email;
+    const flag = row.previouslyRejected ? 'PREVIOUSLY REJECTED' : row.duplicateOnSheet ? 'ALREADY ON SHEET' : null;
+    return (
+      <div key={row.email + '-' + (row.rowNumber || row.id || idx)}
+        style={{ padding: '12px 14px', borderBottom: '1px solid rgba(13,13,11,0.06)', display: 'grid', gridTemplateColumns: '40px 1fr auto', gap: 10, alignItems: 'center', fontFamily: GM, fontSize: 11, opacity: busy ? 0.5 : 1 }}>
+        <span style={{ color: C.soft, fontSize: 10 }}>{String(idx + 1).padStart(3, '0')}</span>
+        <div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'baseline', marginBottom: 3 }}>
+            <span style={{ fontFamily: GS, fontWeight: 600, fontSize: 13 }}>{row.name || '(no name)'}</span>
+            {row.email && <span style={{ color: C.soft, fontSize: 11 }}>{row.email}</span>}
+            {flag && (
+              <span style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.12em', color: '#7A1818', background: 'rgba(176,64,64,0.08)', border: '1px solid rgba(176,64,64,0.3)', padding: '1px 6px', borderRadius: 3 }}>{flag}</span>
+            )}
+          </div>
+          <div style={{ color: C.soft, fontSize: 10, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {row.disciplines && <span>{row.disciplines}</span>}
+            {row.hourlyRate ? <span>${row.hourlyRate}/hr</span> : null}
+            {row.yoe ? <span>{row.yoe}y</span> : null}
+            {row.timezone && <span>{row.timezone}</span>}
+            {row.availability && <span>{row.availability}</span>}
+            {row.referral && <span>← {row.referral}</span>}
+            {row.portfolio && <a href={normalizeUrl(row.portfolio)} target="_blank" rel="noreferrer" style={{ color: C.ink, textDecoration: 'underline' }}>portfolio ↗</a>}
+            {row.linkedin && <a href={normalizeUrl(row.linkedin)} target="_blank" rel="noreferrer" style={{ color: C.ink, textDecoration: 'underline' }}>linkedin ↗</a>}
+          </div>
+          {row.valueProp && <div style={{ marginTop: 4, fontSize: 11, color: C.ink, fontStyle: 'italic' }}>"{String(row.valueProp).slice(0, 200)}{String(row.valueProp).length > 200 ? '…' : ''}"</div>}
+        </div>
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {isQueue && actionBtn('approve →', 'approve', () => act('approve', row, { sendWelcome: true }), busy)}
+          {!isQueue && tab === 'bench' && actionBtn('pause', 'skip', () => act('pause', row), busy)}
+          {!isQueue && tab === 'paused' && actionBtn('unpause', 'approve', () => act('unpause', row), busy)}
+          {!isQueue && tab === 'rejected' && actionBtn('approve', 'approve', () => act('approve', row), busy)}
+          {!isQueue && tab === 'newish' && actionBtn('approve', 'approve', () => act('approve', row), busy)}
+          {tab !== 'rejected' && actionBtn('reject', 'reject', () => act('reject', row), busy)}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ marginBottom: 36, border: '1px solid rgba(13,13,11,0.08)', padding: 18, background: '#fff' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+        <p style={{ fontFamily: GM, fontSize: 10, color: '#3D3C38', letterSpacing: '0.16em', textTransform: 'uppercase', margin: 0 }}>bench admin</p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <a href="/look" target="_blank" rel="noreferrer"
+            style={{ ...adminIntentBtn('neutral'), padding: '4px 10px', fontSize: 9, textDecoration: 'none' }}>
+            preview bench ↗
+          </a>
+          <button type="button" onClick={fetchAll} disabled={loading}
+            style={{ ...adminIntentBtn('neutral'), padding: '4px 10px', fontSize: 9, opacity: loading ? 0.5 : 1 }}>
+            {loading ? 'loading…' : 'refresh'}
+          </button>
+        </div>
+      </div>
+      {error && (
+        <div style={{ padding: '10px 12px', marginBottom: 12, background: 'rgba(176,64,64,0.06)', border: '1px solid #b04040', color: '#7a1818', fontFamily: GM, fontSize: 11 }}>{error}</div>
+      )}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+        {tabBtn('queue',   `queue · ${counts.queue}`)}
+        {tabBtn('bench',   `bench · ${counts.bench}`)}
+        {tabBtn('rejected',`rejected · ${counts.rejected}`)}
+        {tabBtn('paused',  `paused · ${counts.paused}`)}
+        {counts.newish > 0 && tabBtn('newish', `legacy "new" · ${counts.newish}`)}
+      </div>
+      <input
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        placeholder="filter by name, email, discipline, referrer…"
+        style={{ ...FIELD, marginBottom: 14 }}
+      />
+      {!loading && visible.length === 0 && (
+        <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, padding: '24px 14px', textAlign: 'center' }}>
+          {tab === 'queue' ? 'queue is empty — no new applications waiting.' : `no rows in ${tab}.`}
+        </p>
+      )}
+      {visible.length > 0 && (
+        <div style={{ maxHeight: 640, overflowY: 'auto', border: '1px solid rgba(13,13,11,0.06)' }}>
+          {visible.map(renderRow)}
+        </div>
+      )}
+      {newsletter.length > 0 && tab === 'queue' && (
+        <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, margin: '14px 0 0' }}>
+          + {newsletter.length} newsletter signup{newsletter.length === 1 ? '' : 's'} (not shown here — these are email-only captures, export separately when ready to blast)
+        </p>
+      )}
+      {log.length > 0 && (
+        <pre style={{ fontFamily: GM, fontSize: 11, color: '#0d0d0b', background: '#F2EDE4', padding: 12, borderRadius: 4, lineHeight: 1.55, whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto', marginTop: 14 }}>{log.join('\n')}</pre>
+      )}
+    </div>
+  );
+}
+
 function AdminBenchBrowser({ secret }) {
   const { allBench, noDataBench, refreshBench, loading: benchLoading, updateBenchRowStatus, lastSync } = useBench();
   const bench = allBench;
@@ -7883,11 +8126,9 @@ function AdminPage({ accent, setPage }) {
         {/* ── Revenue + sunk costs (Stripe summary). ───────────────────── */}
         <AdminRevenuePanel secret={secret} />
 
-        {/* ── Bench browser — approve / deny / revoke / add. ───────────── */}
-        <AdminBenchBrowser secret={secret} />
-
-        {/* ── Formspree → bench approval queue. ─────────────────────────── */}
-        <AdminFormspreeApproval secret={secret} />
+        {/* ── BENCH ADMIN — queue / bench / rejected / paused.
+              Single source of truth: the Sheet. Zero localStorage. ──── */}
+        <BenchAdmin secret={secret} />
 
         {/* ── Concierge brief → bespoke bench match queue. ───────────────── */}
         <AdminConciergePanel secret={secret} />
