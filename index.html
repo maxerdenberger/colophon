@@ -6677,9 +6677,10 @@ function BenchMigrateFromStampsButton({ secret, append, pastActions, bench, refr
   const [busy, setBusy]   = React.useState(false);
   const [done, setDone]   = React.useState(null);
   const [showPreview, setShowPreview] = React.useState(false);
-  const [hidden, setHidden] = React.useState(() => {
-    try { return !!localStorage.getItem('colophon_migrated_at'); } catch { return false; }
-  });
+  // Note: removed the auto-hide-after-first-run gate. The migration is
+  // additive now (only promotes — never demotes), so re-running it any
+  // time is safe and often necessary as the bench data fills in over time.
+  const [showEditor, setShowEditor] = React.useState(false);
 
   // recordAction stamps EVERY key it has for a row: numeric id, 'n:name',
   // 'n:realName', and 'e:email'. The previous extraction only walked
@@ -6730,80 +6731,97 @@ function BenchMigrateFromStampsButton({ secret, append, pastActions, bench, refr
       unresolved: dropped,
     };
   }, [pastActions, bench]);
-  const run = async () => {
-    if (!approvedEmails.length) {
-      append('migrate · no approve stamps on this browser');
+  // Editable email pool — pre-filled with the resolved approve stamps so
+  // the operator can paste extras (from their own notes, exports, etc),
+  // remove false positives, then promote. Lives in a textarea so the
+  // operator can repair the bench line-by-line if needed.
+  const [emailsText, setEmailsText] = React.useState('');
+  React.useEffect(() => {
+    // Seed the textarea when approvedEmails first resolves (once bench loads)
+    if (approvedEmails.length && !emailsText) {
+      setEmailsText(approvedEmails.join('\n'));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [approvedEmails.length]);
+
+  const parseEmails = (text) => Array.from(new Set(
+    String(text || '')
+      .split(/[\s,;]+/)
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.includes('@'))
+  ));
+  const editedEmails = parseEmails(emailsText);
+
+  const run = async (mode) => {
+    if (!editedEmails.length) {
+      append('promote · no valid emails');
       return;
     }
-    if (!window.confirm(`One-time migration: flip ${approvedEmails.length} approved-locally email${approvedEmails.length === 1 ? '' : 's'} on the Sheet to 'bench'. Resolved from ${breakdown.fromEmail} email keys + ${breakdown.fromName} name keys + ${breakdown.fromId} id keys (de-duped). Everything else not already rejected/paused flips to 'new'. Continue?`)) return;
+    const verb = mode === 'normalize'
+      ? `Promote ${editedEmails.length} email${editedEmails.length === 1 ? '' : 's'} to 'bench' AND flip everything else not yet rejected/paused to 'new'. This is destructive — anyone not in your list gets demoted.`
+      : `Promote ${editedEmails.length} email${editedEmails.length === 1 ? '' : 's'} to 'bench'. Other rows untouched. Safe to run multiple times.`;
+    if (!window.confirm(verb + ' Continue?')) return;
     setBusy(true);
     try {
       const r = await fetch('/api/migrate-approvals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
-        body: JSON.stringify({ emails: approvedEmails }),
+        body: JSON.stringify({ emails: editedEmails, mode }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) {
-        append(`✗ migrate · ${(j && j.error) || r.status}`);
+        append(`✗ promote · ${(j && j.error) || r.status}`);
         setBusy(false);
         return;
       }
       setDone(j);
-      append(`✓ migrate · ${j.cellsUpdated} cells updated · ${j.approvedRows} → bench · ${j.pendingRows} → new · ${j.untouchedRows} untouched`);
-      try { localStorage.setItem('colophon_migrated_at', new Date().toISOString()); } catch {}
+      append(`✓ promote · ${j.cellsUpdated} cells updated · ${j.approvedRows} → bench${mode === 'normalize' ? ` · ${j.pendingRows} → new` : ''} · ${j.untouchedRows} untouched`);
       if (refreshBench) setTimeout(refreshBench, 600);
     } catch (ex) {
-      append(`✗ migrate · ${ex.message || 'network'}`);
+      append(`✗ promote · ${ex.message || 'network'}`);
     }
     setBusy(false);
   };
-  const undoHide = () => {
-    try { localStorage.removeItem('colophon_migrated_at'); } catch {}
-    setHidden(false);
-  };
-  if (hidden && !done) {
-    // Already migrated on this browser. Render a quiet 'rerun if needed'
-    // hairline — plus a hint when we'd now resolve more emails than last
-    // run (e.g. the bench has more rows now, so name/id keys resolve).
-    return (
-      <p style={{ fontFamily: GM, fontSize: 9, color: C.soft, margin: '0 0 14px', textAlign: 'right' }}>
-        one-time stamp→Sheet migration already run on this browser · resolves {approvedEmails.length} approved email{approvedEmails.length === 1 ? '' : 's'} now ·{' '}
-        <button type="button" onClick={undoHide}
-          style={{ background: 'transparent', border: 'none', color: '#FF5100', textDecoration: 'underline', cursor: 'pointer', fontFamily: GM, fontSize: 9, padding: 0 }}>
-          run again
-        </button>
-      </p>
-    );
-  }
   return (
     <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px dashed rgba(255,81,0,0.35)', background: 'rgba(255,81,0,0.05)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ fontFamily: GM, fontSize: 11, color: '#7A4A0E', lineHeight: 1.6 }}>
-          <strong>one-time migration</strong> · resolved <strong>{approvedEmails.length}</strong> unique approved emails from {breakdown.totalKeys} localStorage keys ({breakdown.fromEmail} via email · {breakdown.fromName} via name · {breakdown.fromId} via id{breakdown.droppedName + breakdown.droppedId > 0 ? ` · ${breakdown.droppedName + breakdown.droppedId} keys couldn't be resolved` : ''}). promote them to <em>bench</em> on the Sheet; everything else not yet rejected/paused becomes <em>new</em>.
+          <strong>promote to bench</strong> · {editedEmails.length} email{editedEmails.length === 1 ? '' : 's'} ready ({approvedEmails.length} resolved from {breakdown.totalKeys} local stamps: {breakdown.fromEmail} email · {breakdown.fromName} name · {breakdown.fromId} id). paste additional emails or remove false positives before promoting. safe to run multiple times — other rows are not touched.
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <button type="button" onClick={() => setShowPreview((b) => !b)}
+          <button type="button" onClick={() => setShowEditor((b) => !b)}
             style={{ ...adminIntentBtn('neutral'), padding: '7px 10px', fontSize: 10, whiteSpace: 'nowrap' }}>
-            {showPreview ? 'hide list' : `view ${approvedEmails.length} →`}
+            {showEditor ? 'hide editor' : `edit list (${editedEmails.length}) →`}
           </button>
-          <button type="button" onClick={run} disabled={busy || !approvedEmails.length}
+          <button type="button" onClick={() => run('additive')} disabled={busy || !editedEmails.length}
             style={{ ...adminIntentBtn('approve', 'full'), padding: '7px 12px', fontSize: 10, opacity: busy ? 0.5 : 1, whiteSpace: 'nowrap' }}>
-            {busy ? 'migrating…' : `migrate ${approvedEmails.length} → bench →`}
+            {busy ? 'promoting…' : `promote ${editedEmails.length} → bench →`}
           </button>
         </div>
       </div>
-      {showPreview && approvedEmails.length > 0 && (
-        <div style={{ marginTop: 10, padding: '8px 10px', background: '#fff', border: '1px solid rgba(13,13,11,0.08)', maxHeight: 280, overflowY: 'auto' }}>
-          <ul style={{ margin: 0, paddingLeft: 16, fontFamily: GM, fontSize: 10, color: C.ink, lineHeight: 1.7 }}>
-            {approvedEmails.slice(0, 200).map((e) => (<li key={e}>{e}</li>))}
-            {approvedEmails.length > 200 && <li style={{ color: C.soft }}>+{approvedEmails.length - 200} more</li>}
-          </ul>
+      {showEditor && (
+        <div style={{ marginTop: 10 }}>
+          <textarea value={emailsText} onChange={(e) => setEmailsText(e.target.value)}
+            rows={12}
+            placeholder="one email per line"
+            style={{ width: '100%', boxSizing: 'border-box', fontFamily: GM, fontSize: 11, padding: 10, border: '1px solid rgba(13,13,11,0.2)', borderRadius: 4, background: '#fff', resize: 'vertical', lineHeight: 1.5, color: C.ink }} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>{editedEmails.length} valid email{editedEmails.length === 1 ? '' : 's'} parsed.</span>
+            <button type="button" onClick={() => setEmailsText(approvedEmails.join('\n'))}
+              style={{ ...adminIntentBtn('neutral'), padding: '5px 9px', fontSize: 9 }}>
+              reset to resolved stamps
+            </button>
+            <button type="button" onClick={() => run('normalize')} disabled={busy || !editedEmails.length}
+              style={{ ...adminIntentBtn('reject', 'full'), padding: '5px 9px', fontSize: 9, opacity: busy ? 0.5 : 1 }}
+              title="DESTRUCTIVE — flips every other non-rejected row to 'new'. Use only on a known-complete list.">
+              {busy ? 'normalizing…' : 'promote + demote rest (destructive) →'}
+            </button>
+          </div>
         </div>
       )}
       {done && (
         <p style={{ fontFamily: GM, fontSize: 10, color: '#7A4A0E', margin: '10px 0 0' }}>
-          ✓ {done.approvedRows} flipped to bench · {done.pendingRows} flipped to new · {done.untouchedRows} untouched (rejected/paused). hit <em>refresh from Sheet ↻</em> to see the new bench count.
+          ✓ {done.approvedRows} flipped to bench{done.pendingRows ? ` · ${done.pendingRows} flipped to new` : ''} · {done.untouchedRows} untouched. hit <em>refresh from Sheet ↻</em> to see the new bench count.
         </p>
       )}
     </div>

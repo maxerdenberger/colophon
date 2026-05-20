@@ -34,7 +34,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const result = await migrateApprovalsBulk(cleaned);
+    const mode = (req.body && req.body.mode === 'normalize') ? 'normalize' : 'additive';
+    const result = await migrateApprovalsBulk(cleaned, { mode });
     return res.status(200).json({ ok: true, ...result, seedEmails: cleaned.length });
   } catch (err) {
     return res.status(500).json({

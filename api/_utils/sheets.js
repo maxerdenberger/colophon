@@ -195,15 +195,23 @@ export async function updateBenchStatusByEmail(email, newStatus) {
   return { updated: r.updated, rowNumber: found.rowNumber };
 }
 
-// Bulk migration to the four-state vocabulary. Reads the entire bench,
-// sets every row's status:
+// Bulk migration to the four-state vocabulary.
+//
+// mode='additive' (default, SAFE):
+//   - emails in `approvedEmails` (case-insensitive) → 'bench'
+//   - everything else                                → UNTOUCHED
+//   No demotions, no flipping legacy 'approved' rows to 'new'. Run it
+//   any number of times with different lists; rows only move up.
+//
+// mode='normalize' (the legacy behavior — destructive, use only on
+// a known-complete list):
 //   - emails in `approvedEmails` (case-insensitive)         → 'bench'
 //   - everything else not already rejected/paused/legacy-no → 'new'
 //   - existing rejected / denied / cold / duplicate / paused → untouched
-// (Legacy values like 'active' / 'approved' on rows NOT in the approved
-// list flip to 'new' so the operator can re-review them.)
+//
 // One batchUpdate call → fast even on hundreds of rows.
-export async function migrateApprovalsBulk(approvedEmails) {
+export async function migrateApprovalsBulk(approvedEmails, opts = {}) {
+  const mode = (opts && opts.mode) || 'additive';
   if (!process.env.SHEETS_SPREADSHEET_ID) throw new Error('SHEETS_SPREADSHEET_ID not configured');
   const sheets = client();
   const approvedSet = new Set((approvedEmails || []).map((e) => String(e || '').trim().toLowerCase()).filter(Boolean));
@@ -224,6 +232,11 @@ export async function migrateApprovalsBulk(approvedEmails) {
       if (currentStatus !== 'bench') nextStatus = 'bench';
       approvedCount++;
     } else if (REJECTED_STATES.has(currentStatus)) {
+      untouchedCount++;
+    } else if (mode === 'additive') {
+      // SAFE default — don't touch rows not in the input list. Whatever
+      // status they already have (approved, pending, active, '') stays
+      // until the operator explicitly addresses them.
       untouchedCount++;
     } else {
       // 'active', '', 'approved' (orphaned), 'new', or unknown → 'new'
