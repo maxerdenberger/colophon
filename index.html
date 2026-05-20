@@ -6749,7 +6749,11 @@ function BulkArchivePendingButton({ secret, append, refreshBench, updateBenchRow
             }
           }
         }
-        if (refreshBench) refreshBench();
+        // DON'T auto-refresh — Google's CSV publish is ~5min stale, and
+        // refreshing right now would overwrite the optimistic mirror with
+        // pre-archive data. The mutation cache holds the truth for 15min;
+        // when the user hits refresh manually (after Google catches up),
+        // they'll see the post-archive state.
       }
     } catch (ex) {
       append(`x archive-all-pending - ${ex.message || 'network'}`);
@@ -6886,19 +6890,25 @@ function PromoteLocalStampsButton({ secret, append, pastActions, setPastActions,
           try { updateBenchRowStatus({ id: row.id, email: row.emailRaw }, 'approved'); } catch {}
         }
       }
-      // FINAL STEP: wipe every local action stamp on this browser. The
-      // Sheet has just been updated; we never need localStorage state
-      // again. From here on, Sheet is the only source of truth.
+      // FINAL STEP: wipe the cosmetic-only stamps. pastActions/reviewed
+      // are localStorage filter/tint state that never drove anything
+      // meaningful — safe to wipe. We KEEP colophon_bench_mutations
+      // intact because it's the 15-min bridge that holds the optimistic
+      // state until Google's CSV publish catches up (~5min). Wiping it
+      // here would un-do the promotion the user just did, since the
+      // next refreshBench would fetch stale CSV and override the mirror.
       try {
         localStorage.removeItem('colophon_admin_actions');
         localStorage.removeItem('colophon_reviewed');
-        localStorage.removeItem('colophon_bench_mutations');
       } catch {}
       if (setPastActions) setPastActions({});
       if (setSessionActions) setSessionActions({});
       setDone(j);
-      append(`✓ FINAL · ${j.approvedRows} promoted to bench · localStorage stamps wiped`);
-      if (refreshBench) setTimeout(refreshBench, 600);
+      append(`✓ FINAL · ${j.approvedRows} promoted to bench · cosmetic stamps wiped (Sheet truth holds via 15min mutation cache; refresh after ~5min)`);
+      // No auto-refresh — Google CSV is stale right now. The mutation
+      // cache bridges 15min; manual refresh after Google publishes will
+      // show the post-promote state. Refreshing now would un-do the
+      // optimistic mirror.
     } catch (ex) {
       append(`✗ promote · ${ex.message || 'network'}`);
     }
