@@ -390,9 +390,11 @@ export async function bulkArchivePending() {
   const data = [];
   let count = 0;
   const ARCHIVE_STATES = new Set(['', 'pending', 'new']);
+  // Don't skip emailless rows — those are junk submissions / broken
+  // applications that were leaving the in-review tab non-zero forever.
+  // Anything in a parking-lot state gets flipped to rejected regardless
+  // of whether there's an email on the row.
   for (let i = 1; i < rows.length; i++) {
-    const email = String(rows[i][2] || '').trim().toLowerCase();
-    if (!email || !email.includes('@')) continue;
     const cur = String(rows[i][18] || '').trim().toLowerCase();
     if (ARCHIVE_STATES.has(cur)) {
       data.push({
