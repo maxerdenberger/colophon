@@ -5953,7 +5953,7 @@ function NewsletterSignupsCard({ newsletter, append }) {
 // POSTs the payload to /api/bench-update with action='add' so the
 // server can append it to the source Sheet.
 function AdminFormspreeApproval({ secret }) {
-  const { injectOptimisticRow } = useBench();
+  const { injectOptimisticRow, updateBenchRowStatus } = useBench();
   const [subs, setSubs] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -6087,6 +6087,13 @@ function AdminFormspreeApproval({ secret }) {
         // takes ~5 min to regenerate; without this the operator would
         // refresh and see nothing for a while.
         injectOptimisticRow(data);
+        // If the email already exists on the local bench (an old pending
+        // row, a re-application, etc.), mirror the new 'bench' status so
+        // it instantly leaves the 'in review' tab. Without this, the row
+        // shows up twice (old + optimistic) until CSV regen.
+        if (updateBenchRowStatus && data.email) {
+          updateBenchRowStatus({ email: data.email }, 'approved');
+        }
         append(`✓ approved → on the bench · ${data.name || sub.id} · live now (preview ↗ to verify)`);
         // Stamp the new creative as approved under the keys the bench
         // browser looks up (e:<email>, n:<name>). Both setSession and
@@ -6173,6 +6180,12 @@ function AdminFormspreeApproval({ secret }) {
           append(`⚠ reject (local fade) — server: ${(j && j.error) || r.status}`);
         } else {
           const j = await r.json().catch(() => ({}));
+          // Mirror the rejection into the local bench so any existing row
+          // for this email instantly leaves 'in review' and joins the
+          // archived tab — no waiting on CSV regen.
+          if (updateBenchRowStatus && data.email) {
+            updateBenchRowStatus({ email: data.email }, 'denied');
+          }
           append(`🗑 rejected → rejects bin · ${data.name || data.email || sub.id} · ${j.mode || 'sheet'}`);
         }
       } catch (ex) {
