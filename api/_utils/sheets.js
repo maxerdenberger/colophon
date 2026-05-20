@@ -177,22 +177,52 @@ export async function updateBenchRow(rowNumber, { availability, portfolio, partn
 
 // Update one row's status by email. Returns { updated, rowNumber } or
 // { updated: 0, rowNumber: null } if the email wasn't found.
+// Updates EVERY Sheet row whose email matches `email` — not just the first.
+// Same email landing on multiple rows is the most common cause of 'I approved
+// this person but they keep reappearing in review' — only one of their N
+// rows was being flipped. This function now batches a single Sheets API
+// write across every matching row.
 export async function updateBenchStatusByEmail(email, newStatus) {
+  if (!process.env.SHEETS_SPREADSHEET_ID) throw new Error('SHEETS_SPREADSHEET_ID not configured');
   const target = String(email || '').trim().toLowerCase();
   if (!target.includes('@')) throw new Error('email required');
-  // Canonical four-state vocabulary + legacy values for the migration
-  // period. The handler that calls this already maps aliases (approve →
-  // bench, deny → rejected, etc) before we get here; legacy values are
-  // accepted so a Sheet that hasn't been migrated yet still functions.
   const VALID = [
     'new','bench','rejected','paused',          // canonical
     'approved','pending','denied','cold','duplicate','active',  // legacy
   ];
   if (!VALID.includes(newStatus)) throw new Error(`invalid status: ${newStatus}`);
-  const found = await findBenchRowByEmail(target);
-  if (!found) return { updated: 0, rowNumber: null };
-  const r = await updateBenchRow(found.rowNumber, { status: newStatus });
-  return { updated: r.updated, rowNumber: found.rowNumber };
+
+  const sheets = client();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+    range: RANGE_ALL,
+  });
+  const rows = res.data.values || [];
+  const matched = [];   // 1-indexed row numbers (Sheets API)
+  const now = new Date().toISOString();
+  for (let i = 1; i < rows.length; i++) {
+    const cell = String(rows[i][2] || '').trim().toLowerCase();
+    if (cell === target) matched.push(i + 1);
+  }
+  if (!matched.length) return { updated: 0, rowsTouched: 0, rowNumber: null };
+
+  // One batchUpdate across every matching row — Sheet col S = status,
+  // col T = Last Updated. Both stamped in the same call.
+  const data = [];
+  for (const n of matched) {
+    data.push({ range: `${TAB_NAME}!S${n}`, values: [[newStatus]] });
+    data.push({ range: `${TAB_NAME}!T${n}`, values: [[now]] });
+  }
+  const w = await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+    requestBody: { valueInputOption: 'RAW', data },
+  });
+  return {
+    updated: w.data.totalUpdatedCells || 0,
+    rowsTouched: matched.length,
+    rowNumber: matched[0],   // primary — for backward compat with existing callers
+    rowNumbers: matched,
+  };
 }
 
 // Bulk migration to the four-state vocabulary.
