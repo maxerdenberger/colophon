@@ -943,12 +943,17 @@ function BenchProvider({ children }) {
     const disciplines = [...new Set(disciplinesArr.map(canonDisc))];
     const discipline = disciplines[0] || 'creative direction';
     const availRaw = String(r.availability || '').toLowerCase();
+    // Availability default when cell is empty: 'soon' (old parser
+    // behavior). 'available' as the catch-all was making every row
+    // with no explicit availability show as 'open now', collapsing
+    // the availability filter to a single value.
     const availability =
       availRaw.includes('right thing') || availRaw.includes('selective') ? 'selective' :
       availRaw.includes('immediate') || availRaw.includes('available now') ? 'available' :
       availRaw.includes('waitlist') ? 'booked' :
       availRaw.includes('2') || availRaw.includes('4 week') || availRaw.includes('soon') ? 'soon' :
-      'available';
+      availRaw ? 'available' :
+      'soon';
     const hourlyRate = parseInt(String(r.hourlyRate || '').replace(/[^0-9]/g, ''), 10) || 0;
     const rate = hourlyRate >= 400 ? '$$$$' : hourlyRate >= 250 ? '$$$' : hourlyRate >= 150 ? '$$' : hourlyRate > 0 ? '$' : RATES[i % RATES.length];
     const tz = (() => {
@@ -2847,9 +2852,15 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
         </div>
 
         {FILTER_GROUPS.map((g) => {
-          // Hide options with zero supply; hide the whole group if every
-          // option is empty (e.g., teams before partner data is collected).
-          const live = g.options.filter(([val]) => supplyCount(g.key, val) > 0);
+          // Show every option regardless of current supply count. With
+          // most Sheet rows having empty discipline/availability/
+          // experience cells, the previous 'hide zero-supply' rule
+          // collapsed all categories to a single visible option. Showing
+          // every option always means: the filter mechanism is visible
+          // and clickable even when data is sparse. Empty groups (e.g.
+          // teams with no partner data on any row) still hide — that's
+          // not 'zero matches', it's 'this dimension doesn't exist'.
+          const live = g.options;
           if (live.length === 0) return null;
           return (
             <div key={g.key}>
