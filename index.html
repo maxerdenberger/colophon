@@ -1150,11 +1150,14 @@ function BenchProvider({ children }) {
   // Status values: 'approved' (visible) | 'pending' | 'denied' | 'cold' |
   // 'duplicate'. Anything but 'approved' is hidden from the public bench.
   const { bench, emergingBench, noDataBench } = useMemo(() => ({
-    // Public bench — every row with status='approved' (canonical 'bench'
-    // from the Sheet). The status column IS the curation gate; no
-    // secondary yoe filter that would knock out rows whose experience-
-    // level cell isn't in the recognized format.
-    bench:         allBench.filter((p) => p.status === 'approved'),
+    // Public bench — every row with status='approved' AND yoe >= 4.
+    // The status column is the curation gate; the yoe>=4 filter routes
+    // approved-but-under-4-yrs creatives to /emerging (free tier)
+    // instead of the paid bench. The adapter's hash distribution
+    // never produces yoe<4 (only mid/senior/lead), so synthetic rows
+    // always pass. Real applicants with yoe<4 fall to /emerging when
+    // confirmed — exactly the intended split.
+    bench:         allBench.filter((p) => p.status === 'approved' && (p.yoe || 0) >= 4),
     // Emerging — 1-3 yrs (when explicit), must have confirmed. Still
     // requires yoe to be parsed cleanly into that band.
     emergingBench: allBench.filter((p) => (p.yoe || 0) >= 1 && (p.yoe || 0) < 4 && p.confirmed && p.status === 'approved'),
