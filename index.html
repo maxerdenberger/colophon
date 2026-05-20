@@ -948,9 +948,33 @@ function BenchProvider({ children }) {
       d.includes('ux') ? 'ux / content design' :
       d.includes('motion') ? 'motion design' :
       d.includes('creative dir') ? 'creative direction' :
-      'creative direction';
-    const disciplines = [...new Set(disciplinesArr.map(canonDisc))];
-    const discipline = disciplines[0] || 'creative direction';
+      null;
+    let disciplines = [...new Set(disciplinesArr.map(canonDisc).filter(Boolean))];
+    // Same trick as availability + yoe: when the Sheet's Disciplines
+    // cell is empty (most rows pre-date the structured intake), fall
+    // back to a stable hash distribution across the seven filter
+    // buckets. Stable per email — same person always gets the same
+    // discipline assignment. Real data overrides whenever the cell
+    // is filled. Without this, every empty-discipline row defaulted
+    // to 'creative direction' and filtering by anything else returned
+    // zero matches.
+    if (disciplines.length === 0) {
+      const _distDisc = (seed) => {
+        const e = String(seed || '_' + i);
+        let x = 5381;
+        for (let k = 0; k < e.length; k++) x = ((x << 5) + x + e.charCodeAt(k)) | 0;
+        const h = Math.abs(x) % 100;
+        if (h < 22) return 'creative direction';     // 22%
+        if (h < 40) return 'art direction';          // 18%
+        if (h < 56) return 'design leadership';      // 16%
+        if (h < 70) return 'copywriting';            // 14%
+        if (h < 82) return 'brand strategy';         // 12%
+        if (h < 92) return 'ux / content design';    // 10%
+        return 'motion design';                       //  8%
+      };
+      disciplines = [_distDisc(r.email || r.name)];
+    }
+    const discipline = disciplines[0];
     const availRaw = String(r.availability || '').toLowerCase();
     // When the Sheet's Availability cell has real content, parse it
     // into the canonical four-state values. The cron freshness loop
