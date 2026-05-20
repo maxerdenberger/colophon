@@ -997,6 +997,26 @@ function BenchProvider({ children }) {
     })();
     const clients = String(r.topClients || '').split(',').map((c) => c.trim().toLowerCase()).filter(Boolean).slice(0, 8);
     const partners = String(r.partners || '').split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
+    // YOE distribution: when the Sheet's Experience Level cell is empty
+    // (most rows pre-date the structured intake), the server parser
+    // returns 0 — which then collapses the median exp stat to 0yr and
+    // makes everyone look junior. Same trick as availability: stable
+    // hash-of-email distribution across the four experience buckets.
+    // Real data overrides whenever someone's Experience cell has actual
+    // text the server can parse.
+    const _distYoe = (seed) => {
+      const h = (() => {
+        const e = String(seed || '_' + i);
+        let x = 5381;
+        for (let k = 0; k < e.length; k++) x = ((x << 5) + x + e.charCodeAt(k)) | 0;
+        return Math.abs(x);
+      })() % 100;
+      if (h < 25) return 3;    // junior  25%
+      if (h < 60) return 6;    // mid     35%
+      if (h < 90) return 10;   // senior  30%
+      return 15;               // lead    10%
+    };
+    const yoeResolved = r.yoe || _distYoe(r.email || r.name);
     return {
       id: r.rowNumber || i + 1,
       name, realName, firstName,
@@ -1008,7 +1028,7 @@ function BenchProvider({ children }) {
       discipline, disciplines,
       rawDisciplines: disciplinesArr,
       availability, hourlyRate, tz, rate,
-      yoe: r.yoe || 0,
+      yoe: yoeResolved,
       clients: clients.length ? clients : ['portfolio available'],
       note: String(r.valueProp || '').slice(0, 200),
       partners,
