@@ -6670,7 +6670,7 @@ function PingAvailabilitySection({ secret, append }) {
 // flow needs to be: review applications -> approve onto the bench. Anything
 // else is a reject. This button collapses the leftover pending parking-lot
 // in a single POST so the only states left are approved + denied.
-function BulkArchivePendingButton({ secret, append, refreshBench, bench }) {
+function BulkArchivePendingButton({ secret, append, refreshBench, updateBenchRowStatus, bench }) {
   const [busy, setBusy] = React.useState(false);
   const [done, setDone] = React.useState(null);
   const [showList, setShowList] = React.useState(false);
@@ -6725,6 +6725,17 @@ function BulkArchivePendingButton({ secret, append, refreshBench, bench }) {
       } else {
         setDone(j);
         append(`archived ${j.archived} pending -> rejects bin (${j.totalScanned} rows scanned)`);
+        // Mirror the archive into the client-side bench so the in-review
+        // tab drops immediately. Without this, the user waits ~5min for
+        // Google's CSV publish to regenerate before they see the result.
+        if (updateBenchRowStatus) {
+          for (const r2 of (bench || [])) {
+            const st = String(r2.status || '').toLowerCase();
+            if (st === '' || st === 'pending' || st === 'new') {
+              updateBenchRowStatus({ id: r2.id, email: r2.emailRaw }, 'denied');
+            }
+          }
+        }
         if (refreshBench) refreshBench();
       }
     } catch (ex) {
@@ -7279,7 +7290,7 @@ function AdminBenchBrowser({ secret }) {
 
       {/* Bulk archive — collapses pending parking-lot into rejects bin so
           the bench is two-state: approved (on bench) or denied (in bin). */}
-      <BulkArchivePendingButton secret={secret} append={append} refreshBench={refreshBench} bench={bench} />
+      <BulkArchivePendingButton secret={secret} append={append} refreshBench={refreshBench} updateBenchRowStatus={updateBenchRowStatus} bench={bench} />
 
       {/* Local-stamps recovery — surfaces only when localStorage has approve
           stamps not yet reflected on the Sheet. Safe (additive only). When
