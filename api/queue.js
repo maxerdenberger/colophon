@@ -45,7 +45,12 @@ export default async function handler(req, res) {
   let benchError = null;
   const benchPromise = readBench().then(({ rows }) => {
     for (const r of rows) {
-      if (r.email) benchByEmail.set(r.email, r.status);
+      if (r.email) {
+        benchByEmail.set(r.email, {
+          status: r.status,
+          lastUpdatedTs: r.lastUpdatedTs || r.createdAtTs || 0,
+        });
+      }
     }
   }).catch((e) => { benchError = e.message; });
 
@@ -104,23 +109,37 @@ export default async function handler(req, res) {
     // panels — they're not "candidates" for the bench review queue.
     if (source === 'concierge-brief' || source === 'year-tier-inquiry') continue;
 
-    // Dedup against the Sheet — every status hides except for those
-    // we want to surface as re-applications (rejected → previously rejected).
-    const benchStatus = email ? benchByEmail.get(email) : null;
+    // Dedup against the Sheet. Every status hides except true re-
+    // applications (Formspree submission newer than Sheet rejection
+    // timestamp — that's someone who applied AGAIN after being told no).
+    const benchEntry = email ? benchByEmail.get(email) : null;
+    const benchStatus = benchEntry && benchEntry.status;
+    const submissionTs = Date.parse(sub.submitted_at || sub.created_at) || 0;
+
     if (benchStatus === 'bench' || benchStatus === 'paused') {
       // Already approved or paused — no action needed, hide silently.
       continue;
     }
-    if (benchStatus === 'new') {
-      // Already in the Sheet awaiting review — surface here too, but
-      // flag so the operator can see they have a Sheet row already.
-      // (In practice 'new' rows come from the apply form via Formspree;
-      // we shouldn't need to act on them twice. But surface for safety.)
-      queue.push(buildQueueEntry(sub, data, email, source, { duplicateOnSheet: true, benchStatus }));
+    if (benchStatus === 'rejected') {
+      // Hide if the rejection POST-dates the submission — we just
+      // rejected this Formspree row, and the queue shouldn't replay
+      // it back. Only surface as 'previously rejected' when the
+      // submission is NEWER than the Sheet write (true re-application).
+      if (benchEntry.lastUpdatedTs && benchEntry.lastUpdatedTs > submissionTs) {
+        continue;
+      }
+      queue.push(buildQueueEntry(sub, data, email, source, { previouslyRejected: true, benchStatus }));
       continue;
     }
-    if (benchStatus === 'rejected') {
-      queue.push(buildQueueEntry(sub, data, email, source, { previouslyRejected: true, benchStatus }));
+    if (benchStatus === 'new') {
+      // Already in the Sheet awaiting review — same timestamp rule.
+      // Suppress if the Sheet 'new' write came AFTER the Formspree
+      // submission (we just added them; queue duplication would be
+      // confusing).
+      if (benchEntry.lastUpdatedTs && benchEntry.lastUpdatedTs > submissionTs) {
+        continue;
+      }
+      queue.push(buildQueueEntry(sub, data, email, source, { duplicateOnSheet: true, benchStatus }));
       continue;
     }
     // Fresh email, never seen — normal queue entry.
