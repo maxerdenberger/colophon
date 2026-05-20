@@ -6673,34 +6673,69 @@ function PingAvailabilitySection({ secret, append }) {
 // successful run, the panel writes a 'colophon_migrated_at' flag to
 // localStorage and hides itself — this is a one-time-per-browser action,
 // not a recurring chore.
-function BenchMigrateFromStampsButton({ secret, append, pastActions, refreshBench }) {
+function BenchMigrateFromStampsButton({ secret, append, pastActions, bench, refreshBench }) {
   const [busy, setBusy]   = React.useState(false);
   const [done, setDone]   = React.useState(null);
+  const [showPreview, setShowPreview] = React.useState(false);
   const [hidden, setHidden] = React.useState(() => {
     try { return !!localStorage.getItem('colophon_migrated_at'); } catch { return false; }
   });
-  // Pull every email-keyed action entry that has an approve stamp and no
-  // later deny/reject/revoke. The exclusive-group logic clears prior
-  // approve when the operator clicked deny — so the surviving approve
-  // stamps are the operator's intended bench list.
-  const approvedEmails = React.useMemo(() => {
+
+  // recordAction stamps EVERY key it has for a row: numeric id, 'n:name',
+  // 'n:realName', and 'e:email'. The previous extraction only walked
+  // 'e:' keys, which missed rows that had been stamped before their email
+  // landed on the Sheet, or where the email key got dropped. This pass
+  // resolves all three key types back to emails via the current bench:
+  //
+  //   numeric / digits-only key  → bench.find(r => r.id == key).emailRaw
+  //   'n:<lowercased name>'      → bench.find(r => r.name|realName == key).emailRaw
+  //   'e:<lowercased email>'     → key.slice(2)
+  //
+  // De-dupe across all three sources so 653 stamp keys collapse to the
+  // ~140 unique creatives the operator actually approved.
+  const { approvedEmails, breakdown, unresolved } = React.useMemo(() => {
+    const byId   = new Map();
+    const byName = new Map();
+    for (const r of (bench || [])) {
+      if (!r || !r.emailRaw) continue;
+      const email = String(r.emailRaw).toLowerCase();
+      if (r.id != null) byId.set(String(r.id), email);
+      if (r.name)     byName.set(String(r.name).toLowerCase(), email);
+      if (r.realName) byName.set(String(r.realName).toLowerCase(), email);
+    }
     const seen = new Set();
+    const dropped = [];
+    let bId = 0, bN = 0, bE = 0, dN = 0, dI = 0;
     for (const [key, ops] of Object.entries(pastActions || {})) {
-      if (!key.startsWith('e:')) continue;
-      const email = key.slice(2);
-      if (!email.includes('@')) continue;
       if (!ops || !ops.approve) continue;
       if (ops.deny || ops.reject || ops.revoke) continue;
-      seen.add(email);
+      let email = null;
+      if (key.startsWith('e:')) {
+        email = key.slice(2);
+        if (email && email.includes('@')) bE++;
+      } else if (key.startsWith('n:')) {
+        email = byName.get(key.slice(2)) || null;
+        if (email) bN++; else { dropped.push({ key, reason: 'no-bench-row-with-this-name' }); dN++; }
+      } else {
+        // Numeric / id-shaped key (Sheet row id). May be stale if rows have
+        // since been re-sorted, but most stamps still resolve.
+        email = byId.get(key) || null;
+        if (email) bId++; else { dropped.push({ key, reason: 'no-bench-row-with-this-id' }); dI++; }
+      }
+      if (email && email.includes('@')) seen.add(email);
     }
-    return Array.from(seen).sort();
-  }, [pastActions]);
+    return {
+      approvedEmails: Array.from(seen).sort(),
+      breakdown: { fromEmail: bE, fromName: bN, fromId: bId, droppedName: dN, droppedId: dI, totalKeys: Object.keys(pastActions || {}).length },
+      unresolved: dropped,
+    };
+  }, [pastActions, bench]);
   const run = async () => {
     if (!approvedEmails.length) {
       append('migrate · no approve stamps on this browser');
       return;
     }
-    if (!window.confirm(`One-time migration: flip ${approvedEmails.length} approved-locally email${approvedEmails.length === 1 ? '' : 's'} on the Sheet to 'bench'. Everything else (not already rejected/paused) flips to 'new'. Continue?`)) return;
+    if (!window.confirm(`One-time migration: flip ${approvedEmails.length} approved-locally email${approvedEmails.length === 1 ? '' : 's'} on the Sheet to 'bench'. Resolved from ${breakdown.fromEmail} email keys + ${breakdown.fromName} name keys + ${breakdown.fromId} id keys (de-duped). Everything else not already rejected/paused flips to 'new'. Continue?`)) return;
     setBusy(true);
     try {
       const r = await fetch('/api/migrate-approvals', {
@@ -6729,13 +6764,14 @@ function BenchMigrateFromStampsButton({ secret, append, pastActions, refreshBenc
   };
   if (hidden && !done) {
     // Already migrated on this browser. Render a quiet 'rerun if needed'
-    // hairline so the operator can still get back to it.
+    // hairline — plus a hint when we'd now resolve more emails than last
+    // run (e.g. the bench has more rows now, so name/id keys resolve).
     return (
       <p style={{ fontFamily: GM, fontSize: 9, color: C.soft, margin: '0 0 14px', textAlign: 'right' }}>
-        one-time stamp→Sheet migration already run on this browser ·{' '}
+        one-time stamp→Sheet migration already run on this browser · resolves {approvedEmails.length} approved email{approvedEmails.length === 1 ? '' : 's'} now ·{' '}
         <button type="button" onClick={undoHide}
           style={{ background: 'transparent', border: 'none', color: '#FF5100', textDecoration: 'underline', cursor: 'pointer', fontFamily: GM, fontSize: 9, padding: 0 }}>
-          show again
+          run again
         </button>
       </p>
     );
@@ -6744,16 +6780,30 @@ function BenchMigrateFromStampsButton({ secret, append, pastActions, refreshBenc
     <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px dashed rgba(255,81,0,0.35)', background: 'rgba(255,81,0,0.05)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ fontFamily: GM, fontSize: 11, color: '#7A4A0E', lineHeight: 1.6 }}>
-          <strong>one-time migration</strong> · this browser has {approvedEmails.length} approve stamp{approvedEmails.length === 1 ? '' : 's'} stored locally. promote them to <em>bench</em> on the Sheet; everything else not yet rejected/paused becomes <em>new</em>.
+          <strong>one-time migration</strong> · resolved <strong>{approvedEmails.length}</strong> unique approved emails from {breakdown.totalKeys} localStorage keys ({breakdown.fromEmail} via email · {breakdown.fromName} via name · {breakdown.fromId} via id{breakdown.droppedName + breakdown.droppedId > 0 ? ` · ${breakdown.droppedName + breakdown.droppedId} keys couldn't be resolved` : ''}). promote them to <em>bench</em> on the Sheet; everything else not yet rejected/paused becomes <em>new</em>.
         </div>
-        <button type="button" onClick={run} disabled={busy || !approvedEmails.length}
-          style={{ ...adminIntentBtn('approve', 'full'), padding: '7px 12px', fontSize: 10, opacity: busy ? 0.5 : 1, whiteSpace: 'nowrap' }}>
-          {busy ? 'migrating…' : `migrate ${approvedEmails.length} → bench →`}
-        </button>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button type="button" onClick={() => setShowPreview((b) => !b)}
+            style={{ ...adminIntentBtn('neutral'), padding: '7px 10px', fontSize: 10, whiteSpace: 'nowrap' }}>
+            {showPreview ? 'hide list' : `view ${approvedEmails.length} →`}
+          </button>
+          <button type="button" onClick={run} disabled={busy || !approvedEmails.length}
+            style={{ ...adminIntentBtn('approve', 'full'), padding: '7px 12px', fontSize: 10, opacity: busy ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+            {busy ? 'migrating…' : `migrate ${approvedEmails.length} → bench →`}
+          </button>
+        </div>
       </div>
+      {showPreview && approvedEmails.length > 0 && (
+        <div style={{ marginTop: 10, padding: '8px 10px', background: '#fff', border: '1px solid rgba(13,13,11,0.08)', maxHeight: 280, overflowY: 'auto' }}>
+          <ul style={{ margin: 0, paddingLeft: 16, fontFamily: GM, fontSize: 10, color: C.ink, lineHeight: 1.7 }}>
+            {approvedEmails.slice(0, 200).map((e) => (<li key={e}>{e}</li>))}
+            {approvedEmails.length > 200 && <li style={{ color: C.soft }}>+{approvedEmails.length - 200} more</li>}
+          </ul>
+        </div>
+      )}
       {done && (
         <p style={{ fontFamily: GM, fontSize: 10, color: '#7A4A0E', margin: '10px 0 0' }}>
-          ✓ {done.approvedRows} flipped to bench · {done.pendingRows} flipped to new · {done.untouchedRows} untouched (rejected/paused)
+          ✓ {done.approvedRows} flipped to bench · {done.pendingRows} flipped to new · {done.untouchedRows} untouched (rejected/paused). hit <em>refresh from Sheet ↻</em> to see the new bench count.
         </p>
       )}
     </div>
@@ -7274,7 +7324,7 @@ function AdminBenchBrowser({ secret }) {
           server flips matched rows to 'bench', everything else (that isn't
           already rejected/paused) to 'new'. Run once per operator-browser
           combo; auto-hides after a successful run on this machine. */}
-      <BenchMigrateFromStampsButton secret={secret} append={append} pastActions={pastActions} refreshBench={refreshBench} />
+      <BenchMigrateFromStampsButton secret={secret} append={append} pastActions={pastActions} bench={bench} refreshBench={refreshBench} />
 
       {/* Sync banner + migrate tool removed: Sheet is the single source
           of truth now. Use the bench-update endpoint via approve/deny/
