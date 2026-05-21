@@ -1029,20 +1029,35 @@ function BenchProvider({ children }) {
     // to 'creative direction' and filtering by anything else returned
     // zero matches.
     if (disciplines.length === 0) {
-      const _distDisc = (seed) => {
-        const e = String(seed || '_' + i);
+      // Two independent hashes from the same seed — primary + secondary
+      // discipline. ~55% of synthetic rows get a secondary (mirrors how
+      // real applicants commonly list a multi-select). Without this,
+      // every hash-distributed row had a single discipline, so filters
+      // like "art direction" never caught CDs/strategists who in reality
+      // also list AD as secondary.
+      const _hash = (seed, salt) => {
+        const e = String(seed || '_' + i) + '|' + salt;
         let x = 5381;
         for (let k = 0; k < e.length; k++) x = ((x << 5) + x + e.charCodeAt(k)) | 0;
-        const h = Math.abs(x) % 100;
-        if (h < 22) return 'creative direction';     // 22%
-        if (h < 40) return 'art direction';          // 18%
-        if (h < 56) return 'design leadership';      // 16%
-        if (h < 70) return 'copywriting';            // 14%
-        if (h < 82) return 'brand strategy';         // 12%
-        if (h < 92) return 'ux / content design';    // 10%
+        return Math.abs(x);
+      };
+      const _bucket = (h) => {
+        const m = h % 100;
+        if (m < 22) return 'creative direction';     // 22%
+        if (m < 40) return 'art direction';          // 18%
+        if (m < 56) return 'design leadership';      // 16%
+        if (m < 70) return 'copywriting';            // 14%
+        if (m < 82) return 'brand strategy';         // 12%
+        if (m < 92) return 'ux / content design';    // 10%
         return 'motion design';                       //  8%
       };
-      disciplines = [_distDisc(r.email || r.name)];
+      const seed = r.email || r.name;
+      const primary = _bucket(_hash(seed, 'p'));
+      const secondaryHash = _hash(seed, 's');
+      const wantsSecondary = (secondaryHash % 100) < 55;
+      const secondary = wantsSecondary ? _bucket(secondaryHash >> 7) : null;
+      disciplines = [primary];
+      if (secondary && secondary !== primary) disciplines.push(secondary);
     }
     const discipline = disciplines[0];
 
@@ -1161,6 +1176,42 @@ function BenchProvider({ children }) {
         const apiRows = (j && j.rows) || [];
         if (apiRows.length > 0) {
           const adapted = apiRows.map(adaptApiRow);
+          // Operator pin — Max is the curator, not an applicant. He never
+          // filled out the form, but he's the canonical AD+CD on the bench
+          // so the filters always have at least one real row to surface.
+          // Drops in iff no row with his email is already there (in case he
+          // ever does add himself via the Sheet).
+          const opEmail = 'merdenberger@gmail.com';
+          const hasOperator = adapted.some((r) => (r.emailRaw || '').toLowerCase() === opEmail);
+          if (!hasOperator) {
+            adapted.unshift({
+              id: 'operator',
+              name: 'antonio gramsci',
+              realName: 'max erdenberger',
+              firstName: 'max',
+              emailRaw: opEmail,
+              emailEnc: btoa(opEmail),
+              portfolio: 'https://colophon.contact',
+              linkedin: 'https://www.linkedin.com/in/maxerdenberger',
+              updatedAt: Date.now(),
+              discipline: 'art direction',
+              disciplines: ['art direction', 'creative direction', 'design leadership', 'brand strategy'],
+              rawDisciplines: ['art direction', 'creative direction', 'design leadership', 'brand strategy'],
+              availability: 'available',
+              hourlyRate: 400,
+              tz: 'UTC−7',
+              rate: '$$$$',
+              yoe: 14,
+              clients: ['airbnb', 'nike', 'wieden+kennedy', 'sibling rivalry'],
+              note: 'product, brand, and creative direction. building colophon and shipping with ai-fluent teams.',
+              partners: [],
+              status: 'approved',
+              confirmed: true,
+              paused: false,
+              legend: true,        // gets the founder/operator tint
+              isSocial: false,
+            });
+          }
           setAllBench(adapted);
           _saveSnapshot(adapted);
           setLastSync(Date.now());
