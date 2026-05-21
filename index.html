@@ -3106,9 +3106,16 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
               <div style={{ paddingLeft: 22 }}>
                 {live.map(([val, label]) => {
                   const on = filters[g.key].includes(val);
+                  const n = supplyCount(g.key, val);
+                  // Supply count next to each option \u2014 transparent about
+                  // empty buckets so visitors don't try filters that yield
+                  // zero. Dim styling so it reads as supplementary info.
                   return (
                     <button key={val} onClick={() => toggle(g.key, val)} style={optBtn}>
                       [{on ? '\u25cf' : ' '}]&nbsp;&nbsp;{label}
+                      <span style={{ color: n === 0 ? 'rgba(0,0,0,0.28)' : C.soft, marginLeft: 8, fontFamily: GM, fontSize: 10, letterSpacing: '0.04em' }}>
+                        ({n})
+                      </span>
                     </button>
                   );
                 })}
