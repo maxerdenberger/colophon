@@ -3237,6 +3237,13 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionF
   const [hovered, setHovered] = useState(null);
   const [cursor, setCursor] = useState({ x: 0, y: 0, quip: '' });
   const [showAll, setShowAll] = useState(false);
+  // includeBooked — persistent upsell toggle on the mint readout card.
+  // When on, the avail axis (only that one) is bypassed in both filter
+  // chains. Lets a buyer who paid for 'available' creatives expand into
+  // 'booked / waitlist' rows for forward planning without losing the
+  // rest of their filters. Independent of showAll (which lifts all
+  // filters at once).
+  const [includeBooked, setIncludeBooked] = useState(false);
 
   // ── Focus deep-link ──────────────────────────────────────────────────
   // Approval/welcome emails send creatives here with ?focus=<base64 email>.
@@ -3284,7 +3291,7 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionF
       if (!e || !f.emails.includes(e)) return false;
     }
     if (f.disciplines?.length && !f.disciplines.includes(p.discipline)) return false;
-    if (f.avail?.length && !f.avail.includes(p.availability)) return false;
+    if (!includeBooked && f.avail?.length && !f.avail.includes(p.availability)) return false;
     if (f.experience?.length) {
       const lvl = p.yoe < 4 ? 'junior' : p.yoe < 8 ? 'mid' : p.yoe < 15 ? 'senior' : 'lead';
       if (!f.experience.includes(lvl)) return false;
@@ -3346,7 +3353,7 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionF
       else if (['$','$$','$$$','$$$$'].includes(t)) grouped.rate.push(t);
     }
     if (grouped.disc.length  && !grouped.disc.includes(p.discipline))  return false;
-    if (grouped.avail.length && !grouped.avail.includes(p.availability)) return false;
+    if (!includeBooked && grouped.avail.length && !grouped.avail.includes(p.availability)) return false;
     if (grouped.exp.length   && !grouped.exp.includes(lvl))            return false;
     if (grouped.tz.length    && !grouped.tz.includes(region))          return false;
     if (grouped.rate.length  && !grouped.rate.includes(p.rate))        return false;
@@ -3366,6 +3373,69 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionF
   const avail = visible.filter(p => p.availability !== 'booked');
   const COLS = '36px 1.5fr 1.3fr 56px 70px 80px 80px 80px 28px';
 
+  // ── MINT READOUT + UPSELL ─────────────────────────────────────────
+  // What did the buyer pay for? Aggregate sessionFilters + buyerTags
+  // into a single "you filtered for…" line. Then compute upsellCount —
+  // how many rows would be added if the avail filter was relaxed.
+  // Persistent toggle (`includeBooked`) extends the visible bench to
+  // include 'booked / waitlist' creatives without losing other filters.
+  const readoutFilters = (() => {
+    const out = [];
+    const addAll = (arr, formatter) => (arr || []).forEach((v) => out.push(formatter ? formatter(v) : v));
+    if (sessionFilters) {
+      addAll(sessionFilters.disciplines);
+      addAll(sessionFilters.avail, (a) => ({ available: 'available now', soon: 'available in 1–2 wks', selective: 'available for the right thing', booked: 'booked / waitlist' }[a] || a));
+      addAll(sessionFilters.experience, (e) => ({ junior: 'junior · 0–3 yrs', mid: 'mid · 4–7 yrs', senior: 'senior · 8–14 yrs', lead: 'lead · 15+ yrs' }[e] || e));
+      addAll(sessionFilters.timezone, (t) => ({ americas: 'americas', europe: 'europe / africa', asia: 'asia / pacific' }[t] || t));
+      addAll(sessionFilters.rate);
+    } else if (buyerTags && buyerTags.length) {
+      addAll(buyerTags);
+    }
+    return out;
+  })();
+  const hasAvailFilter = (
+    (sessionFilters?.avail && sessionFilters.avail.length) ||
+    (buyerTags && buyerTags.some((t) => ['available','soon','booked','selective'].includes(t)))
+  );
+  // Count rows that match every filter EXCEPT avail — the upsell candidates.
+  const matchIgnoringAvail = (!hasAvailFilter || showAll) ? visible.length : liveBench.filter((p) => {
+    if (sessionFilters) {
+      const f = sessionFilters;
+      if (f.emails?.length && !f.emails.includes((p.emailRaw||'').toLowerCase())) return false;
+      if (f.disciplines?.length && !f.disciplines.includes(p.discipline)) return false;
+      if (f.experience?.length) {
+        const lvl = p.yoe < 4 ? 'junior' : p.yoe < 8 ? 'mid' : p.yoe < 15 ? 'senior' : 'lead';
+        if (!f.experience.includes(lvl)) return false;
+      }
+      if (f.timezone?.length) {
+        const o = parseInt((p.tz || '').replace(/UTC|−/g, '-').replace('+', '')) || 0;
+        const region = o <= -3 ? 'americas' : o <= 3 ? 'europe' : 'asia';
+        if (!f.timezone.includes(region)) return false;
+      }
+      if (f.rate?.length && !f.rate.includes(p.rate)) return false;
+    }
+    if (buyerTags && buyerTags.length) {
+      const lvl = p.yoe < 4 ? 'junior' : p.yoe < 8 ? 'mid' : p.yoe < 15 ? 'senior' : 'lead';
+      const tz = (p.tz || '').toLowerCase().replace(/−/g, '-');
+      const region = tz.startsWith('utc-') ? 'americas'
+                   : (tz === 'utc+0' || tz === 'utc+1' || tz === 'utc+2') ? 'europe' : 'asia';
+      const grouped = { disc: [], exp: [], tz: [], rate: [] };
+      for (const t of buyerTags) {
+        if (liveBench.some(b => b.discipline === t)) grouped.disc.push(t);
+        else if (['junior','mid','senior','lead'].includes(t)) grouped.exp.push(t);
+        else if (['americas','europe','asia'].includes(t)) grouped.tz.push(t);
+        else if (['$','$$','$$$','$$$$'].includes(t)) grouped.rate.push(t);
+      }
+      if (grouped.disc.length && !grouped.disc.includes(p.discipline)) return false;
+      if (grouped.exp.length && !grouped.exp.includes(lvl)) return false;
+      if (grouped.tz.length && !grouped.tz.includes(region)) return false;
+      if (grouped.rate.length && !grouped.rate.includes(p.rate)) return false;
+    }
+    return true;
+  }).length;
+  const upsellCount = Math.max(0, matchIgnoringAvail - visible.length);
+  const showReadout = !preview && readoutFilters.length > 0;
+
   return (
     <div className="protected" onCopy={e => e.preventDefault()}
          onMouseMove={(e) => setCursor((c) => ({ ...c, x: e.clientX, y: e.clientY }))}>
@@ -3378,6 +3448,44 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionF
           whiteSpace:'nowrap', maxWidth:260, transform:'rotate(-1.5deg)',
           boxShadow:'0 8px 24px rgba(0,0,0,0.18)',
         }}>{cursor.quip}</div>
+      )}
+      {showReadout && (
+        <div style={{ margin:'0 40px 20px', padding:'16px 18px', border:`1px solid ${C.rule}`, background:C.paper }}>
+          <div style={{ fontFamily:GM, fontSize:9, letterSpacing:'0.16em', color:C.soft, textTransform:'uppercase', marginBottom:10 }}>
+            your bench · what you filtered for
+          </div>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:12 }}>
+            {readoutFilters.map((f, i) => (
+              <span key={i} style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.05em', padding:'4px 9px', border:`1px solid ${C.rule}`, background:C.cream, color:C.ink }}>{f}</span>
+            ))}
+          </div>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, flexWrap:'wrap' }}>
+            <div style={{ fontFamily:GM, fontSize:11, color:C.ink, lineHeight:1.55 }}>
+              <strong style={{ fontWeight:600 }}>{visible.length}</strong>
+              <span style={{ color:C.soft }}> {visible.length === 1 ? 'creative matches' : 'creatives match'}</span>
+              {hasAvailFilter && upsellCount > 0 && !includeBooked && (
+                <span style={{ color:C.soft }}> · <strong style={{ color:C.ink, fontWeight:600 }}>{upsellCount}</strong> more would match if you include booked / waitlist</span>
+              )}
+              {hasAvailFilter && includeBooked && (
+                <span style={{ color:C.soft }}> · <strong style={{ color:accent, fontWeight:600 }}>booked / waitlist included</strong></span>
+              )}
+            </div>
+            {hasAvailFilter && upsellCount > 0 && !includeBooked && (
+              <button
+                onClick={() => setIncludeBooked(true)}
+                style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.08em', padding:'8px 14px', cursor:'pointer', border:`1px solid ${accent}`, background:accent, color:C.cream, textTransform:'lowercase' }}>
+                + add the {upsellCount} booked names →
+              </button>
+            )}
+            {hasAvailFilter && includeBooked && (
+              <button
+                onClick={() => setIncludeBooked(false)}
+                style={{ fontFamily:GM, fontSize:10, letterSpacing:'0.08em', padding:'8px 14px', cursor:'pointer', border:`1px solid ${C.rule}`, background:'transparent', color:C.soft, textTransform:'lowercase' }}>
+                — remove booked names
+              </button>
+            )}
+          </div>
+        </div>
       )}
       <div style={{ display:'flex', gap:8, padding:'0 40px 20px', flexWrap:'wrap', alignItems:'center' }}>
         {discs.map(d => (
@@ -4776,6 +4884,49 @@ function AdminStatsPanel({ accent }) {
             <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em' }}>{r.count}</div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ── ADMIN TRAFFIC ANALYTICS ───────────────────────────────────────────────
+// Vercel Web Analytics is enabled at the project level (Vercel injects the
+// tracker automatically). The dashboard itself can't be iframed because
+// vercel.com sends X-Frame-Options: DENY, so this panel surfaces the deep-
+// link + a clear setup note. When the operator wants to see numbers, one
+// click takes them straight there.
+function AdminAnalyticsPanel() {
+  // Project-scoped URLs: change the team/project slug below if your
+  // Vercel project lives under a different scope. Or just hit
+  // vercel.com/dashboard and click into the project — the deep links
+  // exist primarily as one-click conveniences.
+  const dash = 'https://vercel.com/dashboard/analytics';
+  const speed = 'https://vercel.com/dashboard/speed-insights';
+  const linkStyle = {
+    fontFamily: GM, fontSize: 10, letterSpacing: '0.08em',
+    padding: '8px 14px', cursor: 'pointer',
+    border: `1px solid ${C.ink}`, background: C.ink, color: C.cream,
+    textDecoration: 'none', display: 'inline-block', textTransform: 'lowercase',
+  };
+  const ghostLink = { ...linkStyle, background: 'transparent', color: C.ink, border: `1px solid ${C.rule}` };
+  return (
+    <div style={{ marginTop: 22, marginBottom: 32, border: `1px solid ${C.rule}`, background: C.paper }}>
+      <div style={{ padding: '10px 20px', borderBottom: `1px solid ${C.rule}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#5a8d5a' }} />
+        <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.ink }}>traffic · vercel analytics</span>
+      </div>
+      <div style={{ padding: '18px 20px' }}>
+        <p style={{ fontFamily: GM, fontSize: 12, color: C.ink, lineHeight: 1.65, margin: '0 0 14px', maxWidth: '64ch' }}>
+          Page views, top routes, devices, locations, and referrers are tracked by Vercel's Web Analytics. The dashboard can't be embedded inline (X-Frame restrictions), but the deep-link below opens it directly.
+        </p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <a href={dash} target="_blank" rel="noopener noreferrer" style={linkStyle}>open vercel analytics ↗</a>
+          <a href={speed} target="_blank" rel="noopener noreferrer" style={ghostLink}>speed insights ↗</a>
+          <a href="https://vercel.com/docs/analytics/quickstart" target="_blank" rel="noopener noreferrer" style={ghostLink}>enable docs ↗</a>
+        </div>
+        <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, lineHeight: 1.6, margin: '14px 0 0', maxWidth: '64ch' }}>
+          first-time setup: Vercel → project → Analytics → enable Web Analytics. Free tier covers ~2.5k events/mo. Beyond that, paid plan starts at $10/mo.
+        </p>
       </div>
     </div>
   );
@@ -8571,6 +8722,9 @@ function AdminPage({ accent, setPage }) {
 
         {/* ── Live stats — derived from the in-memory bench. ───────────── */}
         <AdminStatsPanel accent={accent} />
+
+        {/* ── Traffic analytics — Vercel Web Analytics deep-link. ──────── */}
+        <AdminAnalyticsPanel />
 
         {/* ── Activity feed — new applications + new sales by type. ────── */}
         <AdminActivityFeed secret={secret} />
