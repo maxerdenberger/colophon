@@ -4896,12 +4896,11 @@ function AdminStatsPanel({ accent }) {
 // link + a clear setup note. When the operator wants to see numbers, one
 // click takes them straight there.
 function AdminAnalyticsPanel() {
-  // Project-scoped URLs: change the team/project slug below if your
-  // Vercel project lives under a different scope. Or just hit
-  // vercel.com/dashboard and click into the project — the deep links
-  // exist primarily as one-click conveniences.
-  const dash = 'https://vercel.com/dashboard/analytics';
-  const speed = 'https://vercel.com/dashboard/speed-insights';
+  // Project-scoped URLs: team slug `maxerdenbergers-projects`, project
+  // slug `thisworks` (confirmed via Vercel API). Edit if you ever rename
+  // the project or migrate to a different team.
+  const dash = 'https://vercel.com/maxerdenbergers-projects/thisworks/analytics';
+  const speed = 'https://vercel.com/maxerdenbergers-projects/thisworks/speed-insights';
   const linkStyle = {
     fontFamily: GM, fontSize: 10, letterSpacing: '0.08em',
     padding: '8px 14px', cursor: 'pointer',
