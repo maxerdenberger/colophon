@@ -1101,11 +1101,14 @@ function BenchProvider({ children }) {
       if (h < 90) return 'available';    // 25%
       return 'booked';                   // 10%
     };
+    // Order matters: 'booked / next quarter' must be checked BEFORE the
+    // 'available' fallback because the new form label is "Booked through
+    // this quarter (available next quarter)" — it contains 'available'.
     const availability =
       availRaw.includes('right thing') || availRaw.includes('selective') ? 'selective' :
-      availRaw.includes('immediate') || availRaw.includes('available now') ? 'available' :
-      availRaw.includes('waitlist') ? 'booked' :
-      availRaw.includes('2') || availRaw.includes('4 week') || availRaw.includes('soon') ? 'soon' :
+      availRaw.includes('waitlist') || availRaw.includes('booked') || availRaw.includes('next quarter') ? 'booked' :
+      availRaw.includes('immediate') || availRaw.includes('available now') || availRaw.includes('ready to start') ? 'available' :
+      availRaw.includes('1-2 week') || availRaw.includes('1–2 week') || availRaw.includes('2-4 week') || availRaw.includes('2–4 week') || availRaw.includes('4 week') || availRaw.includes('soon') ? 'soon' :
       availRaw ? 'available' :
       _distAvailability(r.email || r.name);
     const hourlyRate = parseInt(String(r.hourlyRate || '').replace(/[^0-9]/g, ''), 10) || 0;
@@ -1408,18 +1411,27 @@ const OPPS = [
 
 
 // ── FORM OPTIONS ──────────────────────────────────────────────────────────────
-const DISCIPLINES = ['Art Direction', 'Creative Direction', 'Design Leadership', 'Copywriting', 'Brand Strategy', 'Motion Design', 'UX / Content Design', 'Strategy', 'Other (specify below)'];
-// Match the original Google Form exactly so data flowing into the bench
-// Sheet stays consistent across the legacy form + this in-app form. The
-// regex in parseSheetCSV that derives `yoe` from this text matches all
-// four labels (junior/mid → 2, senior → 6, lead/principal → 10, exec → 15).
+// Single source of truth for the apply form. The seven canonical
+// disciplines match the front-page filter (FILTER_GROUPS) exactly.
+// 'Strategy' was dropped — duplicates Brand Strategy on the canonicalizer.
+const DISCIPLINES = ['Art Direction', 'Creative Direction', 'Design Leadership', 'Copywriting', 'Brand Strategy', 'Motion Design', 'UX / Content Design', 'Other (specify below)'];
+// Experience labels — the regex in parseSheetCSV that derives `yoe` matches
+// all four (junior/mid → 2, senior → 6, lead/principal → 10, exec → 15).
 const EXP_LEVELS = [
   'Junior/Mid-level (1-3 years experience)',
   'Established (4-7 years experience)',
   'Lead/Principal (8-12 years experience)',
   'Executive/Veteran (12+ years experience)',
 ];
-const AVAIL_OPTS = ['Immediate (ready to start within 1 week)', '2–4 Weeks Out', 'Available for the right thing', 'Waitlist Only (currently booked)'];
+// Availability labels align with the front-filter copy so the form ↔ bench
+// ↔ filter chain reads identically end-to-end. Adapter (adaptApiRow) maps
+// each string back to the canonical bucket: available / soon / selective / booked.
+const AVAIL_OPTS = [
+  'Available now (ready to start within 1 week)',
+  'Available in 1-2 weeks',
+  'Available for the right thing',
+  'Booked through this quarter (available next quarter)',
+];
 const CATEGORIES = ['Brand Identity / Strategy', 'Campaign / Advertising', 'Content Strategy & Copy', 'Motion Graphics / Animation', 'Website / Digital Product (UI/UX)', 'Experiential / Environmental', 'Film / Directing', 'Photography', 'Other'];
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
