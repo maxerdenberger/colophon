@@ -8254,8 +8254,17 @@ function AdminTopBar() {
 }
 
 function AdminPage({ accent, setPage }) {
-  const [secret, setSecret] = useState('');
-  const [authed, setAuthed] = useState(false);
+  // Read auth synchronously in the initializer so the first render already
+  // knows we're authed — no flash of login UI before the useEffect runs.
+  const _initialSecret = (() => {
+    try {
+      if (typeof window === 'undefined') return '';
+      const stored = sessionStorage.getItem('colophon_admin_secret');
+      return (stored === ADMIN_PW) ? stored : '';
+    } catch { return ''; }
+  })();
+  const [secret, setSecret] = useState(_initialSecret);
+  const [authed, setAuthed] = useState(!!_initialSecret);
   const [mode, setMode] = useState('quick'); // 'quick' | 'batch'
 
   // Quick-test form state
@@ -8273,12 +8282,7 @@ function AdminPage({ accent, setPage }) {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem('colophon_admin_secret');
-      if (stored === ADMIN_PW) { setSecret(stored); setAuthed(true); }
-    } catch {}
-  }, []);
+  // (auth check moved into useState initializer above — no flash of login UI)
 
   const inputStyle = { background: '#fff', border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '12px 14px', fontFamily: GM, fontSize: 13, color: C.ink, outline: 'none', width: '100%', textTransform: 'none' };
   const labelStyle = { display: 'block', fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', color: C.soft, marginBottom: 6, textTransform: 'uppercase' };
