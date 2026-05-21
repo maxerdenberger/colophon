@@ -47,7 +47,7 @@ const FIELD_ALIASES = {
   portfolio:   ['portfolio', 'portfolio link', 'professional portfolio link', 'website', 'site'],
   linkedin:    ['linkedin', 'linkedin profile url', 'linkedin url'],
   disciplines: ['disciplines', 'discipline', 'your top three creative disciplines, ranked', 'top disciplines'],
-  otherDisc:   ['other discipline', 'other disciplines'],
+  otherDisc:   ['other discipline', 'other disciplines', 'specify your discipline', 'specify discipline', 'please specify your discipline'],
   timezone:    ['timezone', 'time zone', 'working timezone', 'tz'],
   availability:['availability', 'availability ranges', 'current availability'],
   rateSection: ['rate section', 'rate band', 'rate range'],
@@ -68,21 +68,52 @@ const FIELD_ALIASES = {
 const _norm = (s) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
 
 // Build a { fieldName → columnIndex } map by walking the header row and
-// matching each cell against every alias. Headers not recognized get
-// stashed under `_unknown` for diagnostics.
+// matching each cell against every alias. Two-pass:
+//   1. Exact normalized match — strict, no false positives.
+//   2. Substring fallback — for verbose form-question headers like
+//      "Please provide a brief, compelling summary of your unique value
+//      proposition..." that won't ever exact-match a short alias.
+// Headers not recognized after both passes get stashed under `unknown`
+// for diagnostics.
 export function buildHeaderMap(headerRow) {
   const map = {};
   const unknown = [];
   const seen = new Set();
   const headers = (headerRow || []).map((h) => _norm(h));
+
+  // Pass 1: exact normalized equality.
+  const pendingIdx = [];
   for (let i = 0; i < headers.length; i++) {
     const h = headers[i];
     if (!h) continue;
     let matched = null;
     for (const [field, aliases] of Object.entries(FIELD_ALIASES)) {
-      if (seen.has(field)) continue;   // first match wins
+      if (seen.has(field)) continue;
       for (const a of aliases) {
         if (_norm(a) === h) { matched = field; break; }
+      }
+      if (matched) break;
+    }
+    if (matched) {
+      map[matched] = i;
+      seen.add(matched);
+    } else {
+      pendingIdx.push(i);
+    }
+  }
+
+  // Pass 2: substring fallback for verbose headers. Require the alias to
+  // appear as whole tokens (' ' + alias + ' ') so 'rate' doesn't match
+  // 'separate', 'name' doesn't match 'username', etc.
+  for (const i of pendingIdx) {
+    const h = headers[i];
+    let matched = null;
+    for (const [field, aliases] of Object.entries(FIELD_ALIASES)) {
+      if (seen.has(field)) continue;
+      for (const a of aliases) {
+        const an = _norm(a);
+        if (!an) continue;
+        if ((' ' + h + ' ').includes(' ' + an + ' ')) { matched = field; break; }
       }
       if (matched) break;
     }
@@ -93,6 +124,7 @@ export function buildHeaderMap(headerRow) {
       unknown.push({ index: i, header: headerRow[i] });
     }
   }
+
   return { map, unknown, headerCount: headers.length };
 }
 
@@ -207,6 +239,7 @@ export async function readBench({ force = false } = {}) {
       portfolio:    pick(r, 'portfolio'),
       linkedin:     pick(r, 'linkedin'),
       disciplines:  pick(r, 'disciplines'),
+      otherDisc:    pick(r, 'otherDisc'),
       timezone:     pick(r, 'timezone'),
       availability: pick(r, 'availability'),
       hourlyRate:   hourlyRateNum,

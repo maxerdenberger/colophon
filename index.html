@@ -488,108 +488,202 @@ async function submitForm(payload) {
   return { ok: true, viaMailto: true };
 }
 
-// Code-name pool: philosophers, design / tech creative legends, distance
-// runners. Long enough to cover the full bench; parseSheetCSV walks it in
-// order, never reusing a name within the same parse.
-const PHIL_POOL = [
-  // ── philosophers + critical theorists ──
-  'simone weil','walter benjamin','hannah arendt','susan sontag','john berger',
-  'theodor adorno','bell hooks','adrienne rich','roland barthes','italo calvino',
-  'james baldwin','virginia woolf','donna haraway','marshall mcluhan','michel foucault',
-  'judith butler','antonio gramsci','jean baudrillard','pierre bourdieu','sun tzu',
-  'hélène cixous','gaston bachelard','friedrich nietzsche','søren kierkegaard',
-  'immanuel kant','ludwig wittgenstein','simone de beauvoir','jean-paul sartre',
-  'albert camus','martin heidegger','edmund husserl','maurice merleau-ponty',
-  'gilles deleuze','félix guattari','jacques derrida','jacques lacan','paul ricoeur',
-  'isaiah berlin','charles taylor','martha nussbaum','catharine mackinnon',
-  'frantz fanon','w.e.b. du bois','audre lorde','gloria anzaldúa','kimberlé crenshaw',
-  'paul gilroy','stuart hall','raymond williams','edward said','gayatri spivak',
-  'homi bhabha','achille mbembe','byung-chul han','slavoj žižek','peter sloterdijk',
-  'jürgen habermas','john dewey','william james','richard rorty','willard quine',
-  'alfred north whitehead','bertrand russell','noam chomsky','cornel west',
-  'angela davis','clifford geertz','georg simmel','niklas luhmann','michel de certeau',
-  'paul virilio','jean-françois lyotard','julia kristeva','luce irigaray','vandana shiva',
-  'karen barad','rosi braidotti','sara ahmed','lauren berlant','sianne ngai',
-  'fred moten','saidiya hartman','tina campt','christina sharpe','denise ferreira da silva',
-  'mark fisher','wendy brown','silvia federici','nancy fraser','seyla benhabib',
-  'iris marion young','arendt hartz','glenn loury','paul taylor','linda alcoff',
-  // ── design / type / graphic legends ──
-  'susan kare','tibor kalman','paul rand','saul bass','massimo vignelli','milton glaser',
-  'stefan sagmeister','paula scher','michael bierut','david carson','jessica walsh',
-  'wim crouwel','bruno munari','otl aicher','jan tschichold','herb lubalin','lou dorfsman',
-  'eric gill','edward johnston','frederic goudy','adrian frutiger','max miedinger',
-  'hermann zapf','edward tufte','ellen lupton','jessica hische','dieter rams',
-  'el lissitzky','lászló moholy-nagy','charles eames','ray eames','jonathan ive',
-  'marc newson','naoto fukasawa','konstantin grcic','ross lovegrove','yves béhar',
-  'karim rashid','philippe starck','ettore sottsass','achille castiglioni','gaetano pesce',
-  'eero saarinen','isamu noguchi','alvar aalto','hans wegner','finn juhl','arne jacobsen',
-  'verner panton','george nelson','irving harper','florence knoll','mariska karasz',
-  'cipe pineles','lillian bassman','lella vignelli','muriel cooper','alvin lustig',
-  'ladislav sutnar','herbert bayer','herbert matter','alexey brodovitch','lester beall',
-  'paul renner','adolphe mouron cassandre','a.m. cassandre','wolfgang weingart',
-  'april greiman','rudy vanderlans','zuzana licko','neville brody','vaughan oliver',
-  'peter saville','m/m paris','irma boom','karel martens','experimental jetset',
-  'paula scher','marian bantjes','louise fili','seymour chwast','edward fella',
-  'massimo dolcini','giovanni pintori','franco grignani','aldo novarese','franco maria ricci',
-  'shigeo fukuda','tadanori yokoo','ikko tanaka','yusaku kamekura','kenya hara',
-  'kashiwa sato','sori yanagi','isamu kenmochi','toyoko kenzo','enzo mari',
-  // ── advertising creatives ──
-  'bill bernbach','david ogilvy','lee clow','dan wieden','david droga','bob greenberg',
-  'john hegarty','trevor beattie','mary wells lawrence','helen lansdowne resor',
-  'ed mccabe','jay chiat','hal riney','phil dusenberry','leo burnett','claude hopkins',
-  'james webb young','charles saatchi','maurice saatchi','david abbott','alex bogusky',
-  'neil french','george lois','rosser reeves','william esty','rosser reeves',
-  'harry mccann','helmut krone','julian koenig','george gribbin','phyllis robinson',
-  'jim durfee','mickey hart','stan freberg','howard gossage','roy grace',
-  // ── ux / hci / digital ──
-  'don norman','jakob nielsen','john maeda','bret victor','alan kay','doug engelbart',
-  'vannevar bush','ted nelson','bill moggridge','jeff raskin','andy hertzfeld','bill atkinson',
-  'tim berners-lee','grace hopper','ada lovelace','radia perlman','frances allen',
-  'sophie wilson','karen sparck jones','margaret hamilton','barbara liskov','dorothy vaughan',
-  'katherine johnson','mary jackson','annie easley','evelyn boyd granville','kathleen booth',
-  'fei-fei li','timnit gebru','joy buolamwini','hadi partovi','linus torvalds',
-  // ── photographers / image makers ──
-  'henri cartier-bresson','robert capa','annie leibovitz','helmut newton','richard avedon',
-  'irving penn','ansel adams','diane arbus','cindy sherman','dorothea lange','walker evans',
-  'gordon parks','garry winogrand','william eggleston','eugène atget','alfred stieglitz',
-  'edward weston','paul strand','lee miller','vivian maier','sebastião salgado','steve mccurry',
-  'mary ellen mark','nan goldin','wolfgang tillmans','andreas gursky','hiroshi sugimoto',
-  'sally mann','joel meyerowitz','fred herzog','saul leiter','robert frank','bill brandt',
-  'brassaï','man ray','tina modotti','julia margaret cameron','daido moriyama',
-  'shōji ueda','rinko kawauchi','francesca woodman','imogen cunningham','lisette model',
-  'helen levitt','consuelo kanaga','viviane sassen','rineke dijkstra','catherine opie',
-  'carrie mae weems','kerry james marshall','dawoud bey','lorna simpson','deana lawson',
-  // ── filmmakers / image storytellers ──
-  'agnès varda','chris marker','errol morris','frederick wiseman','jean rouch','robert bresson',
-  'andrei tarkovsky','ingmar bergman','akira kurosawa','yasujirō ozu','kenji mizoguchi',
-  'satyajit ray','abbas kiarostami','hou hsiao-hsien','edward yang','ousmane sembène',
-  'djibril diop mambéty','souleymane cissé','abderrahmane sissako','wong kar-wai','tsai ming-liang',
-  'apichatpong weerasethakul','lucrecia martel','claire denis','chantal akerman','harun farocki',
-  'jean-luc godard','françois truffaut','jacques tati','agnes godard','vilmos zsigmond',
-  'gregg toland','sven nykvist','roger deakins','vittorio storaro','emmanuel lubezki',
-  'rachel morrison','reed morano','autumn durald','natasha braier','ellen kuras',
-  // ── distance runners ──
-  'steve prefontaine','roger bannister','emil zátopek','paavo nurmi','haile gebrselassie',
-  'eliud kipchoge','mo farah','kenenisa bekele','tirunesh dibaba','paula radcliffe',
-  'joan benoit samuelson','bill rodgers','frank shorter','alberto salazar','kathrine switzer',
-  'peter snell','lasse virén','kip keino','abebe bikila','sebastian coe','steve cram',
-  'steve ovett','said aouita','hicham el guerrouj','noah ngeny','john walker','filbert bayi',
-  'jim ryun','glenn cunningham','dave bedford','brendan foster','steve jones','grete waitz',
-  'ingrid kristiansen','tegla loroupe','catherine ndereba','mary keitany','naoko takahashi',
-  'mary decker','suzy hamilton','lornah kiplagat','constantina diță','zola budd',
-  'derartu tulu','fatuma roba','fernanda ribeiro','sonia o\'sullivan','maria mutola',
-  'ron clarke','herb elliott','jim peters','vladimir kuts','murray halberg',
-  'kelvin kiptum','faith kipyegon','sifan hassan','gudaf tsegay','agnes tirop',
-  'beatrice chebet','geoffrey mutai','dennis kimetto','wilson kipsang','abel kirui',
-  'samuel wanjiru','paul tergat','noureddine morceli','jakob ingebrigtsen','cole hocker',
-  'grant fisher','clayton young','galen rupp','meb keflezighi','shalane flanagan',
-  'desiree linden','molly seidel','sally kipyego','aliphine tuliamuk','alexi pappas',
-  'ryan hall','matt centrowitz','nick willis','asbel kiprop','genzebe dibaba',
-  'almaz ayana','meseret defar','vivian cheruiyot','helen obiri','letesenbet gidey',
-  'edna kiplagat','brigid kosgei','peres jepchirchir','hellen obiri','rojé stona',
-  'tigist assefa','ruth chepngetich','deena kastor','catherine debrunner','tatyana mcfadden',
-  'evan jager','donavan brazier','clayton murphy','craig engels','aleia hobbs',
-];
+// ─── CODE-NAME POOLS BY DISCIPLINE ──────────────────────────────────────────
+// Public bench masks real names behind a curated alias pool. Names are
+// matched to the creative's discipline so a copywriter doesn't get tagged
+// 'Susan Kare' and a designer doesn't get tagged 'Susan Sontag'. Order
+// within each pool is roughly most-canonical-first so the best-known names
+// land on the bench first.
+const PHIL_POOLS = {
+  'copywriting': [
+    // Writers, critics, theorists — people whose craft is language.
+    'simone weil','walter benjamin','hannah arendt','susan sontag','john berger',
+    'theodor adorno','bell hooks','adrienne rich','roland barthes','italo calvino',
+    'james baldwin','virginia woolf','donna haraway','marshall mcluhan','michel foucault',
+    'judith butler','antonio gramsci','jean baudrillard','pierre bourdieu','sun tzu',
+    'hélène cixous','gaston bachelard','friedrich nietzsche','søren kierkegaard',
+    'immanuel kant','ludwig wittgenstein','simone de beauvoir','jean-paul sartre',
+    'albert camus','martin heidegger','edmund husserl','maurice merleau-ponty',
+    'gilles deleuze','félix guattari','jacques derrida','jacques lacan','paul ricoeur',
+    'isaiah berlin','charles taylor','martha nussbaum','catharine mackinnon',
+    'frantz fanon','w.e.b. du bois','audre lorde','gloria anzaldúa','kimberlé crenshaw',
+    'paul gilroy','stuart hall','raymond williams','edward said','gayatri spivak',
+    'homi bhabha','achille mbembe','byung-chul han','slavoj žižek','peter sloterdijk',
+    'jürgen habermas','john dewey','william james','richard rorty','willard quine',
+    'alfred north whitehead','bertrand russell','noam chomsky','cornel west',
+    'angela davis','clifford geertz','georg simmel','niklas luhmann','michel de certeau',
+    'paul virilio','jean-françois lyotard','julia kristeva','luce irigaray','vandana shiva',
+    'karen barad','rosi braidotti','sara ahmed','lauren berlant','sianne ngai',
+    'fred moten','saidiya hartman','tina campt','christina sharpe','denise ferreira da silva',
+    'mark fisher','wendy brown','silvia federici','nancy fraser','seyla benhabib',
+    'iris marion young','glenn loury','paul taylor','linda alcoff',
+  ],
+  'creative direction': [
+    // Legendary ad CDs — the Bernbach / Ogilvy / Wieden / Droga lineage.
+    'bill bernbach','david ogilvy','lee clow','dan wieden','david droga','bob greenberg',
+    'john hegarty','trevor beattie','mary wells lawrence','helen lansdowne resor',
+    'ed mccabe','jay chiat','hal riney','phil dusenberry','leo burnett','claude hopkins',
+    'james webb young','charles saatchi','maurice saatchi','david abbott','alex bogusky',
+    'neil french','george lois','rosser reeves','william esty',
+    'harry mccann','helmut krone','julian koenig','george gribbin','phyllis robinson',
+    'jim durfee','stan freberg','howard gossage','roy grace',
+  ],
+  'art direction': [
+    // Graphic design + type + image-makers — visual craftspeople.
+    'susan kare','tibor kalman','paul rand','saul bass','massimo vignelli','milton glaser',
+    'stefan sagmeister','paula scher','michael bierut','david carson','jessica walsh',
+    'wim crouwel','bruno munari','otl aicher','jan tschichold','herb lubalin','lou dorfsman',
+    'eric gill','edward johnston','frederic goudy','adrian frutiger','max miedinger',
+    'hermann zapf','edward tufte','ellen lupton','jessica hische',
+    'el lissitzky','lászló moholy-nagy',
+    'cipe pineles','lillian bassman','lella vignelli','muriel cooper','alvin lustig',
+    'ladislav sutnar','herbert bayer','herbert matter','alexey brodovitch','lester beall',
+    'paul renner','adolphe mouron cassandre','a.m. cassandre','wolfgang weingart',
+    'april greiman','rudy vanderlans','zuzana licko','neville brody','vaughan oliver',
+    'peter saville','m/m paris','irma boom','karel martens','experimental jetset',
+    'marian bantjes','louise fili','seymour chwast','edward fella',
+    'massimo dolcini','giovanni pintori','franco grignani','aldo novarese','franco maria ricci',
+    'shigeo fukuda','tadanori yokoo','ikko tanaka','yusaku kamekura','kenya hara',
+    'kashiwa sato',
+    // Photographers — visual storytellers.
+    'henri cartier-bresson','robert capa','annie leibovitz','helmut newton','richard avedon',
+    'irving penn','ansel adams','diane arbus','cindy sherman','dorothea lange','walker evans',
+    'gordon parks','garry winogrand','william eggleston','eugène atget','alfred stieglitz',
+    'edward weston','paul strand','lee miller','vivian maier','sebastião salgado','steve mccurry',
+    'mary ellen mark','nan goldin','wolfgang tillmans','andreas gursky','hiroshi sugimoto',
+    'sally mann','joel meyerowitz','fred herzog','saul leiter','robert frank','bill brandt',
+    'brassaï','man ray','tina modotti','julia margaret cameron','daido moriyama',
+    'shōji ueda','rinko kawauchi','francesca woodman','imogen cunningham','lisette model',
+    'helen levitt','consuelo kanaga','viviane sassen','rineke dijkstra','catherine opie',
+    'carrie mae weems','kerry james marshall','dawoud bey','lorna simpson','deana lawson',
+  ],
+  'design leadership': [
+    // Industrial / product / furniture designers — design as discipline.
+    'dieter rams','charles eames','ray eames','jonathan ive',
+    'marc newson','naoto fukasawa','konstantin grcic','ross lovegrove','yves béhar',
+    'karim rashid','philippe starck','ettore sottsass','achille castiglioni','gaetano pesce',
+    'eero saarinen','isamu noguchi','alvar aalto','hans wegner','finn juhl','arne jacobsen',
+    'verner panton','george nelson','irving harper','florence knoll','mariska karasz',
+    'sori yanagi','isamu kenmochi','enzo mari',
+  ],
+  'ux / content design': [
+    // HCI pioneers + computing legends — people who designed interaction.
+    'don norman','jakob nielsen','john maeda','bret victor','alan kay','doug engelbart',
+    'vannevar bush','ted nelson','bill moggridge','jeff raskin','andy hertzfeld','bill atkinson',
+    'tim berners-lee','grace hopper','ada lovelace','radia perlman','frances allen',
+    'sophie wilson','karen sparck jones','margaret hamilton','barbara liskov','dorothy vaughan',
+    'katherine johnson','mary jackson','annie easley','evelyn boyd granville','kathleen booth',
+    'fei-fei li','timnit gebru','joy buolamwini','hadi partovi','linus torvalds',
+  ],
+  'motion design': [
+    // Filmmakers + cinematographers — masters of moving image.
+    'agnès varda','chris marker','errol morris','frederick wiseman','jean rouch','robert bresson',
+    'andrei tarkovsky','ingmar bergman','akira kurosawa','yasujirō ozu','kenji mizoguchi',
+    'satyajit ray','abbas kiarostami','hou hsiao-hsien','edward yang','ousmane sembène',
+    'djibril diop mambéty','souleymane cissé','abderrahmane sissako','wong kar-wai','tsai ming-liang',
+    'apichatpong weerasethakul','lucrecia martel','claire denis','chantal akerman','harun farocki',
+    'jean-luc godard','françois truffaut','jacques tati','agnes godard','vilmos zsigmond',
+    'gregg toland','sven nykvist','roger deakins','vittorio storaro','emmanuel lubezki',
+    'rachel morrison','reed morano','autumn durald','natasha braier','ellen kuras',
+  ],
+  'brand strategy': [
+    // Distance runners — strategists of pace, patience, the long horizon.
+    'steve prefontaine','roger bannister','emil zátopek','paavo nurmi','haile gebrselassie',
+    'eliud kipchoge','mo farah','kenenisa bekele','tirunesh dibaba','paula radcliffe',
+    'joan benoit samuelson','bill rodgers','frank shorter','alberto salazar','kathrine switzer',
+    'peter snell','lasse virén','kip keino','abebe bikila','sebastian coe','steve cram',
+    'steve ovett','said aouita','hicham el guerrouj','noah ngeny','john walker','filbert bayi',
+    'jim ryun','glenn cunningham','dave bedford','brendan foster','steve jones','grete waitz',
+    'ingrid kristiansen','tegla loroupe','catherine ndereba','mary keitany','naoko takahashi',
+    'mary decker','suzy hamilton','lornah kiplagat','constantina diță','zola budd',
+    'derartu tulu','fatuma roba','fernanda ribeiro','sonia o\'sullivan','maria mutola',
+    'ron clarke','herb elliott','jim peters','vladimir kuts','murray halberg',
+    'kelvin kiptum','faith kipyegon','sifan hassan','gudaf tsegay','agnes tirop',
+    'beatrice chebet','geoffrey mutai','dennis kimetto','wilson kipsang','abel kirui',
+    'samuel wanjiru','paul tergat','noureddine morceli','jakob ingebrigtsen','cole hocker',
+    'grant fisher','clayton young','galen rupp','meb keflezighi','shalane flanagan',
+    'desiree linden','molly seidel','sally kipyego','aliphine tuliamuk','alexi pappas',
+    'ryan hall','matt centrowitz','nick willis','asbel kiprop','genzebe dibaba',
+    'almaz ayana','meseret defar','vivian cheruiyot','helen obiri','letesenbet gidey',
+    'edna kiplagat','brigid kosgei','peres jepchirchir','hellen obiri','rojé stona',
+    'tigist assefa','ruth chepngetich','deena kastor','catherine debrunner','tatyana mcfadden',
+    'evan jager','donavan brazier','clayton murphy','craig engels','aleia hobbs',
+  ],
+};
+
+// Fallback chain — when a discipline's own pool exhausts, walk to the
+// closest adjacent craft. Last-resort cross-pool is computed in pickCodeName.
+const PHIL_POOL_FALLBACK = {
+  'copywriting':        ['creative direction', 'art direction'],
+  'creative direction': ['copywriting', 'art direction'],
+  'art direction':      ['design leadership', 'motion design'],
+  'design leadership':  ['art direction', 'ux / content design'],
+  'ux / content design':['design leadership', 'art direction'],
+  'motion design':      ['art direction', 'creative direction'],
+  'brand strategy':     ['creative direction', 'copywriting'],
+};
+
+// Flat union for any legacy consumer that still wants "any unused name" semantics.
+const PHIL_POOL = Object.values(PHIL_POOLS).flat();
+
+// Pick a code-name for `discipline`, consuming from `usedByDisc[disc]` first,
+// then walking the fallback chain, then any remaining unused name anywhere.
+// Returns null if every pool is exhausted (caller should drop to 'creative N').
+function pickCodeName(discipline, usedByDisc) {
+  const tryPool = (d) => {
+    const pool = PHIL_POOLS[d];
+    if (!pool) return null;
+    const used = usedByDisc[d] || (usedByDisc[d] = new Set());
+    const hit = pool.find((n) => !used.has(n));
+    if (hit) { used.add(hit); return hit; }
+    return null;
+  };
+  let n = tryPool(discipline);
+  if (n) return n;
+  for (const d of (PHIL_POOL_FALLBACK[discipline] || [])) {
+    n = tryPool(d);
+    if (n) return n;
+  }
+  for (const d of Object.keys(PHIL_POOLS)) {
+    n = tryPool(d);
+    if (n) return n;
+  }
+  return null;
+}
+
+// ─── DISCIPLINE CANONICALIZER ───────────────────────────────────────────────
+// Maps every form variant (canonical multi-select labels + 'Other' free-text
+// write-ins) into one of the seven filter buckets. Order is by specificity —
+// most-specific phrase first so 'art director' doesn't catch 'creative art
+// director' before the CD rule fires. Returns null when nothing matches.
+function canonicalDiscipline(s) {
+  const d = String(s || '').toLowerCase();
+  if (!d) return null;
+  if (d.includes('acd') || d.includes('associate creative director') ||
+      d.includes('creative dir') || d.includes('creative director')) return 'creative direction';
+  if (d.includes('copy') || d.includes('writer') || d.includes('writing'))   return 'copywriting';
+  if (d.includes('design lead') || d.includes('leadership') ||
+      d.includes('industrial design') || d.includes('product design') ||
+      d.includes('spatial design') || d.includes('furniture'))               return 'design leadership';
+  if (d.includes('ux') || d.includes('ui') || d.includes('content design'))   return 'ux / content design';
+  if (d.includes('motion') || d.includes('animation') || d.includes('animator') ||
+      d.includes('video') || d.includes('film') || d.includes('directing on set') ||
+      d.includes('cinematograph'))                                           return 'motion design';
+  if (d.includes('brand strategy') || d.includes('brand strategist') ||
+      d.includes('creative strategy') || d.includes('strategist') ||
+      d === 'strategy')                                                       return 'brand strategy';
+  // Art direction is the visual catch-all — AD itself plus 'Other' write-ins
+  // from photographers / illustrators / typographers / graphic designers.
+  if (d.includes('art direction') || d.includes('art director') ||
+      d.includes('illustration') || d.includes('illustrator') ||
+      d.includes('photography') || d.includes('photographer') ||
+      d.includes('typography') || d.includes('lettering') ||
+      d.includes('graphic design') || d.includes('graphic designer') ||
+      d.includes('brand design') || d.includes('visual design'))              return 'art direction';
+  // Bare 'design' as a last resort — leans graphic/art (leadership caught above).
+  if (d.includes('design'))                                                   return 'art direction';
+  return null;
+}
 
 
 const RATES = ['$$', '$$$', '$$$', '$$$$'];
@@ -640,7 +734,7 @@ function parseSheetCSV(text) {
   const CLIENT_IDX = 12;
   const EXP_IDX    = 13;
   const NOTE_IDX   = 15;
-  const used = new Set();
+  const usedByDisc = {};
   return lines.slice(1).map((line, i) => {
     const row = parseRow(line);
     const rawAvail = (row[AVAIL_IDX] || '').toLowerCase();
@@ -650,26 +744,17 @@ function parseSheetCSV(text) {
                        : 'soon';
     const note = (row[NOTE_IDX] || '').toLowerCase().slice(0, 130);
     if (!note) return null;
-    const name = PHIL_POOL.find((n) => !used.has(n)) || `creative ${i+1}`;
-    used.add(name);
     const clients = (row[CLIENT_IDX] || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean).slice(0, 3);
     const rawDiscFull = (row[DISC_IDX] || '').toLowerCase();
     const rawDisciplines = rawDiscFull.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
-    const canonDisc = (s) => s.includes('copy') ? 'copywriting'
-                          : s.includes('brand strategy') ? 'brand strategy'
-                          : s.includes('art') ? 'art direction'
-                          : s.includes('design lead') || s.includes('leadership') ? 'design leadership'
-                          : s.includes('design') ? 'design leadership'
-                          : s.includes('ux') ? 'ux / content design'
-                          : s.includes('motion') ? 'motion design'
-                          : s.includes('creative dir') ? 'creative direction'
-                          : 'creative direction';
-    const disc = canonDisc(rawDiscFull);
+    const disc = canonicalDiscipline(rawDiscFull) || 'creative direction';
     // Multi-discipline support: canonicalize every entry from the CSV column
     // and dedupe. Filtering checks any-match across this array, so a single
     // creative can sit under several discipline buckets simultaneously.
-    const disciplinesArr = [...new Set(rawDisciplines.map((d) => canonDisc((d || '').toLowerCase())).filter(Boolean))];
+    const disciplinesArr = [...new Set(rawDisciplines.map((d) => canonicalDiscipline(d)).filter(Boolean))];
     const disciplinesFinal = disciplinesArr.length ? disciplinesArr : [disc];
+    // Code-name drawn from the discipline-matched pool.
+    const name = pickCodeName(disc, usedByDisc) || `creative ${i+1}`;
     const realName  = (row[1] || '').trim();
     const firstName = realName.split(' ')[0].toLowerCase() || name;
     const emailRaw  = (row[2] || '').trim();
@@ -922,34 +1007,19 @@ function BenchProvider({ children }) {
   // the old parseSheetCSV implemented; the new API-driven path needs
   // to maintain it. The `used` set is scoped to a single adapt pass
   // so re-renders within a session produce identical assignments.
-  const _phUsed = new Set();
+  const _phUsedByDisc = {};
   const adaptApiRow = (r, i) => {
     const realName = r.name || '';
-    // Only consume PHIL_POOL for bench rows (the only rows displayed
-    // publicly). Rejected / paused / new rows don't need a code name —
-    // they're admin-only views or hidden. Without this gate, ~500
-    // rejected rows would burn through PHIL_POOL before reaching the
-    // 164 bench rows, leaving the last ~140 bench rows with
-    // 'creative N' fallback names.
     const isBench = r.status === 'bench';
-    const codeName = isBench
-      ? (PHIL_POOL.find((n) => !_phUsed.has(n)) || `creative ${i+1}`)
-      : (realName || `creative ${i+1}`);
-    if (isBench) _phUsed.add(codeName);
-    const name = codeName.toLowerCase();
-    const firstName = (realName.split(' ')[0] || codeName).toLowerCase();
-    const disciplinesArr = String(r.disciplines || '').split(/[,;]/).map((d) => d.trim().toLowerCase()).filter(Boolean);
-    const canonDisc = (d) =>
-      d.includes('copy') ? 'copywriting' :
-      d.includes('brand strategy') ? 'brand strategy' :
-      d.includes('art') ? 'art direction' :
-      d.includes('design lead') || d.includes('leadership') ? 'design leadership' :
-      d.includes('design') ? 'design leadership' :
-      d.includes('ux') ? 'ux / content design' :
-      d.includes('motion') ? 'motion design' :
-      d.includes('creative dir') ? 'creative direction' :
-      null;
-    let disciplines = [...new Set(disciplinesArr.map(canonDisc).filter(Boolean))];
+
+    // Disciplines FIRST — code-name selection depends on the canonical
+    // discipline so 'Susan Sontag' goes to a copywriter, not an art
+    // director. The 'Other' write-in column (r.otherDisc) is merged in
+    // too so 'illustration' / 'photography' / 'graphic design' / etc.
+    // land in the right bucket.
+    const rawDiscFull = [r.disciplines, r.otherDisc].filter(Boolean).join(', ');
+    const disciplinesArr = String(rawDiscFull).split(/[,;]/).map((d) => d.trim().toLowerCase()).filter(Boolean);
+    let disciplines = [...new Set(disciplinesArr.map(canonicalDiscipline).filter(Boolean))];
     // Same trick as availability + yoe: when the Sheet's Disciplines
     // cell is empty (most rows pre-date the structured intake), fall
     // back to a stable hash distribution across the seven filter
@@ -975,6 +1045,16 @@ function BenchProvider({ children }) {
       disciplines = [_distDisc(r.email || r.name)];
     }
     const discipline = disciplines[0];
+
+    // Pick code-name from the discipline-matched pool. Falls back through
+    // adjacent crafts (copy<->CD<->AD, design-lead<->AD, runners->CD->copy),
+    // then any unused name globally, then 'creative N'.
+    const codeName = isBench
+      ? (pickCodeName(discipline, _phUsedByDisc) || `creative ${i+1}`)
+      : (realName || `creative ${i+1}`);
+    const name = codeName.toLowerCase();
+    const firstName = (realName.split(' ')[0] || codeName).toLowerCase();
+
     const availRaw = String(r.availability || '').toLowerCase();
     // When the Sheet's Availability cell has real content, parse it
     // into the canonical four-state values. The cron freshness loop
@@ -1324,7 +1404,7 @@ function makeNoise(text, charset) {
 
 // `manual` — when true, do NOT animate on mount; only when runKey changes.
 // `runKey` — bump to retrigger the animation (e.g. on hover).
-function Scramble({ text, duration = 2400, delay = 0, runKey = 0, manual = false, charset }) {
+function Scramble({ text, duration = 3120, delay = 0, runKey = 0, manual = false, charset }) {
   const target = String(text);
   const [display, setDisplay] = useState(() => manual ? target : makeNoise(target, charset));
   const rafRef = useRef(null);
@@ -1367,14 +1447,31 @@ function Scramble({ text, duration = 2400, delay = 0, runKey = 0, manual = false
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target, duration, runKey, manual]);
 
+  // Layout stability: an invisible "ghost" copy of the final text holds
+  // the natural width, and the animated noise renders as an absolutely-
+  // positioned overlay on top. The scramble characters (▓ ← ¥ ø █…) have
+  // wildly variable widths in display fonts; without the ghost they'd
+  // jitter the surrounding layout 1–2px per frame.
   return (
     <span style={{
+      position: 'relative',
+      display: 'inline-block',
+      whiteSpace: 'pre',
       fontVariantNumeric: 'tabular-nums',
       fontFeatureSettings: '"tnum", "zero"',
-      display: 'inline-block',
       minWidth: `${target.length}ch`,
     }}>
-      {display}
+      <span aria-hidden="true" style={{ visibility: 'hidden', whiteSpace: 'pre' }}>
+        {target}
+      </span>
+      <span style={{
+        position: 'absolute',
+        left: 0, top: 0, right: 0, bottom: 0,
+        whiteSpace: 'pre',
+        overflow: 'hidden',
+      }}>
+        {display}
+      </span>
     </span>
   );
 }
@@ -1457,7 +1554,7 @@ function DashStatTile({ value, label, sub, isLast, numStyle, labelStyle }) {
       onMouseEnter={() => setK((x) => x + 1)}
       style={{ padding: '28px 24px', borderRight: !isLast ? `1px solid ${C.rule}` : 'none', cursor: 'default' }}>
       <div style={numStyle}>
-        <Scramble text={value} duration={700} runKey={k} manual />
+        <Scramble text={value} duration={910} runKey={k} manual />
       </div>
       <div style={{ ...labelStyle, marginTop: 14 }}>{label}</div>
       <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 4 }}>{sub}</div>

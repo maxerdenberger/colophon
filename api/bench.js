@@ -48,6 +48,7 @@ export default async function handler(req, res) {
         portfolio:    r.portfolio,
         linkedin:     r.linkedin,
         disciplines:  r.disciplines,
+        otherDisc:    r.otherDisc,
         timezone:     r.timezone,
         availability: r.availability,
         hourlyRate:   r.hourlyRate,
