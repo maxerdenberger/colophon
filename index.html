@@ -886,22 +886,22 @@ function deriveCounts(rows) {
     else rateBands['top-tier']++;
   });
 
-  // Discipline counts (split multi-discipline values from CSV)
-  const canonDisc = (s) => s.includes('copy') ? 'copywriting'
-                        : s.includes('brand strategy') ? 'brand strategy'
-                        : s.includes('art') ? 'art direction'
-                        : s.includes('leadership') ? 'design leadership'
-                        : s.includes('design') ? 'design leadership'
-                        : s.includes('ux') ? 'ux / content design'
-                        : s.includes('motion') ? 'motion design'
-                        : s.includes('creative dir') ? 'creative direction'
-                        : null;
+  // Discipline counts — uses the same canonicalDiscipline helper the
+  // filters use, so the stat counts on the landing page agree with what
+  // 'Filter by AD' actually surfaces. Prefer p.disciplines (already
+  // canonical) over r.rawDisciplines so we count each row once-per-bucket
+  // even when raw text was duplicate or messy.
   const discCount = {};
   rows.forEach((r) => {
-    const list = (r.rawDisciplines && r.rawDisciplines.length) ? r.rawDisciplines : [r.discipline];
+    const list = (r.disciplines && r.disciplines.length)
+      ? r.disciplines
+      : (r.rawDisciplines && r.rawDisciplines.length
+          ? r.rawDisciplines.map((d) => canonicalDiscipline(d)).filter(Boolean)
+          : (r.discipline ? [r.discipline] : []));
+    const seen = new Set();
     list.forEach((d) => {
-      const key = canonDisc((d || '').toLowerCase());
-      if (key) discCount[key] = (discCount[key] || 0) + 1;
+      const key = canonicalDiscipline(d);
+      if (key && !seen.has(key)) { seen.add(key); discCount[key] = (discCount[key] || 0) + 1; }
     });
   });
   const disciplines = Object.entries(discCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
@@ -942,7 +942,12 @@ const _saveMutationCache = (cache) => {
 // still fires and swaps in fresh data when it lands. TTL prevents wildly
 // stale data — if you haven't loaded admin in a day, you'll see the
 // regular fetch path again.
-const SNAPSHOT_KEY = 'colophon_bench_snapshot';
+// Bumping the suffix invalidates every browser's cached snapshot so they
+// re-fetch fresh data through the current adapter. Bump again whenever
+// the adapter's output shape changes (multi-disc arrays, code-name pools,
+// availability buckets, etc.) and you don't want old clients reading old
+// shapes for 24h.
+const SNAPSHOT_KEY = 'colophon_bench_snapshot_v2';
 const SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
 const _loadSnapshot = () => {
   try {
