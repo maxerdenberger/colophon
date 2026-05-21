@@ -1199,9 +1199,11 @@ function BenchProvider({ children }) {
               portfolio: 'https://colophon.contact',
               linkedin: 'https://www.linkedin.com/in/maxerdenberger',
               updatedAt: Date.now(),
-              discipline: 'art direction',
-              disciplines: ['art direction', 'creative direction', 'design leadership', 'brand strategy'],
-              rawDisciplines: ['art direction', 'creative direction', 'design leadership', 'brand strategy'],
+              // CD/Art is the industry shorthand — primary creative direction
+              // with art direction as the second craft (the visual side of CD).
+              discipline: 'creative direction',
+              disciplines: ['creative direction', 'art direction', 'design leadership', 'brand strategy'],
+              rawDisciplines: ['creative direction', 'art direction', 'design leadership', 'brand strategy'],
               availability: 'available',
               hourlyRate: 400,
               tz: 'UTC−7',
