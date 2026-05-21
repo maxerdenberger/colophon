@@ -5708,10 +5708,12 @@ function AdminSheetTools({ secret }) {
     } finally { setHeaderBusy(false); }
   };
 
+  const [auditOnlyBench, setAuditOnlyBench] = React.useState(true);
   const runAudit = async () => {
     setAuditBusy(true); setAuditErr(''); setAudit(null);
     try {
-      const r = await fetch('/api/audit-duplicates', { headers: { Authorization: `Bearer ${secret}` } });
+      const url = auditOnlyBench ? '/api/audit-duplicates?onlyBench=1' : '/api/audit-duplicates';
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${secret}` } });
       const text = await r.text();
       let j = null; try { j = text ? JSON.parse(text) : null; } catch {}
       if (!r.ok) throw new Error((j && j.error) || `status ${r.status}`);
