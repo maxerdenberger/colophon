@@ -5096,6 +5096,263 @@ function AdminBuyersPanel({ secret }) {
   );
 }
 
+// ── ADMIN CONTACTS PANEL ──────────────────────────────────────────────────
+// Unified roll-up of every email Colophon's touched — applicants, referrers,
+// people they referred, Stripe buyers, newsletter signups, concierge briefs.
+// Source chips to slice the list; copy-all + CSV download for outreach.
+function AdminContactsPanel({ secret }) {
+  const ALL_SOURCES = [
+    { key: 'applicant',        label: 'applicants' },
+    { key: 'buyer',            label: 'buyers' },
+    { key: 'referral-target',  label: 'referred' },
+    { key: 'referral-by',      label: 'referrers' },
+    { key: 'newsletter',       label: 'newsletter' },
+    { key: 'concierge',        label: 'concierge briefs' },
+  ];
+  const [data, setData] = useState(null);
+  const [err, setErr]   = useState('');
+  const [loading, setLoading] = useState(false);
+  const [active, setActive]   = useState(new Set()); // empty = all sources
+
+  const load = () => {
+    setLoading(true); setErr('');
+    fetch('/api/contacts?sources=all', { headers: { Authorization: `Bearer ${secret}` } })
+      .then((r) => r.json())
+      .then((j) => { if (j.error) throw new Error(j.error); setData(j); })
+      .catch((e) => setErr(e.message || 'fetch failed'))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { if (secret) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [secret]);
+
+  const filtered = useMemo(() => {
+    if (!data?.contacts) return [];
+    if (!active.size) return data.contacts;
+    return data.contacts.filter((c) => c.sources.some((s) => active.has(s)));
+  }, [data, active]);
+
+  const toggle = (k) => {
+    setActive((cur) => {
+      const next = new Set(cur);
+      if (next.has(k)) next.delete(k); else next.add(k);
+      return next;
+    });
+  };
+
+  const copyEmails = () => {
+    const emails = filtered.map((c) => c.email).join(', ');
+    if (emails) navigator.clipboard?.writeText(emails);
+  };
+  const downloadCsv = () => {
+    if (!filtered.length) return;
+    const header = ['email','name','sources','firstSeen','lastSeen'].join(',');
+    const lines = filtered.map((c) => [
+      c.email, JSON.stringify(c.name || ''),
+      JSON.stringify((c.sources || []).join('|')),
+      c.firstSeen, c.lastSeen,
+    ].join(','));
+    const csv = header + '\n' + lines.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `colophon-contacts-${active.size ? [...active].join('+') : 'all'}-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const fmtDate = (iso) => { if (!iso) return ''; try { return new Date(iso).toISOString().slice(0,10); } catch { return ''; } };
+
+  const chip = (s, count, on) => ({
+    fontFamily: GM, fontSize: 10, letterSpacing: '0.07em',
+    padding: '5px 11px', cursor: 'pointer',
+    border: `1px solid ${on ? C.ink : C.rule}`,
+    background: on ? C.ink : 'transparent',
+    color: on ? C.cream : (count > 0 ? C.ink : C.soft),
+  });
+
+  return (
+    <div style={{ marginTop: 22, marginBottom: 32, border: `1px solid ${C.rule}`, background: C.paper }}>
+      <div style={{ padding: '10px 20px', borderBottom: `1px solid ${C.rule}`, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#5a8d5a' }} />
+        <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.ink }}>contacts · all emails</span>
+        <button onClick={load} disabled={loading}
+          style={{ marginLeft: 'auto', fontFamily: GM, fontSize: 10, padding: '5px 10px', cursor: 'pointer', border: `1px solid ${C.rule}`, background: 'transparent', color: C.ink }}>
+          {loading ? 'loading…' : 'refresh'}
+        </button>
+      </div>
+      {err && <div style={{ padding: '14px 20px', fontFamily: GM, fontSize: 11, color: '#a83333' }}>{err}</div>}
+      {!err && data && (
+        <>
+          <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.rule}` }}>
+            <div style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.12em', color: C.soft, textTransform: 'uppercase', marginBottom: 8 }}>
+              filter by source
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+              {ALL_SOURCES.map((s) => {
+                const n = (data.counts && data.counts[s.key]) || 0;
+                const on = active.has(s.key);
+                return (
+                  <button key={s.key} onClick={() => toggle(s.key)} style={chip(s.key, n, on)}>
+                    {s.label} ({n})
+                  </button>
+                );
+              })}
+              {active.size > 0 && (
+                <button onClick={() => setActive(new Set())}
+                  style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.07em', padding: '5px 11px', cursor: 'pointer', border: 'none', background: 'transparent', color: C.soft, textDecoration: 'underline' }}>
+                  clear
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>
+                <strong style={{ color: C.ink, fontWeight: 600 }}>{filtered.length}</strong> unique {filtered.length === 1 ? 'contact' : 'contacts'}
+                {active.size > 0 && <> · filtered from {data.count}</>}
+              </span>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                <button onClick={copyEmails}
+                  style={{ fontFamily: GM, fontSize: 10, padding: '6px 12px', cursor: 'pointer', border: `1px solid ${C.rule}`, background: 'transparent', color: C.ink }}>
+                  copy all emails
+                </button>
+                <button onClick={downloadCsv}
+                  style={{ fontFamily: GM, fontSize: 10, padding: '6px 12px', cursor: 'pointer', border: `1px solid ${C.ink}`, background: C.ink, color: C.cream }}>
+                  download csv ↓
+                </button>
+              </div>
+            </div>
+          </div>
+          <div style={{ maxHeight: 540, overflow: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: GM, fontSize: 11 }}>
+              <thead style={{ position: 'sticky', top: 0 }}>
+                <tr style={{ background: C.cream, color: C.soft, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: `1px solid ${C.rule}` }}>email</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: `1px solid ${C.rule}` }}>name</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: `1px solid ${C.rule}` }}>sources</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: `1px solid ${C.rule}` }}>last seen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.slice(0, 500).map((c, i) => (
+                  <tr key={c.email + i} style={{ borderBottom: `1px solid ${C.rule}` }}>
+                    <td style={{ padding: '7px 12px' }}>
+                      <a href={`mailto:${c.email}`} style={{ color: C.ink, textDecoration: 'underline', textUnderlineOffset: 2 }}>{c.email}</a>
+                    </td>
+                    <td style={{ padding: '7px 12px', color: C.soft }}>{c.name || '—'}</td>
+                    <td style={{ padding: '7px 12px' }}>
+                      {(c.sources || []).map((s) => (
+                        <span key={s} style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.05em', padding: '2px 6px', marginRight: 4, border: `1px solid ${C.rule}`, color: C.soft }}>{s}</span>
+                      ))}
+                    </td>
+                    <td style={{ padding: '7px 12px', color: C.soft }}>{fmtDate(c.lastSeen)}</td>
+                  </tr>
+                ))}
+                {!filtered.length && (
+                  <tr><td colSpan={4} style={{ padding: '22px 20px', textAlign: 'center', color: C.soft, fontStyle: 'italic' }}>no contacts match this filter</td></tr>
+                )}
+              </tbody>
+            </table>
+            {filtered.length > 500 && (
+              <div style={{ padding: '10px 14px', fontFamily: GM, fontSize: 10, color: C.soft, textAlign: 'center', borderTop: `1px solid ${C.rule}` }}>
+                showing first 500 of {filtered.length} · download csv for full list
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── ADMIN TEMPLATE LIBRARY ────────────────────────────────────────────────
+// Reference gallery of every transactional email Colophon sends and every
+// public-facing form. Collapsed by default — a tucked-away map of the
+// system for QA, copy review, or "wait, what does that email look like?"
+// moments. Each card links to the source file on GitHub so you can edit
+// in two clicks.
+function AdminTemplateLibrary() {
+  const [open, setOpen] = useState(false);
+  const repo = 'https://github.com/maxerdenberger/colophon/blob/main';
+  const EMAILS = [
+    { name: 'Welcome / approval', trigger: 'Operator approves an applicant from /admin', to: 'creative', file: 'api/send-approval-email.js',
+      note: '"You\'re on the bench" — links to their public profile + invite-only access cue.' },
+    { name: 'Availability ping', trigger: 'Daily cron + admin manual run for stale rows', to: 'creative', file: 'api/daily.js',
+      note: 'Three-tap "tap whichever fits today" — updates Sheet directly via /api/update-availability.' },
+    { name: 'Referral invite', trigger: 'Operator sends invite from admin or a bench creative refers someone', to: 'recipient', file: 'api/send-invites.js',
+      note: '"{referrer} recommended you to Colophon." Subject + body live in send-invites.js.' },
+    { name: 'Invite confirm', trigger: 'Referral recipient clicks confirm link', to: 'operator', file: 'api/invite-confirm.js',
+      note: 'Logs to Sheet Referrals tab + pings operator with referral details.' },
+    { name: 'Batch send', trigger: 'Admin batch-mode submit', to: 'multiple creatives', file: 'api/send-batch.js',
+      note: 'Send templated outreach to a list — fundraising, intros, status updates.' },
+    { name: 'Concierge dispatch', trigger: 'Buyer submits concierge brief', to: 'operator', file: 'api/concierge-dispatch.js',
+      note: 'Operator gets brief preview + link to admin matching panel.' },
+    { name: 'Concierge reply', trigger: 'Operator approves concierge match', to: 'buyer', file: 'api/concierge-send.js',
+      note: 'AI-drafted reply with the matched bench. Editable before send.' },
+    { name: 'Year-tier proposal', trigger: 'Operator approves year-tier inquiry', to: 'buyer', file: 'api/suggest-year-price.js',
+      note: 'AI-suggested pricing + proposal email body.' },
+    { name: 'Year-renewal reminder', trigger: 'Cron — 14 days before subscription end', to: 'year-tier buyer', file: 'api/year-renewal-check.js',
+      note: 'Renew or lapse. Stripe session link.' },
+  ];
+  const FORMS = [
+    { name: 'Apply (creatives)', where: '/apply · ApplyDrawer in main header', captures: 'name, email, portfolio, linkedin, disciplines, tz, rate, clients, value prop, partners',
+      component: 'index.html', anchor: 'ApplyDrawer' },
+    { name: 'Concierge brief', where: '/concierge · ConciergeDrawer', captures: 'name, email, company, role, what they need, deadline, budget',
+      component: 'index.html', anchor: 'ConciergeDrawer' },
+    { name: 'Year-tier inquiry', where: 'Pricing page — "contact us" CTA at the year tier', captures: 'name, email, company, intended use, filters they like',
+      component: 'index.html', anchor: 'requestYearPricing' },
+    { name: 'Newsletter signup', where: 'Footer or bench teaser', captures: 'email only', component: 'index.html', anchor: 'bench-newsletter' },
+    { name: 'Referral form', where: '/invite — public referral landing', captures: 'referrer + 1 creative + 1 hirer (name/email/org)',
+      component: 'invite.js', anchor: '' },
+  ];
+
+  const headerStyle = { padding: '10px 20px', borderBottom: open ? `1px solid ${C.rule}` : 'none', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' };
+  const sectionTitle = { fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.soft, padding: '14px 20px 8px' };
+
+  return (
+    <div style={{ marginTop: 22, marginBottom: 32, border: `1px solid ${C.rule}`, background: C.paper }}>
+      <div onClick={() => setOpen((o) => !o)} style={headerStyle}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#5a8d5a' }} />
+        <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.ink }}>library · emails + forms</span>
+        <span style={{ marginLeft: 'auto', fontFamily: GM, fontSize: 11, color: C.soft }}>{open ? '— collapse' : '+ expand'}</span>
+      </div>
+      {open && (
+        <>
+          <div style={sectionTitle}>transactional emails ({EMAILS.length})</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12, padding: '4px 20px 18px' }}>
+            {EMAILS.map((e) => (
+              <a key={e.name} href={`${repo}/${e.file}`} target="_blank" rel="noopener noreferrer"
+                 style={{ display: 'block', padding: '12px 14px', border: `1px solid ${C.rule}`, background: C.cream, textDecoration: 'none', color: C.ink }}>
+                <div style={{ fontFamily: GS, fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{e.name}</div>
+                <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginBottom: 6, letterSpacing: '0.04em' }}>
+                  trigger: {e.trigger} · to: {e.to}
+                </div>
+                <div style={{ fontFamily: GM, fontSize: 11, color: C.ink, lineHeight: 1.5, marginBottom: 8 }}>{e.note}</div>
+                <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.05em' }}>{e.file} ↗</div>
+              </a>
+            ))}
+          </div>
+          <div style={sectionTitle}>public forms ({FORMS.length})</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12, padding: '4px 20px 22px' }}>
+            {FORMS.map((f) => (
+              <div key={f.name} style={{ padding: '12px 14px', border: `1px solid ${C.rule}`, background: C.cream }}>
+                <div style={{ fontFamily: GS, fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{f.name}</div>
+                <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginBottom: 6, letterSpacing: '0.04em' }}>
+                  where: {f.where}
+                </div>
+                <div style={{ fontFamily: GM, fontSize: 11, color: C.ink, lineHeight: 1.5, marginBottom: 8 }}>
+                  <span style={{ color: C.soft }}>captures · </span>{f.captures}
+                </div>
+                <a href={`${repo}/${f.component}`} target="_blank" rel="noopener noreferrer"
+                   style={{ fontFamily: GM, fontSize: 9, color: C.ink, letterSpacing: '0.05em', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                  {f.component}{f.anchor ? ' → ' + f.anchor : ''} ↗
+                </a>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── BUILD STAMP ───────────────────────────────────────────────────────────
 // Fetches /api/version on mount and displays the deployed git SHA + the
 // commit subject. Killer for "did the deploy land?" anxiety — one glance
@@ -8943,6 +9200,10 @@ function AdminPage({ accent, setPage }) {
         {/* ── Top buyers — outreach + CSV export. ─────────────────────── */}
         <AdminBuyersPanel secret={secret} />
 
+        {/* ── Unified contacts — applicants + referrers + referred +
+              buyers + newsletter + concierge briefs. ─────────────── */}
+        <AdminContactsPanel secret={secret} />
+
         {/* ── Daily freshness check. Cron-fired at 13:00 UTC.
               Manual button for impatient days. ─────────────────────── */}
         <FreshnessCheckPanel secret={secret} />
@@ -8962,6 +9223,9 @@ function AdminPage({ accent, setPage }) {
 
         {/* ── Sheet maintenance — column headers + duplicate audit. ─────── */}
         <AdminSheetTools secret={secret} />
+
+        {/* ── Template library — every email + form, collapsible. ──────── */}
+        <AdminTemplateLibrary />
 
         {/* ── Quick links ──────────────────────────────────────────────── */}
         <AdminQuickLinks />
