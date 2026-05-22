@@ -4950,6 +4950,188 @@ function AdminAnalyticsPanel() {
   );
 }
 
+// ── ADMIN BUYERS PANEL ────────────────────────────────────────────────────
+// Top buyers by lifetime spend, pulled from Stripe via /api/buyers. Click
+// any email to compose. CSV download for outreach lists. Filtered to
+// Colophon products only, operator's self-test purchases excluded.
+function AdminBuyersPanel({ secret }) {
+  const [data, setData] = useState(null);
+  const [err, setErr]   = useState('');
+  const [loading, setLoading] = useState(false);
+  const [days, setDays] = useState(365);
+  const [limit, setLimit] = useState(50);
+
+  const load = () => {
+    setLoading(true); setErr('');
+    fetch(`/api/buyers?days=${days}&limit=${limit}`, { headers: { Authorization: `Bearer ${secret}` } })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.error) throw new Error(j.error);
+        setData(j);
+      })
+      .catch((e) => setErr(e.message || 'fetch failed'))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { if (secret) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [secret]);
+
+  const toCsv = () => {
+    if (!data?.buyers?.length) return '';
+    const header = ['email','name','purchases','totalGross','products','firstAt','lastAt'].join(',');
+    const lines = data.buyers.map((b) => [
+      b.email, JSON.stringify(b.name || ''),
+      b.purchases, b.totalGross,
+      JSON.stringify((b.products || []).join('|')),
+      b.firstAt, b.lastAt,
+    ].join(','));
+    return header + '\n' + lines.join('\n');
+  };
+  const downloadCsv = () => {
+    const csv = toCsv();
+    if (!csv) return;
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `colophon-buyers-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const copyEmails = () => {
+    const emails = (data?.buyers || []).map((b) => b.email).filter((e) => !e.startsWith('unknown:')).join(', ');
+    if (!emails) return;
+    navigator.clipboard?.writeText(emails);
+  };
+
+  const fmtDate = (iso) => {
+    if (!iso) return '';
+    try { return new Date(iso).toISOString().slice(0, 10); } catch { return ''; }
+  };
+  const fmtUsd = (n) => '$' + Math.round(n).toLocaleString();
+
+  return (
+    <div style={{ marginTop: 22, marginBottom: 32, border: `1px solid ${C.rule}`, background: C.paper }}>
+      <div style={{ padding: '10px 20px', borderBottom: `1px solid ${C.rule}`, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#5a8d5a' }} />
+        <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.ink }}>buyers · top by spend</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <select value={days} onChange={(e) => setDays(parseInt(e.target.value, 10))}
+            style={{ fontFamily: GM, fontSize: 10, padding: '4px 8px', background: C.cream, color: C.ink, border: `1px solid ${C.rule}` }}>
+            <option value={30}>30 days</option>
+            <option value={90}>90 days</option>
+            <option value={180}>180 days</option>
+            <option value={365}>1 year</option>
+            <option value={730}>2 years</option>
+          </select>
+          <select value={limit} onChange={(e) => setLimit(parseInt(e.target.value, 10))}
+            style={{ fontFamily: GM, fontSize: 10, padding: '4px 8px', background: C.cream, color: C.ink, border: `1px solid ${C.rule}` }}>
+            <option value={10}>top 10</option>
+            <option value={25}>top 25</option>
+            <option value={50}>top 50</option>
+            <option value={100}>top 100</option>
+            <option value={200}>top 200</option>
+          </select>
+          <button onClick={load} disabled={loading}
+            style={{ fontFamily: GM, fontSize: 10, padding: '5px 10px', cursor: 'pointer', border: `1px solid ${C.rule}`, background: 'transparent', color: C.ink }}>
+            {loading ? 'loading…' : 'refresh'}
+          </button>
+        </div>
+      </div>
+      {err && <div style={{ padding: '14px 20px', fontFamily: GM, fontSize: 11, color: '#a83333' }}>{err}</div>}
+      {!err && data && (
+        <>
+          <div style={{ padding: '14px 20px', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', borderBottom: `1px solid ${C.rule}` }}>
+            <span style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>
+              <strong style={{ color: C.ink, fontWeight: 600 }}>{data.count}</strong> {data.count === 1 ? 'buyer' : 'buyers'} · past {days === 365 ? '1 yr' : days === 730 ? '2 yrs' : days + 'd'}
+            </span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              <button onClick={copyEmails}
+                style={{ fontFamily: GM, fontSize: 10, padding: '6px 12px', cursor: 'pointer', border: `1px solid ${C.rule}`, background: 'transparent', color: C.ink }}>
+                copy all emails
+              </button>
+              <button onClick={downloadCsv}
+                style={{ fontFamily: GM, fontSize: 10, padding: '6px 12px', cursor: 'pointer', border: `1px solid ${C.ink}`, background: C.ink, color: C.cream }}>
+                download csv ↓
+              </button>
+            </div>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: GM, fontSize: 11 }}>
+              <thead>
+                <tr style={{ background: C.cream, color: C.soft, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: `1px solid ${C.rule}`, width: 32 }}>#</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: `1px solid ${C.rule}` }}>email</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: `1px solid ${C.rule}` }}>name</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: `1px solid ${C.rule}` }}>spend</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: `1px solid ${C.rule}` }}>buys</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: `1px solid ${C.rule}` }}>products</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: `1px solid ${C.rule}` }}>last</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.buyers.map((b, i) => (
+                  <tr key={b.email + i} style={{ borderBottom: `1px solid ${C.rule}` }}>
+                    <td style={{ padding: '8px 12px', color: C.soft }}>{String(i + 1).padStart(3, '0')}</td>
+                    <td style={{ padding: '8px 12px' }}>
+                      {b.email.startsWith('unknown:') ? (
+                        <span style={{ color: C.soft, fontStyle: 'italic' }}>{b.email}</span>
+                      ) : (
+                        <a href={`mailto:${b.email}`} style={{ color: C.ink, textDecoration: 'underline', textUnderlineOffset: 2 }}>{b.email}</a>
+                      )}
+                    </td>
+                    <td style={{ padding: '8px 12px', color: C.soft }}>{b.name || '—'}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600 }}>{fmtUsd(b.totalGross)}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right' }}>{b.purchases}</td>
+                    <td style={{ padding: '8px 12px', color: C.soft, fontSize: 10 }}>{(b.products || []).join(' · ')}</td>
+                    <td style={{ padding: '8px 12px', color: C.soft }}>{fmtDate(b.lastAt)}</td>
+                  </tr>
+                ))}
+                {!data.buyers.length && (
+                  <tr><td colSpan={7} style={{ padding: '22px 20px', textAlign: 'center', color: C.soft, fontStyle: 'italic' }}>no buyers in this window</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── BUILD STAMP ───────────────────────────────────────────────────────────
+// Fetches /api/version on mount and displays the deployed git SHA + the
+// commit subject. Killer for "did the deploy land?" anxiety — one glance
+// and you know exactly which build you're looking at, plus when it spun up.
+function BuildStamp() {
+  const [v, setV] = useState(null);
+  const [err, setErr] = useState(null);
+  useEffect(() => {
+    let cancel = false;
+    fetch('/api/version', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => { if (!cancel) setV(j); })
+      .catch((e) => { if (!cancel) setErr(e.message || 'fetch failed'); });
+    return () => { cancel = true; };
+  }, []);
+  const wrap = { fontFamily: GM, fontSize: 10, color: C.soft, padding: '8px 12px', border: `1px dashed ${C.rule}`, background: C.cream, marginBottom: 14, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, lineHeight: 1.5 };
+  if (err) return <div style={wrap}>build · /api/version error: {err}</div>;
+  if (!v) return <div style={wrap}>build · loading…</div>;
+  const ghUrl = v.sha && v.sha !== 'local' ? `https://github.com/maxerdenberger/colophon/commit/${v.sha}` : null;
+  const ageMin = v.deployedAt ? Math.max(0, Math.round((Date.now() - new Date(v.deployedAt).getTime()) / 60000)) : null;
+  return (
+    <div style={wrap}>
+      <span style={{ fontFamily: GM, color: C.ink, fontWeight: 600 }}>build</span>
+      {ghUrl ? (
+        <a href={ghUrl} target="_blank" rel="noopener noreferrer" style={{ color: C.ink, textDecoration: 'underline', textUnderlineOffset: 2, fontFamily: GM }}>{v.shortSha}</a>
+      ) : (
+        <span style={{ color: C.ink }}>{v.shortSha}</span>
+      )}
+      {v.message && <span style={{ color: C.soft, maxWidth: '52ch', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {v.message}</span>}
+      <span style={{ color: C.soft, marginLeft: 'auto' }}>
+        {v.env}{ageMin != null ? ` · ${ageMin === 0 ? 'just now' : ageMin + 'm ago'}` : ''}
+      </span>
+    </div>
+  );
+}
+
 // ── REVENUE + SUNK COSTS ──────────────────────────────────────────────────
 // Editable monthly + one-time costs. Update these as your stack changes.
 // `monthly` accrues per month over the selected window; `oneTime` is a
@@ -8735,6 +8917,11 @@ function AdminPage({ accent, setPage }) {
           </button>
         </div>
 
+        {/* ── Build stamp — deployed git SHA + age. Glance to confirm
+              the latest push is live. Renders first so it's the answer
+              to "did my deploy land?" without scrolling. ───────────── */}
+        <BuildStamp />
+
         {/* ── Top-bar actions — handoff doc download + site dark switch. ── */}
         <AdminTopBar />
 
@@ -8752,6 +8939,9 @@ function AdminPage({ accent, setPage }) {
 
         {/* ── Revenue + sunk costs (Stripe summary). ───────────────────── */}
         <AdminRevenuePanel secret={secret} />
+
+        {/* ── Top buyers — outreach + CSV export. ─────────────────────── */}
+        <AdminBuyersPanel secret={secret} />
 
         {/* ── Daily freshness check. Cron-fired at 13:00 UTC.
               Manual button for impatient days. ─────────────────────── */}
