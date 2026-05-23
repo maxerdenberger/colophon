@@ -22,10 +22,21 @@
 
 import { Resend } from 'resend';
 import { google } from 'googleapis';
+import crypto from 'crypto';
 
 const FROM = 'Colophon <noreply@colophon.contact>';
 const REPLY_TO = 'noreply@colophon.contact';
 const SITE = 'https://colophon.contact';
+
+// Activation token — same HMAC pattern /api/activate validates against.
+// Keeps the secret centralized.
+function activationTokenFor(email) {
+  const secret = process.env.ACTIVATION_TOKEN_SECRET
+              || process.env.AVAILABILITY_TOKEN_SECRET
+              || process.env.ADMIN_KEY
+              || '590Rossmore';
+  return crypto.createHmac('sha256', secret).update(String(email).trim().toLowerCase()).digest('hex').slice(0, 32);
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -63,6 +74,12 @@ export default async function handler(req, res) {
     ? `${SITE}/look?discipline=${encodeURIComponent(disciplineSlug(discipline))}`
     : `${SITE}/look`;
 
+  // Activation deep-link — the creative completes 3 peer refs + 1 buyer ref
+  // here, which flips confirmed='yes' on their row and unlocks them on the
+  // public bench. Required step for all new approvals (rows created before
+  // the activation gate are grandfathered).
+  const activateUrl = `${SITE}/activate?email=${encodeURIComponent(focusToken)}&token=${activationTokenFor(to)}`;
+
   const subject = `${firstName.charAt(0).toUpperCase() + firstName.slice(1)}, you're on the Colophon bench.`;
 
   // Plain text version — what most creatives prefer to read.
@@ -76,6 +93,16 @@ export default async function handler(req, res) {
     `${benchUrl}`,
     ``,
     `Hirers reach you direct from that page — your rate, your contact, no agency in the middle. The bench is small on purpose, and you made it.`,
+    ``,
+    `———`,
+    `ONE LAST STEP — ACTIVATION`,
+    ``,
+    `The bench grows by referral. To finalize your spot, name three creatives you'd vouch for and one buyer/brand who should know about Colophon. This is the final gate before your row goes public.`,
+    ``,
+    `Complete activation here:`,
+    `${activateUrl}`,
+    ``,
+    `———`,
     ``,
     `If you'd like to share that you're on the bench, here are a few options you can copy as-is (these point at the public bench, not your private preview link):`,
     ``,
@@ -135,6 +162,13 @@ export default async function handler(req, res) {
       <p style="margin:0 0 24px;"><a href="${safeBench}" style="display:inline-block;background:#0d1014;color:#f4ede2;padding:12px 18px;text-decoration:none;font-family:'IBM Plex Mono','Menlo',monospace;font-size:12px;letter-spacing:0.06em;border-radius:2px;">view your bench page →</a></p>
 
       <p style="margin:0 0 24px;">Hirers reach you direct from that page — your rate, your contact, no agency in the middle. The bench is small on purpose, and you made it.</p>
+
+      <hr style="border:0;border-top:1px solid rgba(13,16,20,0.12);margin:32px 0;" />
+
+      <!-- Activation gate — 3 peer refs + 1 buyer ref. Required to publish their row to the public bench. -->
+      <p style="font-size:11px;letter-spacing:0.18em;color:#FF5100;text-transform:uppercase;margin:0 0 8px;font-family:'IBM Plex Mono','Menlo',monospace;">one last step · activation</p>
+      <p style="margin:0 0 12px;">The bench grows by referral. To finalize your spot, name three creatives you'd vouch for and one buyer or brand that should know about Colophon. This is the final gate before your row goes public.</p>
+      <p style="margin:0 0 28px;"><a href="${esc(activateUrl)}" style="display:inline-block;background:#FF5100;color:#f4ede2;padding:13px 20px;text-decoration:none;font-family:'IBM Plex Mono','Menlo',monospace;font-size:12px;letter-spacing:0.06em;border-radius:2px;">complete activation →</a></p>
 
       <hr style="border:0;border-top:1px solid rgba(13,16,20,0.12);margin:32px 0;" />
 

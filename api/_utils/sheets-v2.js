@@ -324,6 +324,41 @@ export async function setStatusByEmail(email, newStatus) {
   return { rowsTouched: matched.length, rowNumbers: matched, newStatus: canon };
 }
 
+// Flip the 'confirmed' flag for every row matching the email. Used by
+// /api/activate when a creative completes the 3-peer + 1-buyer referral
+// step — that's the final gate before they show up on the public bench.
+export async function setConfirmedByEmail(email, value = 'yes') {
+  const target = String(email || '').trim().toLowerCase();
+  if (!target.includes('@')) throw new Error('email required');
+  const { rows, headerMap } = await readBench({ force: true });
+  const { map } = headerMap;
+  const confirmedCol = map.confirmed;
+  if (confirmedCol == null) throw new Error('no "Confirmed" column found on Sheet — add it');
+  const lastUpdatedCol = map.lastUpdated;
+  const matched = rows.filter((r) => r.email === target).map((r) => r.rowNumber);
+  if (!matched.length) return { rowsTouched: 0, rowNumbers: [] };
+  const sheets = client();
+  const colLetter = (n) => {
+    let s = ''; n = n + 1;
+    while (n > 0) { const mod = (n - 1) % 26; s = String.fromCharCode(65 + mod) + s; n = Math.floor((n - 1) / 26); }
+    return s;
+  };
+  const now = new Date().toISOString();
+  const data = [];
+  for (const n of matched) {
+    data.push({ range: `${TAB_NAME}!${colLetter(confirmedCol)}${n}`, values: [[value]] });
+    if (lastUpdatedCol != null) {
+      data.push({ range: `${TAB_NAME}!${colLetter(lastUpdatedCol)}${n}`, values: [[now]] });
+    }
+  }
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+    requestBody: { valueInputOption: 'RAW', data },
+  });
+  invalidateBenchCache();
+  return { rowsTouched: matched.length, rowNumbers: matched, value };
+}
+
 // Append a new row. Used only when an action targets an email that
 // isn't already on the Sheet (e.g. approving a Formspree submission
 // from a brand-new applicant). Writes fields whose header columns exist;

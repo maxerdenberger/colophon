@@ -169,14 +169,36 @@ export default async function handler(req, res) {
     ]);
     const [applicants, referrals, buyers, formspree] = tasks;
 
-    // contacts: email → { email, name, sources: Set, firstSeen, lastSeen, meta }
+    // Tag each source with which side of the market it belongs to.
+    //   demand  — hiring managers (paid buyers, concierge briefs, hirer
+    //             referrals, year-tier inquiries)
+    //   supply  — creatives (applicants, creative referrals)
+    //   unknown — newsletter signups (could be either)
+    // A contact's final side is the strongest signal seen: demand wins
+    // over supply wins over unknown.
+    const SIDE_RANK = { demand: 3, supply: 2, unknown: 1 };
+    const sourceSide = (source, type) => {
+      if (source === 'buyer' || source === 'concierge') return 'demand';
+      if (source === 'applicant') return 'supply';
+      if (source === 'referral-by' || source === 'referral-target') {
+        const t = String(type || '').toLowerCase();
+        if (t === 'hirer' || t === 'hiring' || t === 'buyer')  return 'demand';
+        if (t === 'creative')                                   return 'supply';
+        return 'unknown';
+      }
+      return 'unknown';
+    };
+
+    // contacts: email → { email, name, sources: Set, side, firstSeen, lastSeen, meta }
     const map = new Map();
     const add = (email, name, source, ts, meta) => {
       const e = String(email || '').toLowerCase().trim();
       if (!e || !e.includes('@')) return;
       const tsMs = ts ? (Date.parse(ts) || 0) : 0;
-      const cur = map.get(e) || { email: e, name: '', sources: new Set(), firstSeen: tsMs || Date.now(), lastSeen: tsMs || 0, meta: {} };
+      const cur = map.get(e) || { email: e, name: '', sources: new Set(), side: 'unknown', firstSeen: tsMs || Date.now(), lastSeen: tsMs || 0, meta: {} };
       cur.sources.add(source);
+      const sourceTypeSide = sourceSide(source, meta && meta.type);
+      if (SIDE_RANK[sourceTypeSide] > SIDE_RANK[cur.side]) cur.side = sourceTypeSide;
       if (name && !cur.name) cur.name = name;
       if (tsMs) {
         cur.firstSeen = Math.min(cur.firstSeen, tsMs);
@@ -200,6 +222,7 @@ export default async function handler(req, res) {
         email:     c.email,
         name:      c.name || '',
         sources:   [...c.sources],
+        side:      c.side,
         firstSeen: c.firstSeen ? new Date(c.firstSeen).toISOString() : '',
         lastSeen:  c.lastSeen  ? new Date(c.lastSeen).toISOString()  : '',
         meta:      c.meta || {},
@@ -209,10 +232,14 @@ export default async function handler(req, res) {
     // Per-source counts for the panel header.
     const counts = {};
     for (const c of contacts) for (const s of c.sources) counts[s] = (counts[s] || 0) + 1;
+    // Per-side counts so the panel can show "X hiring managers · Y creatives".
+    const sides = { demand: 0, supply: 0, unknown: 0 };
+    for (const c of contacts) sides[c.side] = (sides[c.side] || 0) + 1;
 
     return res.status(200).json({
       count:   contacts.length,
       counts,
+      sides,
       filter:  want,
       contacts,
       ts: new Date().toISOString(),

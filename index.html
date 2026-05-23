@@ -948,6 +948,11 @@ const _saveMutationCache = (cache) => {
 // availability buckets, etc.) and you don't want old clients reading old
 // shapes for 24h.
 const SNAPSHOT_KEY = 'colophon_bench_snapshot_v2';
+// ACTIVATION_GATE_TS — the moment we turned on the "complete activation"
+// requirement. Bench rows created BEFORE this timestamp are grandfathered
+// (visible regardless of confirmed flag). Rows created after must have
+// confirmed='yes' to surface on the public bench.
+const ACTIVATION_GATE_TS = Date.parse('2026-05-22T00:00:00Z');
 const SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
 const _loadSnapshot = () => {
   try {
@@ -1158,6 +1163,7 @@ function BenchProvider({ children }) {
       portfolio: r.portfolio || '',
       linkedin: r.linkedin || '',
       updatedAt: r.lastUpdatedTs || r.createdAtTs || 0,
+      createdAtTs: r.createdAtTs || 0,
       discipline, disciplines,
       rawDisciplines: disciplinesArr,
       availability, hourlyRate, tz, rate,
@@ -1298,7 +1304,12 @@ function BenchProvider({ children }) {
     // never produces yoe<4 (only mid/senior/lead), so synthetic rows
     // always pass. Real applicants with yoe<4 fall to /emerging when
     // confirmed — exactly the intended split.
-    bench:         allBench.filter((p) => p.status === 'approved' && (p.yoe || 0) >= 4),
+    // Public bench requires confirmed='yes' (activation gate) OR was
+    // created before the gate launched (grandfather — existing 160+
+    // bench rows stay visible). New approvals post-gate must complete
+    // /activate to surface publicly.
+    bench:         allBench.filter((p) => p.status === 'approved' && (p.yoe || 0) >= 4
+                                       && (p.confirmed || (p.createdAtTs || p.updatedAt || 0) < ACTIVATION_GATE_TS)),
     // Emerging — 1-3 yrs (when explicit), must have confirmed. Still
     // requires yoe to be parsed cleanly into that band.
     emergingBench: allBench.filter((p) => (p.yoe || 0) >= 1 && (p.yoe || 0) < 4 && p.confirmed && p.status === 'approved'),
@@ -3606,6 +3617,162 @@ function UnlockedBenchTable({ accent, preview, setPage, buyerTags = [], sessionF
 // listed creative confirms via the referral-email link the admin fires.
 // Unique route that bypasses the /access token gate so a cached paid
 // session token doesn't stop the admin from viewing it.
+// ── ACTIVATE PAGE ─────────────────────────────────────────────────────────
+// Final gate after approval. Welcome email links here with email + HMAC
+// token. Three peer refs + one buyer ref, all required. Submit hits
+// /api/activate which writes refs to the Referrals tab + flips
+// confirmed='yes' on their bench row → row goes public.
+function ActivatePage({ accent, setPage }) {
+  const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const emailEnc = params.get('email') || '';
+  const token = params.get('token') || '';
+  const email = (() => { try { return atob(decodeURIComponent(emailEnc)).toLowerCase(); } catch { return ''; } })();
+
+  const [creatives, setCreatives] = useState([
+    { name: '', contact: '' },
+    { name: '', contact: '' },
+    { name: '', contact: '' },
+  ]);
+  const [buyer, setBuyer] = useState({ name: '', org: '', contact: '' });
+  const [stage, setStage] = useState('idle'); // idle | sending | done | error
+  const [err, setErr] = useState('');
+
+  const setCreative = (i, field, value) => {
+    setCreatives((arr) => arr.map((c, j) => j === i ? { ...c, [field]: value } : c));
+  };
+
+  const ready = email && token &&
+    creatives.every((c) => c.name.trim() && c.contact.trim()) &&
+    buyer.name.trim() && buyer.org.trim() && buyer.contact.trim().includes('@');
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!ready) {
+      setErr('all three peer referrals + one buyer (name + org + email) required.');
+      return;
+    }
+    setErr(''); setStage('sending');
+    try {
+      const r = await fetch('/api/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email, token,
+          refs: [
+            ...creatives.map((c) => ({ type: 'creative', name: c.name.trim(), contact: c.contact.trim() })),
+            { type: 'hirer', name: buyer.name.trim(), org: buyer.org.trim(), contact: buyer.contact.trim() },
+          ],
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok || j.error) throw new Error(j.error || `error ${r.status}`);
+      setStage('done');
+    } catch (ex) {
+      setErr(ex.message || 'activation failed');
+      setStage('error');
+    }
+  };
+
+  const lS = { display: 'block', fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', color: C.soft, marginBottom: 6, textTransform: 'uppercase' };
+  const iS = { background: '#fff', border: `1.5px solid ${C.ink}`, borderRadius: 2, padding: '12px 14px', fontFamily: GM, fontSize: 13, color: C.ink, outline: 'none', width: '100%', boxSizing: 'border-box' };
+  const sH = { fontFamily: GS, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', borderTop: `1px solid ${C.rule}`, paddingTop: 28, marginTop: 12, marginBottom: 8 };
+
+  if (!email || !token) {
+    return (
+      <div style={{ background: C.cream, minHeight: '100vh', padding: '80px 24px' }}>
+        <div style={{ maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
+          <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 32, letterSpacing: '-0.02em', marginBottom: 12 }}>activation link incomplete</h1>
+          <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.7 }}>
+            this link is missing the email + token parameters from your welcome message. open the email again and click the activation button.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === 'done') {
+    return (
+      <div style={{ background: C.cream, minHeight: '100vh', padding: '80px 24px' }}>
+        <div style={{ maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
+          <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: accent, marginBottom: 18, textTransform: 'uppercase' }}>activation complete</p>
+          <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(36px,6vw,64px)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 16 }}>
+            you're on the bench.
+          </h1>
+          <p style={{ fontFamily: GM, fontSize: 13, color: C.ink, lineHeight: 1.7, marginBottom: 28, maxWidth: '48ch', margin: '0 auto 28px' }}>
+            your row is live now. your three peer referrals just got an invite, and your buyer referral is in the queue. thanks for vouching.
+          </p>
+          <a href="/" style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.08em', background: C.ink, color: C.cream, padding: '14px 22px', textDecoration: 'none' }}>back to colophon →</a>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: C.cream, minHeight: '100vh', color: C.ink }}>
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: '60px 32px 80px' }}>
+        <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.18em', color: accent, marginBottom: 14, textTransform: 'uppercase' }}>one last step</p>
+        <h1 style={{ fontFamily: GS, fontWeight: 700, fontSize: 'clamp(40px,6vw,68px)', letterSpacing: '-0.03em', lineHeight: 0.95, marginBottom: 14 }}>
+          activate your bench row.
+        </h1>
+        <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.75, marginBottom: 32, maxWidth: '56ch' }}>
+          colophon grows by referral. to finalize your spot, name three creatives you'd vouch for and one buyer or brand who should know about us. all four are required — your row goes public the second you submit.
+        </p>
+        <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 24 }}>activating: <strong style={{ color: C.ink }}>{email}</strong></p>
+
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <h3 style={sH}>three creatives you'd vouch for</h3>
+          <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.7, marginTop: -8, marginBottom: 8 }}>
+            people whose work you'd stake your reputation on. email or LinkedIn URL for contact. if they're emails, they get an invite right away.
+          </p>
+          {creatives.map((c, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={lS}>referral {i + 1} · name</label>
+                <input style={iS} value={c.name} onChange={(e) => setCreative(i, 'name', e.target.value)} placeholder="full name" required />
+              </div>
+              <div>
+                <label style={lS}>referral {i + 1} · email or linkedin</label>
+                <input style={iS} value={c.contact} onChange={(e) => setCreative(i, 'contact', e.target.value)} placeholder="email or linkedin.com/in/…" required />
+              </div>
+            </div>
+          ))}
+
+          <h3 style={sH}>one buyer or brand</h3>
+          <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.7, marginTop: -8, marginBottom: 8 }}>
+            a hiring manager, founder, brand, or studio that should know about Colophon. we'll reach out directly.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+            <div>
+              <label style={lS}>their name</label>
+              <input style={iS} value={buyer.name} onChange={(e) => setBuyer({ ...buyer, name: e.target.value })} required />
+            </div>
+            <div>
+              <label style={lS}>organisation</label>
+              <input style={iS} value={buyer.org} onChange={(e) => setBuyer({ ...buyer, org: e.target.value })} required />
+            </div>
+            <div>
+              <label style={lS}>email</label>
+              <input type="email" style={iS} value={buyer.contact} onChange={(e) => setBuyer({ ...buyer, contact: e.target.value })} required />
+            </div>
+          </div>
+
+          {err && (
+            <p style={{ fontFamily: GM, fontSize: 11, color: '#a83333', marginTop: 8 }}>{err}</p>
+          )}
+
+          <button type="submit" disabled={!ready || stage === 'sending'}
+            style={{ fontFamily: GM, fontSize: 11, letterSpacing: '0.09em', background: ready ? accent : C.rule, color: C.cream, border: 'none', padding: '15px 24px', cursor: ready ? 'pointer' : 'not-allowed', marginTop: 24 }}>
+            {stage === 'sending' ? 'activating…' : 'activate my row →'}
+          </button>
+          <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, textAlign: 'center', lineHeight: 1.6, marginTop: 8 }}>
+            your three peer refs get an invite email immediately.<br />the buyer ref goes to our outreach queue.
+          </p>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function EmergingPage({ accent, setPage }) {
   const { emergingBench, allBench } = useBench();
   const candidates = allBench.filter((p) => (p.yoe || 0) >= 1 && (p.yoe || 0) < 4).length;
@@ -5101,18 +5268,22 @@ function AdminBuyersPanel({ secret }) {
 // people they referred, Stripe buyers, newsletter signups, concierge briefs.
 // Source chips to slice the list; copy-all + CSV download for outreach.
 function AdminContactsPanel({ secret }) {
+  // "Buyer" in product copy = hiring-manager / demand side. So the side
+  // toggle leads — pick "buyers" to isolate hiring managers, "creatives"
+  // for the supply side. Source chips refine further within a side.
   const ALL_SOURCES = [
-    { key: 'applicant',        label: 'applicants' },
-    { key: 'buyer',            label: 'buyers' },
-    { key: 'referral-target',  label: 'referred' },
-    { key: 'referral-by',      label: 'referrers' },
-    { key: 'newsletter',       label: 'newsletter' },
-    { key: 'concierge',        label: 'concierge briefs' },
+    { key: 'applicant',        label: 'applicants',       sideHint: 'supply' },
+    { key: 'buyer',            label: 'paid buyers',      sideHint: 'demand' },
+    { key: 'concierge',        label: 'concierge briefs', sideHint: 'demand' },
+    { key: 'referral-target',  label: 'referred',         sideHint: 'mixed'  },
+    { key: 'referral-by',      label: 'referrers',        sideHint: 'mixed'  },
+    { key: 'newsletter',       label: 'newsletter',       sideHint: 'mixed'  },
   ];
-  const [data, setData] = useState(null);
-  const [err, setErr]   = useState('');
+  const [data, setData]       = useState(null);
+  const [err, setErr]         = useState('');
   const [loading, setLoading] = useState(false);
-  const [active, setActive]   = useState(new Set()); // empty = all sources
+  const [side, setSide]       = useState('all');      // 'all' | 'demand' | 'supply'
+  const [active, setActive]   = useState(new Set());  // empty = all sources
 
   const load = () => {
     setLoading(true); setErr('');
@@ -5126,9 +5297,11 @@ function AdminContactsPanel({ secret }) {
 
   const filtered = useMemo(() => {
     if (!data?.contacts) return [];
-    if (!active.size) return data.contacts;
-    return data.contacts.filter((c) => c.sources.some((s) => active.has(s)));
-  }, [data, active]);
+    let rows = data.contacts;
+    if (side !== 'all') rows = rows.filter((c) => c.side === side);
+    if (active.size)    rows = rows.filter((c) => c.sources.some((s) => active.has(s)));
+    return rows;
+  }, [data, active, side]);
 
   const toggle = (k) => {
     setActive((cur) => {
@@ -5184,18 +5357,43 @@ function AdminContactsPanel({ secret }) {
         <>
           <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.rule}` }}>
             <div style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.12em', color: C.soft, textTransform: 'uppercase', marginBottom: 8 }}>
-              filter by source
+              which side
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-              {ALL_SOURCES.map((s) => {
-                const n = (data.counts && data.counts[s.key]) || 0;
-                const on = active.has(s.key);
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+              {[
+                { k: 'all',    label: `everyone (${data.count})` },
+                { k: 'demand', label: `buyers · hiring managers (${(data.sides && data.sides.demand) || 0})` },
+                { k: 'supply', label: `creatives (${(data.sides && data.sides.supply) || 0})` },
+              ].map(({ k, label }) => {
+                const on = side === k;
                 return (
-                  <button key={s.key} onClick={() => toggle(s.key)} style={chip(s.key, n, on)}>
-                    {s.label} ({n})
+                  <button key={k} onClick={() => { setSide(k); setActive(new Set()); }}
+                    style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.07em', padding: '6px 13px', cursor: 'pointer', border: `1px solid ${on ? C.ink : C.rule}`, background: on ? C.ink : 'transparent', color: on ? C.cream : C.ink }}>
+                    {label}
                   </button>
                 );
               })}
+            </div>
+            <div style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.12em', color: C.soft, textTransform: 'uppercase', marginBottom: 8 }}>
+              refine by source
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+              {ALL_SOURCES
+                // Hide sources that don't apply to the current side (e.g.
+                // hide 'applicants' when filtering to buyer side, hide
+                // 'paid buyers' when filtering to supply side).
+                .filter((s) => side === 'all' || s.sideHint === 'mixed'
+                  || (side === 'demand' && s.sideHint === 'demand')
+                  || (side === 'supply' && s.sideHint === 'supply'))
+                .map((s) => {
+                  const n = (data.counts && data.counts[s.key]) || 0;
+                  const on = active.has(s.key);
+                  return (
+                    <button key={s.key} onClick={() => toggle(s.key)} style={chip(s.key, n, on)}>
+                      {s.label} ({n})
+                    </button>
+                  );
+                })}
               {active.size > 0 && (
                 <button onClick={() => setActive(new Set())}
                   style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.07em', padding: '5px 11px', cursor: 'pointer', border: 'none', background: 'transparent', color: C.soft, textDecoration: 'underline' }}>
@@ -10044,6 +10242,7 @@ function App() {
     if (p === '/year-success') return { page: 'year-success', drawer: null };
     if (p === '/admin')    return { page: 'admin',   drawer: null };
     if (p === '/invite')   return { page: 'invite',  drawer: null };
+    if (p === '/activate') return { page: 'activate',drawer: null };
     if (p === '/success')  return { page: 'success', drawer: null };
     if (p === '/bench' || p === '/dashboard') return { page: 'home', drawer: 'bench' };
     if (p === '/look'  || p === '/pricing')   return { page: 'home', drawer: 'look' };
@@ -10221,6 +10420,7 @@ function App() {
       {page === 'access' && <AccessPage accent={accent} setPage={setPage} />}
       {page === 'emerging' && <EmergingPage accent={accent} setPage={setPage} />}
       {page === 'invite' && <InvitePage accent={accent} setPage={setPage} />}
+      {page === 'activate' && <ActivatePage accent={accent} setPage={setPage} />}
       {page === 'admin' && <AdminPage accent={accent} setPage={setPage} />}
       {page === 'success' && <SuccessPage accent={accent} setPage={setPage} />}
       {page === 'year-buy' && <YearBuyPage accent={accent} setPage={setPage} />}
