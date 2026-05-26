@@ -5498,7 +5498,9 @@ function AdminTemplateLibrary() {
       component: 'index.html', anchor: 'requestYearPricing' },
     { name: 'Newsletter signup', where: 'Footer or bench teaser', captures: 'email only', component: 'index.html', anchor: 'bench-newsletter' },
     { name: 'Referral form', where: '/invite — public referral landing', captures: 'referrer + 1 creative + 1 hirer (name/email/org)',
-      component: 'invite.js', anchor: '' },
+      component: 'index.html', anchor: 'InvitePage' },
+    { name: 'Activation form', where: '/activate — post-approval gate (welcome email link)', captures: '3 creative refs + 1 buyer ref (name/org/email)',
+      component: 'index.html', anchor: 'ActivatePage' },
   ];
 
   const headerStyle = { padding: '10px 20px', borderBottom: open ? `1px solid ${C.rule}` : 'none', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' };
