@@ -85,6 +85,36 @@
 
 <!-- Vercel Analytics: served by Vercel at /_vercel/insights/script.js when Analytics is enabled on the project -->
 <script defer src="/_vercel/insights/script.js"></script>
+
+<!-- ── Meta Pixel ──────────────────────────────────────────────
+  To enable:
+    1. Create a Pixel in Meta Events Manager (https://business.facebook.com/events_manager).
+    2. Replace META_PIXEL_ID_PLACEHOLDER (2 occurrences below) with the Pixel ID (15-16 digit number).
+    3. Redeploy. PageView fires on every load; Meta starts attributing.
+  Until replaced, this block is a no-op — no network calls, no cookies, no tracking.
+  For custom events (Lead, Purchase, ViewContent) the React app needs additional fbq() calls;
+  added in a follow-up pass once base pixel is verified firing.
+-->
+<script>
+  (function () {
+    var pid = 'META_PIXEL_ID_PLACEHOLDER';
+    if (pid === 'META_PIXEL_ID_PLACEHOLDER' || !pid) return;
+    !function (f, b, e, v, n, t, s) {
+      if (f.fbq) return;
+      n = f.fbq = function () { n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments); };
+      if (!f._fbq) f._fbq = n;
+      n.push = n; n.loaded = !0; n.version = '2.0'; n.queue = [];
+      t = b.createElement(e); t.async = !0;
+      t.src = v; s = b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t, s);
+    }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', pid);
+    fbq('track', 'PageView');
+  })();
+</script>
+<noscript><img height="1" width="1" style="display:none" alt=""
+  src="https://www.facebook.com/tr?id=META_PIXEL_ID_PLACEHOLDER&ev=PageView&noscript=1"/></noscript>
+
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #FAFAF8; -webkit-font-smoothing: antialiased; text-transform: lowercase; color: #0d0d0b; }
@@ -5460,6 +5490,142 @@ function AdminContactsPanel({ secret }) {
   );
 }
 
+// ── ADMIN REFERRAL STATUS PANEL ───────────────────────────────────────────
+// Reads the Referrals tab + shows per-referral invite outcomes:
+//   sent     — auto-invite email shipped
+//   failed   — Resend errored, needs attention
+//   skipped  — contact was LinkedIn / handle (no email to send to)
+//   unknown  — older row predating auto-invite, or invite was never fired
+//   n/a      — hirer-type referral (no auto-invite for buyers, by design)
+// One-shot "fire missing invites" button covers the unknown bucket so
+// older referrals with email contacts can be caught up retroactively.
+function AdminReferralStatusPanel({ secret }) {
+  const [data, setData] = useState(null);
+  const [err, setErr]   = useState('');
+  const [loading, setLoading] = useState(false);
+  const [retryBusy, setRetryBusy] = useState(false);
+  const [retryMsg, setRetryMsg] = useState('');
+
+  const load = () => {
+    setLoading(true); setErr('');
+    fetch('/api/referral-status', { headers: { Authorization: `Bearer ${secret}` } })
+      .then((r) => r.json())
+      .then((j) => { if (j.error) throw new Error(j.error); setData(j); })
+      .catch((e) => setErr(e.message || 'fetch failed'))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { if (secret) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [secret]);
+
+  // Fire the auto-invite for any unknown-state row whose contact looks like
+  // an email. Uses the existing /api/send-invites endpoint, batched.
+  const retryUnknown = async () => {
+    if (!data?.referrals) return;
+    const targets = data.referrals.filter((r) => r.inviteState === 'unknown' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(r.contact || '')));
+    if (!targets.length) { setRetryMsg('nothing to retry'); return; }
+    setRetryBusy(true); setRetryMsg('');
+    try {
+      const payload = targets.map((r) => ({
+        name: r.name,
+        email: r.contact,
+        referrer: r.referrer || r.referrerEmail || 'a colleague',
+      }));
+      const res = await fetch('/api/send-invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify(payload),
+      });
+      const j = await res.json();
+      if (!res.ok || j.error) throw new Error(j.error || `error ${res.status}`);
+      setRetryMsg(`fired ${targets.length} invite${targets.length === 1 ? '' : 's'}. reload to see updated status.`);
+    } catch (e) {
+      setRetryMsg('retry failed: ' + (e.message || 'unknown'));
+    } finally {
+      setRetryBusy(false);
+    }
+  };
+
+  const fmtDate = (s) => { try { return new Date(s).toISOString().slice(0, 10); } catch { return ''; } };
+  const stateColor = (s) => ({
+    sent:    '#3F7F4A',
+    failed:  '#a83333',
+    skipped: '#888580',
+    unknown: '#C87C18',
+    'n/a':   '#888580',
+  }[s] || C.soft);
+
+  const ALL_STATES = ['sent', 'failed', 'unknown', 'skipped', 'n/a'];
+
+  return (
+    <div style={{ marginTop: 22, marginBottom: 32, border: `1px solid ${C.rule}`, background: C.paper }}>
+      <div style={{ padding: '10px 20px', borderBottom: `1px solid ${C.rule}`, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#5a8d5a' }} />
+        <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.ink }}>referrals · invite status</span>
+        <button onClick={load} disabled={loading}
+          style={{ marginLeft: 'auto', fontFamily: GM, fontSize: 10, padding: '5px 10px', cursor: 'pointer', border: `1px solid ${C.rule}`, background: 'transparent', color: C.ink }}>
+          {loading ? 'loading…' : 'refresh'}
+        </button>
+      </div>
+      {err && <div style={{ padding: '14px 20px', fontFamily: GM, fontSize: 11, color: '#a83333' }}>{err}</div>}
+      {!err && data && (
+        <>
+          <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.rule}`, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+            {ALL_STATES.map((s) => (
+              <span key={s} style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>
+                <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: stateColor(s), marginRight: 6, verticalAlign: 1 }} />
+                {s} <strong style={{ color: C.ink, fontWeight: 600 }}>{data.summary[s] || 0}</strong>
+              </span>
+            ))}
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
+              {(data.summary.unknown || 0) > 0 && (
+                <button onClick={retryUnknown} disabled={retryBusy}
+                  style={{ fontFamily: GM, fontSize: 10, padding: '6px 12px', cursor: 'pointer', border: `1px solid ${C.ink}`, background: C.ink, color: C.cream }}>
+                  {retryBusy ? 'firing…' : `fire missing invites (${data.summary.unknown})`}
+                </button>
+              )}
+              {retryMsg && <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>{retryMsg}</span>}
+            </div>
+          </div>
+          <div style={{ maxHeight: 540, overflow: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: GM, fontSize: 11 }}>
+              <thead style={{ position: 'sticky', top: 0 }}>
+                <tr style={{ background: C.cream, color: C.soft, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: `1px solid ${C.rule}` }}>state</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: `1px solid ${C.rule}` }}>type</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: `1px solid ${C.rule}` }}>referred</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: `1px solid ${C.rule}` }}>contact</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: `1px solid ${C.rule}` }}>by</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: `1px solid ${C.rule}` }}>when</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.referrals.map((r) => (
+                  <tr key={r.rowNumber} style={{ borderBottom: `1px solid ${C.rule}` }}>
+                    <td style={{ padding: '7px 12px' }}>
+                      <span style={{ display: 'inline-block', padding: '2px 8px', fontFamily: GM, fontSize: 9, letterSpacing: '0.05em', border: `1px solid ${stateColor(r.inviteState)}`, color: stateColor(r.inviteState) }}>{r.inviteState}</span>
+                    </td>
+                    <td style={{ padding: '7px 12px', color: C.soft }}>{r.type || '—'}</td>
+                    <td style={{ padding: '7px 12px' }}>{r.name || '—'}{r.org ? <span style={{ color: C.soft }}> · {r.org}</span> : null}</td>
+                    <td style={{ padding: '7px 12px', color: C.soft, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.contact || '') ? (
+                        <a href={`mailto:${r.contact}`} style={{ color: C.ink, textDecoration: 'underline', textUnderlineOffset: 2 }}>{r.contact}</a>
+                      ) : r.contact || '—'}
+                    </td>
+                    <td style={{ padding: '7px 12px', color: C.soft }}>{r.referrer || r.referrerEmail || '—'}</td>
+                    <td style={{ padding: '7px 12px', color: C.soft }}>{fmtDate(r.ts)}</td>
+                  </tr>
+                ))}
+                {!data.referrals.length && (
+                  <tr><td colSpan={6} style={{ padding: '22px 20px', textAlign: 'center', color: C.soft, fontStyle: 'italic' }}>no referrals logged yet</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── ADMIN TEMPLATE LIBRARY ────────────────────────────────────────────────
 // Reference gallery of every transactional email Colophon sends and every
 // public-facing form. Collapsed by default — a tucked-away map of the
@@ -9403,6 +9569,10 @@ function AdminPage({ accent, setPage }) {
         {/* ── Unified contacts — applicants + referrers + referred +
               buyers + newsletter + concierge briefs. ─────────────── */}
         <AdminContactsPanel secret={secret} />
+
+        {/* ── Referral invite status — was each referred person actually
+              auto-emailed? Retry button for any still-unknown rows. ── */}
+        <AdminReferralStatusPanel secret={secret} />
 
         {/* ── Daily freshness check. Cron-fired at 13:00 UTC.
               Manual button for impatient days. ─────────────────────── */}
