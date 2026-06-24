@@ -7,10 +7,16 @@
 //   email      string   recipient email (must match token)
 //   status     string   'available' | 'soon' | 'booked'
 //   token      string   base64url-encoded {email, exp} — minted at send time
+//   brief      string   (optional) campaign tag e.g. 'google-hardware-film-2026'
 //
 // Returns an HTML confirmation page the recipient sees after clicking.
 
+import { Resend } from 'resend';
 import { findBenchRowByEmail, updateBenchRow } from './_utils/sheets.js';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+const NOTIFY_TO = 'merdenberger@gmail.com';
+const FROM      = 'Colophon <bench@colophon.contact>';
 
 const DAY = 86_400_000;
 
@@ -62,8 +68,29 @@ p{font-size:12px;line-height:1.75;color:#888580;text-transform:lowercase}
 </html>`;
 }
 
+async function notify({ email, status, brief, name }) {
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: NOTIFY_TO,
+      subject: `bench response — ${status} — ${email}`,
+      html: `<p style="font-family:monospace;font-size:13px;line-height:1.8;color:#333;">
+        <strong>${name || email}</strong> just updated their status.<br/><br/>
+        email: ${email}<br/>
+        status: <strong>${status}</strong><br/>
+        campaign: ${brief || 'unknown'}<br/>
+        time: ${new Date().toISOString()}
+      </p>`,
+      text: `bench response\n\n${name || email} — ${email}\nstatus: ${status}\ncampaign: ${brief || 'unknown'}\ntime: ${new Date().toISOString()}`,
+    });
+  } catch (err) {
+    // best-effort — don't let notification failure break the confirmation page
+    console.error('notify failed:', err.message);
+  }
+}
+
 export default async function handler(req, res) {
-  const { email, status, token } = req.query || {};
+  const { email, status, token, brief } = req.query || {};
 
   if (!email || !status || !token) {
     return res.status(400).send(page('error', `
@@ -101,10 +128,13 @@ export default async function handler(req, res) {
       status: 'bench',
     });
 
+    const name = found.row ? found.row[1] : null;
+    await notify({ email, status, brief, name });
+
     return res.status(200).send(page('got it', `
       <h1>got it.</h1>
       <p>your status is updated: <strong style="color:#0d0d0b">${mapping.label}</strong>.<br/><br/>
-      we'll be in touch if the project is a fit. replies go to bench@colophon.contact.</p>
+      hirers are looking at the bench. keep your status current — updated monthly keeps you visible.</p>
     `));
   } catch (err) {
     console.error('/api/update error:', err);
