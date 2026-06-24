@@ -61,7 +61,7 @@ p{font-size:12px;line-height:1.75;color:#888580;text-transform:lowercase}
 </head>
 <body>
 <div class="card">
-  <div class="logo">colo<span>phon</span></div>
+  <a href="https://www.colophon.contact" style="text-decoration:none;" class="logo">colo<span>phon</span></a>
   ${body}
 </div>
 </body>
