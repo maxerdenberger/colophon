@@ -6991,17 +6991,41 @@ function AdminSheetTools({ secret }) {
 function AdminFilteredEmailPanel({ secret }) {
   const [collapsed, setCollapsed] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState('');
   const [sample, setSample] = React.useState([]);
+  const [disciplineOptions, setDisciplineOptions] = React.useState([]);
+  const [availabilityOptions, setAvailabilityOptions] = React.useState([]);
   const [filters, setFilters] = React.useState({
-    discipline: 'copywriter',
+    discipline: '',
     availability: '',
-    subject: 'New gig opportunity at Airbnb',
-    body: 'Hi there,\n\nWe have an exciting opportunity that might be a good fit for you. Check your email for details.\n\nBest,\nColophon',
+    company: 'Airbnb',
+    project: 'Brand guidelines refresh',
+    timeline: '3 weeks, starting Nov 1',
+    budget: '$50K fixed',
+    mustHaves: 'Startup experience, luxury portfolio',
   });
+
+  // Load filter options on mount
+  React.useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const res = await fetch(`/api/admin-filters-data?auth=${secret}`);
+        if (res.ok) {
+          const data = await res.json();
+          setDisciplineOptions(data.disciplines || []);
+          setAvailabilityOptions(data.availabilities || []);
+        }
+      } catch (err) {
+        console.error('failed to load filter options', err);
+      }
+    };
+    if (secret) loadOptions();
+  }, [secret]);
 
   const inputStyle = { background: '#fff', border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '10px 12px', fontFamily: GM, fontSize: 12, color: C.ink, outline: 'none', width: '100%' };
   const labelStyle = { display: 'block', fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', color: C.soft, marginBottom: 5, textTransform: 'uppercase' };
+  const selectStyle = { ...inputStyle, appearance: 'none', paddingRight: 30, backgroundImage: `url('data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill=%22%230d0d0b%22 d=%22M4 6l4 4 4-4%22/%3E%3C/svg%3E')`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '14px' };
 
   const setF = (key) => (e) => {
     setFilters((f) => ({ ...f, [key]: e.target.value }));
@@ -7063,6 +7087,7 @@ function AdminFilteredEmailPanel({ secret }) {
         return;
       }
       setMessage(`✓ sent to ${j.sent} creatives${j.failed.length ? `, ${j.failed.length} failed` : ''}`);
+      setSample([]);
     } catch (ex) {
       setMessage(`✗ ${ex.message || 'send failed'}`);
     } finally {
@@ -7073,56 +7098,342 @@ function AdminFilteredEmailPanel({ secret }) {
   return (
     <div style={{ marginBottom: 32, borderTop: `1px solid ${C.rule}`, paddingTop: 24 }}>
       <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', color: C.soft, textTransform: 'uppercase', marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }} onClick={() => setCollapsed(!collapsed)}>
-        <span style={{ fontSize: 14 }}>{collapsed ? '▸' : '▾'}</span> filtered email broadcast
+        <span style={{ fontSize: 14 }}>{collapsed ? '▸' : '▾'}</span> send brief to talent
       </p>
-      
+
       {!collapsed && (
         <div style={{ padding: '16px', background: '#fafafa', borderRadius: 8, border: `1px solid ${C.rule}` }}>
           <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.6, marginBottom: 16 }}>
-            Send a targeted email to all bench creatives matching your filters (discipline, availability, rate range, etc.). Uses the same email template system as other broadcasts.
+            Send a job brief to creatives matching your filters. Email includes full details + SMS CTA to text INTERESTED.
           </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
             <div>
-              <label style={labelStyle}>discipline (e.g., copywriter)</label>
-              <input
+              <label style={labelStyle}>discipline</label>
+              <select
                 value={filters.discipline}
                 onChange={setF('discipline')}
-                placeholder="copywriter, designer, director, etc."
-                style={inputStyle}
-              />
+                style={selectStyle}
+              >
+                <option value="">-- select discipline --</option>
+                {disciplineOptions.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
             </div>
 
             <div>
               <label style={labelStyle}>availability (optional)</label>
-              <input
+              <select
                 value={filters.availability}
                 onChange={setF('availability')}
-                placeholder="e.g., Immediate"
+                style={selectStyle}
+              >
+                <option value="">-- all availability --</option>
+                {availabilityOptions.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+            <div>
+              <label style={labelStyle}>company</label>
+              <input
+                value={filters.company}
+                onChange={setF('company')}
+                placeholder="e.g., Airbnb"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>project name</label>
+              <input
+                value={filters.project}
+                onChange={setF('project')}
+                placeholder="e.g., Brand refresh"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+            <div>
+              <label style={labelStyle}>timeline</label>
+              <input
+                value={filters.timeline}
+                onChange={setF('timeline')}
+                placeholder="e.g., 3 weeks, starting Nov 1"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>budget</label>
+              <input
+                value={filters.budget}
+                onChange={setF('budget')}
+                placeholder="e.g., $50K fixed or $150/hr"
                 style={inputStyle}
               />
             </div>
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>subject</label>
+            <label style={labelStyle}>must-haves (optional)</label>
             <input
-              value={filters.subject}
-              onChange={setF('subject')}
-              placeholder="Email subject line"
+              value={filters.mustHaves}
+              onChange={setF('mustHaves')}
+              placeholder="e.g., Startup experience, luxury portfolio"
               style={inputStyle}
             />
           </div>
 
+          <div style={{ marginBottom: 16, background: '#fff', border: `1px solid ${C.rule}`, borderRadius: 6, padding: 12 }}>
+            <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', color: C.soft, textTransform: 'uppercase', marginBottom: 8 }}>
+              Email Preview
+            </p>
+            <div style={{ fontFamily: 'monospace', fontSize: 10, color: C.ink, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+{`Hi [Name],
+
+${filters.company} is hiring for ${filters.project}.
+
+Project: ${filters.project}
+Timeline: ${filters.timeline}
+Budget: ${filters.budget}
+${filters.mustHaves ? `Must-haves: ${filters.mustHaves}` : ''}
+
+Interested? Text INTERESTED to [SMS #]
+We'll connect you with the hiring manager.
+
+— Colophon`}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+            <button
+              onClick={dryRun}
+              disabled={busy || !filters.discipline}
+              style={{
+                fontFamily: GM, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
+                padding: '10px 18px', background: C.ink, color: C.cream, border: 'none',
+                cursor: (busy || !filters.discipline) ? 'default' : 'pointer', borderRadius: 6, opacity: (busy || !filters.discipline) ? 0.6 : 1
+              }}
+            >
+              {busy ? 'checking...' : 'preview'}
+            </button>
+            <button
+              onClick={send}
+              disabled={busy || !sample.length}
+              style={{
+                fontFamily: GM, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
+                padding: '10px 18px', background: '#d00', color: '#fff', border: 'none',
+                cursor: (busy || !sample.length) ? 'default' : 'pointer', borderRadius: 6,
+                opacity: (busy || !sample.length) ? 0.6 : 1
+              }}
+            >
+              send
+            </button>
+          </div>
+
+          {message && (
+            <p style={{ fontFamily: GM, fontSize: 11, color: message.startsWith('✗') ? '#b04040' : '#2d7c2d', marginBottom: 12 }}>
+              {message}
+            </p>
+          )}
+
+          {sample.length > 0 && (
+            <div style={{ background: '#fff', border: `1px solid ${C.rule}`, borderRadius: 6, padding: 12, marginBottom: 12 }}>
+              <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', color: C.soft, textTransform: 'uppercase', marginBottom: 8 }}>
+                Recipients: {sample.length} shown
+              </p>
+              {sample.map((r, i) => (
+                <div key={i} style={{ fontFamily: GM, fontSize: 10, color: C.ink, padding: '6px 0', borderBottom: i < sample.length - 1 ? `0.5px solid ${C.rule}` : 'none' }}>
+                  <strong>{r.name || '(no name)'}</strong> · {r.email}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminReferrerOutreachPanel({ secret }) {
+  const [collapsed, setCollapsed] = React.useState(true);
+  const [busy, setBusy] = React.useState(false);
+  const [message, setMessage] = React.useState('');
+  const [sample, setSample] = React.useState([]);
+  const [templateName, setTemplateName] = React.useState('warm-intro');
+  const [filters, setFilters] = React.useState({
+    minCreativesReferred: 1,
+    excludeAlreadyOutreached: true,
+  });
+
+  const templates = {
+    'warm-intro': {
+      subject: '[Creative Name] just joined Colophon.',
+      body: `[Referrer Name], [Creative Name] just joined Colophon and mentioned you.
+
+Colophon is a private bench of vetted creative talent—writers, directors, designers, strategists. You come to us when you need the right person fast.
+
+[Creative Name] is a [Discipline] with [Experience]. Rates: [Hourly Rate] / [Min Fee].
+
+See their work:
+[Portfolio URL]
+
+— Colophon`,
+    },
+    'follow-up': {
+      subject: 'Quick check-in: [Creative Name] on Colophon',
+      body: `Hi [Referrer Name],
+
+Following up on [Creative Name], who joined our platform last week. They mentioned you as someone who might need creative talent.
+
+If you've got a brief or are planning projects for Q4, we can make an introduction happen within 24 hours.
+
+[Portfolio URL]
+
+— Colophon`,
+    },
+    'incentive': {
+      subject: 'Early access: Fresh senior creatives on Colophon',
+      body: `[Referrer Name],
+
+We're building momentum on Colophon and want to give you early access to the freshest talent before we go wider.
+
+[Creative Name] just joined and matches the profile of work you typically hire. [X years] experience, worked with [Top Clients].
+
+If this resonates, let's talk about how Colophon can become your go-to for same-day creative hiring.
+
+[Portfolio URL]
+
+— Colophon`,
+    },
+  };
+
+  const currentTemplate = templates[templateName] || templates['warm-intro'];
+
+  const inputStyle = { background: '#fff', border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '10px 12px', fontFamily: GM, fontSize: 12, color: C.ink, outline: 'none', width: '100%' };
+  const labelStyle = { display: 'block', fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', color: C.soft, marginBottom: 5, textTransform: 'uppercase' };
+
+  const dryRun = async () => {
+    setMessage('');
+    setSample([]);
+    setBusy(true);
+    try {
+      const res = await fetch('/api/send-referrer-outreach', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${secret}`,
+        },
+        body: JSON.stringify({
+          ...filters,
+          template: templateName,
+          dryRun: true,
+        }),
+      });
+      const j = await res.json();
+      if (res.status === 401) {
+        setMessage('✗ unauthorized — check the admin secret');
+        return;
+      }
+      if (!res.ok) {
+        setMessage(`✗ ${j.error || `error ${res.status}`}`);
+        return;
+      }
+      setSample(j.sample || []);
+      setMessage(`✓ preview: will send to ${j.count} referrers`);
+    } catch (ex) {
+      setMessage(`✗ ${ex.message || 'failed'}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const send = async () => {
+    if (!window.confirm(`Send to ${sample.length}+ referrers? This cannot be undone.`)) return;
+    setMessage('');
+    setBusy(true);
+    try {
+      const res = await fetch('/api/send-referrer-outreach', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${secret}`,
+        },
+        body: JSON.stringify({
+          ...filters,
+          template: templateName,
+          dryRun: false,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        setMessage(`✗ ${j.error || `error ${res.status}`}`);
+        return;
+      }
+      setMessage(`✓ sent to ${j.sent} referrers${j.failed.length ? `, ${j.failed.length} failed` : ''}`);
+      setSample([]);
+    } catch (ex) {
+      setMessage(`✗ ${ex.message || 'send failed'}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 32, borderTop: `1px solid ${C.rule}`, paddingTop: 24 }}>
+      <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', color: C.soft, textTransform: 'uppercase', marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }} onClick={() => setCollapsed(!collapsed)}>
+        <span style={{ fontSize: 14 }}>{collapsed ? '▸' : '▾'}</span> referrer outreach
+      </p>
+
+      {!collapsed && (
+        <div style={{ padding: '16px', background: '#fafafa', borderRadius: 8, border: `1px solid ${C.rule}` }}>
+          <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.6, marginBottom: 16 }}>
+            Send warm intro emails to referrers from your vetting data. Select a template, preview who gets contacted, then send.
+          </p>
+
           <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>body (plain text)</label>
-            <textarea
-              value={filters.body}
-              onChange={setF('body')}
-              placeholder="Email body text"
-              rows="8"
-              style={{ ...inputStyle, fontFamily: 'monospace', resize: 'vertical', minHeight: '140px' }}
+            <label style={labelStyle}>template</label>
+            <select
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              style={{ ...inputStyle, appearance: 'none', paddingRight: 30, backgroundImage: `url('data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill=%22%230d0d0b%22 d=%22M4 6l4 4 4-4%22/%3E%3C/svg%3E')`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '14px' }}
+            >
+              <option value="warm-intro">Warm Intro (mention referral)</option>
+              <option value="follow-up">Follow-up (check-in)</option>
+              <option value="incentive">Incentive (early access)</option>
+            </select>
+          </div>
+
+          <div style={{ marginBottom: 16, background: '#fff', border: `1px solid ${C.rule}`, borderRadius: 6, padding: 12 }}>
+            <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', color: C.soft, textTransform: 'uppercase', marginBottom: 8 }}>
+              Template Preview
+            </p>
+            <p style={{ fontFamily: GM, fontSize: 11, color: C.ink, marginBottom: 6 }}>
+              <strong>Subject:</strong> {currentTemplate.subject}
+            </p>
+            <p style={{ fontFamily: 'monospace', fontSize: 10, color: C.ink, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {currentTemplate.body}
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>min referrers per creative</label>
+            <input
+              type="number"
+              value={filters.minCreativesReferred}
+              onChange={(e) => setFilters({ ...filters, minCreativesReferred: parseInt(e.target.value) || 1 })}
+              min="1"
+              max="5"
+              style={inputStyle}
             />
+            <p style={{ fontFamily: GM, fontSize: 9, color: C.soft, marginTop: 4 }}>
+              Only send to creatives who listed at least this many referrers
+            </p>
           </div>
 
           <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
@@ -7160,11 +7471,11 @@ function AdminFilteredEmailPanel({ secret }) {
           {sample.length > 0 && (
             <div style={{ background: '#fff', border: `1px solid ${C.rule}`, borderRadius: 6, padding: 12, marginBottom: 12 }}>
               <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', color: C.soft, textTransform: 'uppercase', marginBottom: 8 }}>
-                Sample recipients ({sample.length} shown):
+                Sample ({sample.length} shown):
               </p>
               {sample.map((r, i) => (
                 <div key={i} style={{ fontFamily: GM, fontSize: 10, color: C.ink, padding: '6px 0', borderBottom: i < sample.length - 1 ? `0.5px solid ${C.rule}` : 'none' }}>
-                  <strong>{r.name || '(no name)'}</strong> · {r.email} · {r.discipline || '(no discipline)'}
+                  <strong>{r.referrerName || '(referrer)'}</strong> · {r.referrerEmail} · for {r.creativeName} ({r.discipline})
                 </div>
               ))}
             </div>
@@ -9744,6 +10055,9 @@ function AdminPage({ accent, setPage }) {
 
         {/* SEND BROADCAST: The filtered email tool */}
         <AdminFilteredEmailPanel secret={secret} />
+
+        {/* REFERRER OUTREACH: Warm intros to referrers from vetting data */}
+        <AdminReferrerOutreachPanel secret={secret} />
 
         {/* QUICK LINKS: Everything else hidden but accessible */}
         <AdminQuickLinks />
