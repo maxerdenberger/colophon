@@ -54,7 +54,7 @@ const operatorEmails = () =>
 function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    .replace(/\"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 const BRAND_MARK = `
@@ -160,20 +160,28 @@ async function fetchFiltered(filters) {
   return out;
 }
 
-function buildEmailHtml(subject, body, recipientName) {
-  const greeting = recipientName ? `${esc(recipientName.split(/\s+/)[0])},` : '';
-  const bodyLines = body.split('\n').map((line) => {
-    const trimmed = esc(line).trim();
-    if (!trimmed) return '<p style="margin:0;height:0.5em;"></p>';
-    return `<p style="font-size:15px;line-height:1.6;margin:0 0 12px;">${trimmed}</p>`;
-  }).join('');
+function buildEmailHtml(recipientName, company, project, timeline, budget, mustHaves, smsNumber) {
+  const firstName = recipientName ? esc(recipientName.split(/\s+/)[0]) : 'there';
+  const smsText = smsNumber ? `Text INTERESTED to ${smsNumber}` : 'Reply to confirm interest';
   
   const html = `
     <div style="background:#f4ede2;padding:56px 24px;font-family:Georgia,'Times New Roman',serif;color:#0d1014;">
       <div style="max-width:520px;margin:0 auto;">
         ${BRAND_MARK}
-        ${greeting ? `<p style="font-size:16px;line-height:1.7;margin:0 0 18px;">${greeting}</p>` : ''}
-        ${bodyLines}
+        <p style="font-size:16px;line-height:1.7;margin:0 0 18px;">${firstName},</p>
+        
+        <p style="font-size:15px;line-height:1.7;margin:0 0 18px;"><strong>${esc(company)}</strong> is hiring for <strong>${esc(project)}</strong>.</p>
+        
+        <div style="font-size:15px;line-height:1.6;margin:0 0 18px;">
+          <p style="margin:0 0 8px;"><strong>Project:</strong> ${esc(project)}</p>
+          <p style="margin:0 0 8px;"><strong>Timeline:</strong> ${esc(timeline)}</p>
+          <p style="margin:0 0 8px;"><strong>Budget:</strong> ${esc(budget)}</p>
+          ${mustHaves ? `<p style="margin:0 0 8px;"><strong>Must-haves:</strong> ${esc(mustHaves)}</p>` : ''}
+        </div>
+        
+        <p style="font-size:15px;line-height:1.7;margin:0 0 18px;">Interested? <strong>${smsText}</strong></p>
+        <p style="font-size:13px;line-height:1.6;color:#2a2f36;margin:0 0 28px;">We'll connect you directly with the hiring manager.</p>
+        
         <p style="font-size:15px;line-height:1.7;margin:28px 0 0;">— colophon</p>
       </div>
     </div>`;
@@ -198,15 +206,16 @@ export default async function handler(req, res) {
   }
   
   const body = req.body || {};
-  const subject = String(body.subject || '').trim();
-  const emailBody = String(body.body || '').trim();
+  const company = String(body.company || '').trim();
+  const project = String(body.project || '').trim();
+  const timeline = String(body.timeline || '').trim();
+  const budget = String(body.budget || '').trim();
+  const mustHaves = String(body.mustHaves || '').trim();
   const dryRun = !!body.dryRun;
+  const smsNumber = String(body.smsNumber || '').trim();
   
-  if (!subject) {
-    return res.status(400).json({ error: 'subject is required' });
-  }
-  if (!emailBody) {
-    return res.status(400).json({ error: 'body is required' });
+  if (!company || !project || !timeline || !budget) {
+    return res.status(400).json({ error: 'company, project, timeline, and budget are required' });
   }
   
   const filters = {
@@ -247,18 +256,20 @@ export default async function handler(req, res) {
   
   let sent = 0;
   const failed = [];
+  const emailSubject = `${company} – ${project}`;
+  const plainTextBody = `Hi [Name],\n\n${company} is hiring for ${project}.\n\nProject: ${project}\nTimeline: ${timeline}\nBudget: ${budget}\n${mustHaves ? `Must-haves: ${mustHaves}\n` : ''}\nInterested? Text INTERESTED to [SMS #]\nWe'll connect you directly with the hiring manager.\n\n— Colophon`;
   
   for (const recipient of recipients) {
-    const html = buildEmailHtml(subject, emailBody, recipient.name);
+    const html = buildEmailHtml(recipient.name, company, project, timeline, budget, mustHaves, smsNumber);
     
     try {
       await resend.emails.send({
         from: FROM,
         to: recipient.email,
         replyTo: REPLY_TO,
-        subject: subject,
+        subject: emailSubject,
         html: html,
-        text: emailBody,
+        text: plainTextBody,
       });
       sent++;
     } catch (err) {
