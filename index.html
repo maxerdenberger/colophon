@@ -6987,6 +6987,194 @@ function AdminSheetTools({ secret }) {
   );
 }
 
+// Send custom emails to filtered bench creatives (by discipline, availability, rate, etc.)
+function AdminFilteredEmailPanel({ secret }) {
+  const [collapsed, setCollapsed] = React.useState(true);
+  const [busy, setBusy] = React.useState(false);
+  const [message, setMessage] = React.useState('');
+  const [sample, setSample] = React.useState([]);
+  const [filters, setFilters] = React.useState({
+    discipline: 'copywriter',
+    availability: '',
+    subject: 'New gig opportunity at Airbnb',
+    body: 'Hi there,\n\nWe have an exciting opportunity that might be a good fit for you. Check your email for details.\n\nBest,\nColophon',
+  });
+
+  const inputStyle = { background: '#fff', border: `1.5px solid ${C.ink}`, borderRadius: 6, padding: '10px 12px', fontFamily: GM, fontSize: 12, color: C.ink, outline: 'none', width: '100%' };
+  const labelStyle = { display: 'block', fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', color: C.soft, marginBottom: 5, textTransform: 'uppercase' };
+
+  const setF = (key) => (e) => {
+    setFilters((f) => ({ ...f, [key]: e.target.value }));
+  };
+
+  const dryRun = async () => {
+    setMessage('');
+    setSample([]);
+    setBusy(true);
+    try {
+      const res = await fetch('/api/send-filtered-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${secret}`,
+        },
+        body: JSON.stringify({
+          ...filters,
+          dryRun: true,
+        }),
+      });
+      const j = await res.json();
+      if (res.status === 401) {
+        setMessage('✗ unauthorized — check the admin secret');
+        return;
+      }
+      if (!res.ok) {
+        setMessage(`✗ ${j.error || `error ${res.status}`}`);
+        return;
+      }
+      setSample(j.sample || []);
+      setMessage(`✓ preview: will send to ${j.count} creatives`);
+    } catch (ex) {
+      setMessage(`✗ ${ex.message || 'failed'}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const send = async () => {
+    if (!window.confirm(`Send to ${sample.length}+ creatives? This cannot be undone.`)) return;
+    setMessage('');
+    setBusy(true);
+    try {
+      const res = await fetch('/api/send-filtered-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${secret}`,
+        },
+        body: JSON.stringify({
+          ...filters,
+          dryRun: false,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        setMessage(`✗ ${j.error || `error ${res.status}`}`);
+        return;
+      }
+      setMessage(`✓ sent to ${j.sent} creatives${j.failed.length ? `, ${j.failed.length} failed` : ''}`);
+    } catch (ex) {
+      setMessage(`✗ ${ex.message || 'send failed'}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 32, borderTop: `1px solid ${C.rule}`, paddingTop: 24 }}>
+      <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.1em', color: C.soft, textTransform: 'uppercase', marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }} onClick={() => setCollapsed(!collapsed)}>
+        <span style={{ fontSize: 14 }}>{collapsed ? '▸' : '▾'}</span> filtered email broadcast
+      </p>
+      
+      {!collapsed && (
+        <div style={{ padding: '16px', background: '#fafafa', borderRadius: 8, border: `1px solid ${C.rule}` }}>
+          <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.6, marginBottom: 16 }}>
+            Send a targeted email to all bench creatives matching your filters (discipline, availability, rate range, etc.). Uses the same email template system as other broadcasts.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+            <div>
+              <label style={labelStyle}>discipline (e.g., copywriter)</label>
+              <input
+                value={filters.discipline}
+                onChange={setF('discipline')}
+                placeholder="copywriter, designer, director, etc."
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>availability (optional)</label>
+              <input
+                value={filters.availability}
+                onChange={setF('availability')}
+                placeholder="e.g., Immediate"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>subject</label>
+            <input
+              value={filters.subject}
+              onChange={setF('subject')}
+              placeholder="Email subject line"
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>body (plain text)</label>
+            <textarea
+              value={filters.body}
+              onChange={setF('body')}
+              placeholder="Email body text"
+              rows="8"
+              style={{ ...inputStyle, fontFamily: 'monospace', resize: 'vertical', minHeight: '140px' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+            <button
+              onClick={dryRun}
+              disabled={busy}
+              style={{
+                fontFamily: GM, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
+                padding: '10px 18px', background: C.ink, color: C.cream, border: 'none',
+                cursor: busy ? 'default' : 'pointer', borderRadius: 6, opacity: busy ? 0.6 : 1
+              }}
+            >
+              {busy ? 'checking...' : 'preview'}
+            </button>
+            <button
+              onClick={send}
+              disabled={busy || !sample.length}
+              style={{
+                fontFamily: GM, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
+                padding: '10px 18px', background: '#d00', color: '#fff', border: 'none',
+                cursor: (busy || !sample.length) ? 'default' : 'pointer', borderRadius: 6,
+                opacity: (busy || !sample.length) ? 0.6 : 1
+              }}
+            >
+              send
+            </button>
+          </div>
+
+          {message && (
+            <p style={{ fontFamily: GM, fontSize: 11, color: message.startsWith('✗') ? '#b04040' : '#2d7c2d', marginBottom: 12 }}>
+              {message}
+            </p>
+          )}
+
+          {sample.length > 0 && (
+            <div style={{ background: '#fff', border: `1px solid ${C.rule}`, borderRadius: 6, padding: 12, marginBottom: 12 }}>
+              <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.08em', color: C.soft, textTransform: 'uppercase', marginBottom: 8 }}>
+                Sample recipients ({sample.length} shown):
+              </p>
+              {sample.map((r, i) => (
+                <div key={i} style={{ fontFamily: GM, fontSize: 10, color: C.ink, padding: '6px 0', borderBottom: i < sample.length - 1 ? `0.5px solid ${C.rule}` : 'none' }}>
+                  <strong>{r.name || '(no name)'}</strong> · {r.email} · {r.discipline || '(no discipline)'}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminQuickLinks() {
   const Item = ({ href, label, sub }) => (
     <a href={href} target="_blank" rel="noreferrer"
@@ -9532,76 +9720,33 @@ function AdminPage({ accent, setPage }) {
   return (
     <div style={{ background: C.cream, color: C.ink, minHeight: 'calc(100vh - 60px)' }}>
       <div style={{ maxWidth: 880, margin: '0 auto', padding: '40px 32px 80px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-          <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 28, letterSpacing: '-0.02em' }}>admin · console</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+          <div>
+            <h2 style={{ fontFamily: GS, fontWeight: 700, fontSize: 32, letterSpacing: '-0.02em', margin: 0 }}>inbox</h2>
+            <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, margin: '6px 0 0' }}>what needs your attention today</p>
+          </div>
           <button onClick={() => { try { sessionStorage.removeItem('colophon_admin_secret'); } catch {} setAuthed(false); setSecret(''); }}
             style={{ fontFamily: GM, fontSize: 10, color: C.soft, background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
             sign out
           </button>
         </div>
 
-        {/* ── Build stamp — deployed git SHA + age. Glance to confirm
-              the latest push is live. Renders first so it's the answer
-              to "did my deploy land?" without scrolling. ───────────── */}
-        <BuildStamp />
-
-        {/* ── Top-bar actions — handoff doc download + site dark switch. ── */}
-        <AdminTopBar />
-
-        {/* ── Live stats — derived from the in-memory bench. ───────────── */}
+        {/* ── SIMPLIFIED DASHBOARD — Only what needs attention ───────────── */}
+        
+        {/* Live stats — at a glance */}
         <AdminStatsPanel accent={accent} />
 
-        {/* ── Traffic analytics — Vercel Web Analytics deep-link. ──────── */}
-        <AdminAnalyticsPanel />
-
-        {/* ── Activity feed — new applications + new sales by type. ────── */}
-        <AdminActivityFeed secret={secret} />
-
-        {/* ── Bench links + email tracking (collapsible). ──────────────── */}
-        <AdminBenchLinks secret={secret} />
-
-        {/* ── Revenue + sunk costs (Stripe summary). ───────────────────── */}
-        <AdminRevenuePanel secret={secret} />
-
-        {/* ── Top buyers — outreach + CSV export. ─────────────────────── */}
-        <AdminBuyersPanel secret={secret} />
-
-        {/* ── Unified contacts — applicants + referrers + referred +
-              buyers + newsletter + concierge briefs. ─────────────── */}
-        <AdminContactsPanel secret={secret} />
-
-        {/* ── Referral invite status — was each referred person actually
-              auto-emailed? Retry button for any still-unknown rows. ── */}
-        <AdminReferralStatusPanel secret={secret} />
-
-        {/* ── Daily freshness check. Cron-fired at 13:00 UTC.
-              Manual button for impatient days. ─────────────────────── */}
-        <FreshnessCheckPanel secret={secret} />
-
-        {/* ── BENCH ADMIN — queue / bench / rejected / paused.
-              Single source of truth: the Sheet. Zero localStorage. ──── */}
+        {/* INBOX: Pending applications that need approval/decline */}
         <BenchAdmin secret={secret} />
 
-        {/* ── Concierge brief → bespoke bench match queue. ───────────────── */}
-        <AdminConciergePanel secret={secret} />
+        {/* ACTIVITY: What happened today/this week */}
+        <AdminActivityFeed secret={secret} />
 
-        {/* ── Year-tier inquiries → AI-suggested pricing → proposal email. */}
-        <AdminYearInquiriesPanel secret={secret} />
+        {/* SEND BROADCAST: The filtered email tool */}
+        <AdminFilteredEmailPanel secret={secret} />
 
-        {/* ── Teammate pairings — drives the bench-builder 'teams' filter. */}
-        <AdminTeammatePairings secret={secret} />
-
-        {/* ── Sheet maintenance — column headers + duplicate audit. ─────── */}
-        <AdminSheetTools secret={secret} />
-
-        {/* ── Template library — every email + form, collapsible. ──────── */}
-        <AdminTemplateLibrary />
-
-        {/* ── Quick links ──────────────────────────────────────────────── */}
+        {/* QUICK LINKS: Everything else hidden but accessible */}
         <AdminQuickLinks />
-
-        {/* ── Test flows — fire test submissions to each public form. ──── */}
-        <AdminTestFlows secret={secret} />
 
         <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.7, marginBottom: 22 }}>
           Sends a referral email via <code>/api/send-invites</code>. The recipient gets a message from <code>bench@colophon.contact</code> with subject <em>“{'{referrer}'} recommended you to Colophon.”</em> and a link to /invite.
