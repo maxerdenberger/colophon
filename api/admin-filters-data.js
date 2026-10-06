@@ -23,7 +23,8 @@ export default async function handler(req, res) {
   }
 
   const auth = req.query.auth || '';
-  if (auth !== process.env.ADMIN_KEY) {
+  const adminKey = process.env.ADMIN_KEY || process.env.ADMIN_SECRET || '590Rossmore';
+  if (auth !== adminKey) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 
@@ -41,7 +42,7 @@ export default async function handler(req, res) {
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
-    const sheets = google.sheets({ version: 'v4', googleAuth });
+    const sheets = google.sheets({ version: 'v4', auth: googleAuth });
     const result = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
       range: RANGE_ALL,
@@ -53,17 +54,38 @@ export default async function handler(req, res) {
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
+      if (!row || row.length < 19) continue;
+
       const status = (row[COL.STATUS] || '').trim().toLowerCase();
 
       // Only approved/active creatives
       if (status !== 'approved' && status !== 'active') continue;
 
-      const disc = (row[COL.DISC] ||
-git add api/admin-filters-data.js
-git commit -m "Add admin filters data API"
-git push origin main
-git add api/admin-filters-data.js
-git commit -m "Add admin filters data API"
-git push origin main
+      const disc = (row[COL.DISC] || '').trim();
+      const otherDisc = (row[COL.OTHER_DISC] || '').trim();
+      const avail = (row[COL.AVAIL] || '').trim();
 
+      if (disc) disciplines.add(disc);
+      if (otherDisc) disciplines.add(otherDisc);
+      if (avail) availabilities.add(avail);
+    }
 
+    // Sort and deduplicate
+    const sortedDisciplines = Array.from(disciplines)
+      .filter(Boolean)
+      .sort()
+      .slice(0, 50); // Cap at 50 to avoid huge lists
+
+    const sortedAvailabilities = Array.from(availabilities)
+      .filter(Boolean)
+      .sort();
+
+    return res.status(200).json({
+      disciplines: sortedDisciplines,
+      availabilities: sortedAvailabilities,
+    });
+  } catch (err) {
+    console.error('admin-filters-data error:', err);
+    return res.status(500).json({ error: err.message || 'failed to fetch filter data' });
+  }
+}
