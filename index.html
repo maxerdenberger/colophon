@@ -3233,6 +3233,8 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
           value={buyerName}
           onChange={(e) => setBuyerName(e.target.value)}
           placeholder="your name"
+          name="name"
+          autoComplete="name"
           style={{ ...FIELD, marginBottom: 12 }}
         />
         <input
@@ -3240,6 +3242,8 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
           onChange={(e) => setBuyerEmail(e.target.value)}
           placeholder="work email"
           type="email"
+          name="email"
+          autoComplete="email"
           style={FIELD}
         />
 
