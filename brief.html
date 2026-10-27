@@ -131,6 +131,33 @@
     white-space: pre; overflow-x: auto;
   }
   .contacts-preview.open { display: block; }
+
+  /* ── Email preview ─────────────────────────────────────────────────── */
+  .preview-wrap { margin-bottom: 24px; }
+  .preview-toggle {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 10px; letter-spacing: 0.1em; color: var(--soft);
+    text-transform: lowercase; cursor: pointer; background: none; border: none;
+    padding: 6px 0; font-family: var(--mono);
+  }
+  .preview-toggle:hover { color: var(--ink); }
+  .preview-toggle .arr { display: inline-block; transition: transform 0.15s; }
+  .preview-toggle.open .arr { transform: rotate(90deg); }
+  .preview-pane { display: none; margin-top: 10px; border: 1px solid var(--rule); overflow: hidden; }
+  .preview-pane.open { display: block; }
+  .eml-wrap { background: #f4ede2; padding: 36px 22px; font-family: Georgia,'Times New Roman',serif; color: #0d1014; }
+  .eml-inner { max-width: 520px; margin: 0 auto; font-size: 15px; line-height: 1.7; }
+  .eml-logo { margin-bottom: 22px; }
+  .eml-dot { display: inline-block; width: 20px; height: 20px; background: #f4ede2; border: 1.5px solid #0d1014; border-radius: 50%; box-sizing: border-box; text-align: center; line-height: 17px; margin-bottom: 9px; }
+  .eml-dot span { display: inline-block; width: 7px; height: 7px; background: #FF5100; border-radius: 50%; vertical-align: 1px; }
+  .eml-wordmark { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 22px; letter-spacing: -0.02em; color: #0d1014; line-height: 1; }
+  .eml-wordmark span { color: #FF5100; }
+  .eml-mono-label { font-size: 10px; letter-spacing: 0.18em; color: #888580; text-transform: uppercase; margin: 0 0 22px; font-family: 'IBM Plex Mono', monospace; }
+  .eml-body { white-space: pre-wrap; margin: 0 0 24px; }
+  .eml-btn { display: block; padding: 13px 16px; text-decoration: none; font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.04em; color: #f4ede2; margin-bottom: 8px; }
+  .eml-btn-yes { background: #3F7F4A; }
+  .eml-btn-no  { background: #0d1014; margin-bottom: 0; }
+  .eml-footer  { font-size: 10px; color: #888580; font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.04em; text-transform: uppercase; margin: 26px 0 0; }
 </style>
 </head>
 <body>
@@ -155,6 +182,34 @@
   <div class="field">
     <label>brief — what does the project need?</label>
     <textarea id="brief" placeholder="e.g. need a CD for a pharma rebrand launching in q1. mid-size agency. they've done pharma before, ideally know the regulatory constraints. visual + verbal both. 6-week engagement."></textarea>
+  </div>
+
+  <!-- Email preview -->
+  <div class="preview-wrap">
+    <button class="preview-toggle" id="previewToggle" onclick="togglePreview()">
+      <span class="arr">▸</span> preview email
+    </button>
+    <div class="preview-pane" id="previewPane">
+      <div class="eml-wrap">
+        <div class="eml-inner">
+          <div class="eml-logo">
+            <div class="eml-dot"><span></span></div>
+            <div class="eml-wordmark">colo<span>phon</span></div>
+          </div>
+          <p class="eml-mono-label">project match</p>
+          <div class="eml-body" id="previewBody">Hey [name],
+
+We think you'd be a great match for a project we're staffing.
+
+If you're open, respond within 5 hours to be put in front of the hiring manager.
+
+— Colophon</div>
+          <a class="eml-btn eml-btn-yes" href="#"><strong style="font-weight:500;">Yes, I'm open</strong> &nbsp;·&nbsp; <span style="opacity:0.85;">Put me in front of the hiring manager</span></a>
+          <a class="eml-btn eml-btn-no"  href="#"><strong style="font-weight:500;">Not right now</strong> &nbsp;·&nbsp; <span style="opacity:0.85;">Booked or not the right fit</span></a>
+          <p class="eml-footer">colophon · colophon.contact</p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="row">
@@ -215,6 +270,38 @@
 </div>
 
 <script>
+  // ── Email preview ─────────────────────────────────────────────────────────
+  function togglePreview() {
+    const pane = document.getElementById('previewPane');
+    const btn  = document.getElementById('previewToggle');
+    const open = pane.classList.toggle('open');
+    btn.classList.toggle('open', open);
+    if (open) updatePreview();
+  }
+
+  function buildPreviewBody(brief) {
+    if (!brief.trim()) {
+      return `Hey [name],\n\nWe think you'd be a great match for a project we're staffing.\n\nIf you're open, respond within 5 hours to be put in front of the hiring manager.\n\n— Colophon`;
+    }
+    const trimmed = brief.trim().replace(/\n{3,}/g, '\n\n');
+    const snippet = trimmed.length > 280 ? trimmed.slice(0, 280) + '…' : trimmed;
+    const lead = snippet.charAt(0).toLowerCase() + snippet.slice(1);
+    return `Hey [name],\n\nWe think you'd be a great match for a project we're staffing — ${lead}\n\nIf you're open, respond within 5 hours to be put in front of the hiring manager.\n\n— Colophon`;
+  }
+
+  function updatePreview() {
+    const body = document.getElementById('previewBody');
+    if (body) body.textContent = buildPreviewBody(document.getElementById('brief').value);
+  }
+
+  let _previewTimer;
+  document.getElementById('brief').addEventListener('input', () => {
+    clearTimeout(_previewTimer);
+    _previewTimer = setTimeout(() => {
+      if (document.getElementById('previewPane').classList.contains('open')) updatePreview();
+    }, 300);
+  });
+
   // ── Rate tier counts ─────────────────────────────────────────────────────
   const RATE_MAP = { '$': 'rc-1', '$$': 'rc-2', '$$$': 'rc-3', '$$$$': 'rc-4' };
   const CR_MAP   = { '$': 'cr-1', '$$': 'cr-2', '$$$': 'cr-3', '$$$$': 'cr-4' };

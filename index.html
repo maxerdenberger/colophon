@@ -6998,8 +6998,29 @@ function AdminSheetTools({ secret }) {
   );
 }
 
-// Send custom emails to filtered bench creatives (by discipline, availability, rate, etc.)
-function AdminFilteredEmailPanel({ secret }) {
+// Brief engine card — links to the full brief builder at /brief
+function BriefEngineCard() {
+  return (
+    <div style={{ marginBottom: 32, borderTop: `1px solid ${C.rule}`, paddingTop: 24 }}>
+      <a href="/brief" style={{ display: 'block', padding: '20px 22px', background: C.cream, border: `1px solid ${C.rule}`, textDecoration: 'none', color: C.ink }}>
+        <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.12em', color: C.soft, textTransform: 'uppercase', marginBottom: 8 }}>outbound</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <p style={{ fontFamily: GS, fontWeight: 700, fontSize: 20, letterSpacing: '-0.02em', marginBottom: 6 }}>fire a brief →</p>
+            <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, lineHeight: 1.6 }}>
+              rate filter · AI ranking · colophon-branded outreach · HMAC response links · brief history
+            </p>
+          </div>
+          <span style={{ fontFamily: GM, fontSize: 22, color: C.soft, flexShrink: 0 }}>→</span>
+        </div>
+      </a>
+    </div>
+  );
+}
+
+// DEAD CODE BELOW — kept only to avoid breaking the old send-filtered-email endpoint reference
+// The actual brief-firing flow lives at /brief (brief.html)
+function AdminFilteredEmailPanel_LEGACY({ secret }) {
   const [collapsed, setCollapsed] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
@@ -8370,15 +8391,17 @@ function BenchFreshnessCard({ secret, append, onLoaded }) {
 function AdminBriefHistoryPanel({ secret }) {
   const [briefs, setBriefs] = React.useState(null);
   const [error, setError]   = React.useState('');
-  const [open, setOpen]     = React.useState(null); // expanded briefId
+  const [open, setOpen]     = React.useState(null);
 
-  React.useEffect(() => {
+  const load = () => {
     if (!secret) return;
-    fetch('/api/brief-stats?limit=20', { headers: { Authorization: `Bearer ${secret}` } })
+    fetch('/api/brief-history', { headers: { Authorization: `Bearer ${secret}` } })
       .then((r) => r.json())
       .then((d) => { if (d.briefs) setBriefs(d.briefs); else setError(d.error || 'failed'); })
       .catch((e) => setError(e.message));
-  }, [secret]);
+  };
+
+  React.useEffect(load, [secret]);
 
   const box = { marginBottom: 10, padding: '12px 16px', border: `1px solid ${C.rule}`, background: C.paper };
   const mono11 = { fontFamily: GM, fontSize: 11, color: C.ink };
@@ -8390,21 +8413,31 @@ function AdminBriefHistoryPanel({ secret }) {
 
   return (
     <div style={{ marginBottom: 24 }}>
-      <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.soft, marginBottom: 10 }}>brief outreach history</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.soft }}>brief outreach history</p>
+        <button onClick={load} style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', color: C.soft, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>↻ refresh</button>
+        <a href="/brief" style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', color: C.soft, marginLeft: 'auto', textDecoration: 'none' }}>open brief builder →</a>
+      </div>
       {!briefs && <p style={soft10}>loading…</p>}
-      {briefs && briefs.length === 0 && <p style={soft10}>no briefs fired yet — use /brief.html to send the first one.</p>}
+      {briefs && briefs.length === 0 && <p style={soft10}>no briefs fired yet.</p>}
       {(briefs || []).map((b) => {
         const isOpen = open === b.briefId;
-        const ts = b.lastSentAt ? new Date(b.lastSentAt) : null;
+        const ts = b.firedAt ? new Date(b.firedAt) : null;
         const ago = ts ? (() => {
           const d = Math.floor((Date.now() - ts) / 86400000);
           return d === 0 ? 'today' : d === 1 ? 'yesterday' : `${d}d ago`;
         })() : '';
+        const yesRows = (b.rows || []).filter(r => /available/i.test(r.response));
         return (
           <div key={b.briefId} style={{ ...box, cursor: 'pointer' }} onClick={() => setOpen(isOpen ? null : b.briefId)}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
               <span style={{ ...mono11, fontWeight: 500 }}>{b.briefId.replace('brief_', '')}</span>
               <span style={{ ...soft10 }}>{ago}</span>
+              {b.yesCount > 0 && (
+                <span style={{ fontFamily: GM, fontSize: 10, padding: '1px 6px', background: '#d4edda', color: '#155724' }}>
+                  {b.yesCount} yes
+                </span>
+              )}
               <span style={{ flex: 1 }} />
               <span style={{ ...mono11 }}>
                 <strong>{b.responded}</strong>
@@ -8412,20 +8445,34 @@ function AdminBriefHistoryPanel({ secret }) {
               </span>
               <span style={{
                 fontFamily: GM, fontSize: 10, padding: '2px 7px',
-                background: b.responseRate >= 50 ? '#d4edda' : b.responseRate >= 20 ? '#fff3cd' : C.sand,
+                background: b.responseRate >= 50 ? '#d4edda' : b.responseRate >= 20 ? '#fff3cd' : C.paper,
                 color: b.responseRate >= 50 ? '#155724' : b.responseRate >= 20 ? '#856404' : C.soft,
               }}>{b.responseRate}%</span>
             </div>
             {isOpen && (
               <div style={{ marginTop: 12, borderTop: `1px solid ${C.rule}`, paddingTop: 10 }}>
-                {b.recipients.map((r) => (
-                  <div key={r.email} style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '5px 0', borderBottom: `1px solid ${C.rule}` }}>
+                {yesRows.length > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    <p style={{ ...soft10, marginBottom: 6, letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: 9 }}>said yes</p>
+                    {yesRows.map((r) => (
+                      <div key={r.email} style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '5px 0', borderBottom: `0.5px solid ${C.rule}` }}>
+                        <span style={{ ...mono11, fontWeight: 500, minWidth: 130 }}>{r.name || '—'}</span>
+                        <span style={{ ...soft10 }}>{r.discipline || ''}</span>
+                        <span style={{ ...soft10, flex: 1 }}>{r.email}</span>
+                        {r.portfolio && (
+                          <a href={r.portfolio} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} style={{ fontFamily: GM, fontSize: 9, color: C.soft, textDecoration: 'underline' }}>portfolio</a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {(b.rows || []).filter(r => !/available/i.test(r.response)).map((r) => (
+                  <div key={r.email} style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '4px 0', borderBottom: `0.5px solid ${C.rule}`, opacity: 0.7 }}>
                     <span style={{ ...mono11, minWidth: 130 }}>{r.name || '—'}</span>
                     <span style={{ ...soft10, flex: 1 }}>{r.email}</span>
-                    {r.response
-                      ? <span style={{ fontFamily: GM, fontSize: 10, color: r.response === 'available' ? '#155724' : '#888' }}>{r.response}</span>
-                      : <span style={{ ...soft10 }}>no response</span>
-                    }
+                    <span style={{ fontFamily: GM, fontSize: 10, color: /booked/i.test(r.response) ? C.soft : '#888' }}>
+                      {r.response || 'no response'}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -10135,8 +10182,8 @@ function AdminPage({ accent, setPage }) {
         {/* ACTIVITY: What happened today/this week */}
         <AdminActivityFeed secret={secret} />
 
-        {/* SEND BROADCAST: The filtered email tool */}
-        <AdminFilteredEmailPanel secret={secret} />
+        {/* OUTBOUND: Brief engine — fires to /brief.html */}
+        <BriefEngineCard />
 
         {/* REFERRER OUTREACH: Warm intros to referrers from vetting data */}
         <AdminReferrerOutreachPanel secret={secret} />
