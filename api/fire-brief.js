@@ -58,12 +58,13 @@ export default async function handler(req, res) {
     return res.status(501).json({ error: 'RESEND_API_KEY not configured' });
   }
 
-  const body   = req.body || {};
-  const brief  = String(body.brief  || '').trim();
-  const timing = String(body.timing || '').trim();
-  const rates  = Array.isArray(body.rates) ? body.rates.filter(Boolean) : [];
-  const topN   = Math.min(40, Math.max(1, Number(body.topN) || 15));
-  const dryRun = body.dryRun === true || body.dryRun === 'true' || body.dryRun === '1';
+  const body         = req.body || {};
+  const brief        = String(body.brief  || '').trim();
+  const timing       = String(body.timing || '').trim();
+  const rates        = Array.isArray(body.rates) ? body.rates.filter(Boolean) : [];
+  const topN         = Math.min(40, Math.max(1, Number(body.topN) || 15));
+  const dryRun       = body.dryRun === true || body.dryRun === 'true' || body.dryRun === '1';
+  const includeTeams = body.includeTeams === true || body.includeTeams === 'true';
 
   if (!brief) return res.status(400).json({ error: 'missing brief' });
 
@@ -76,24 +77,31 @@ export default async function handler(req, res) {
     candidates = rows
       .filter((r) => {
         if (r.status !== 'bench' || !r.email || /booked/i.test(r.availability || '')) return false;
+        // teams: skip unless includeTeams param is set
+        if (!includeTeams && r.partners && String(r.partners).trim()) return false;
         if (!rates.length) return true;
         const hr = r.hourlyRate || 0;
         const tier = hr >= 400 ? '$$$$' : hr >= 250 ? '$$$' : hr >= 150 ? '$$' : hr > 0 ? '$' : '$$';
         return rates.includes(tier);
       })
-      .map((r) => ({
-        rowNumber:   r.rowNumber,
-        name:        r.name || '',
-        email:       r.email || '',
-        discipline:  Array.isArray(r.disciplines) ? r.disciplines[0] || '' : '',
-        disciplines: r.disciplines || [],
-        clients:     r.topClients  || [],
-        availability:r.availability || '',
-        rate:        r.hourlyRate   ? `$${r.hourlyRate}` : '',
-        yoe:         r.yoe          || 0,
-        note:        r.valueProp    || '',
-        tz:          r.timezone     || '',
-      }));
+      .map((r) => {
+        // disciplines and clients come back as comma-separated strings from the sheet
+        const discs   = String(r.disciplines || '').split(/[,;\/]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
+        const clients = String(r.topClients  || '').split(/[,;\/\n]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
+        return {
+          rowNumber:   r.rowNumber,
+          name:        r.name || '',
+          email:       r.email || '',
+          discipline:  discs[0] || '',
+          disciplines: discs,
+          clients,
+          availability:r.availability || '',
+          rate:        r.hourlyRate   ? `$${r.hourlyRate}` : '',
+          yoe:         r.yoe          || 0,
+          note:        (r.valueProp   || '').toLowerCase(),
+          tz:          r.timezone     || '',
+        };
+      });
   } catch (err) {
     return res.status(502).json({ error: 'bench read failed: ' + err.message });
   }
@@ -162,20 +170,26 @@ Return strictly JSON, nothing else:
 
   if (!ranked.length) {
     const bl = brief.toLowerCase();
-    const STOP = new Set('the and for with that this from they have your you our who not are will but into about when over only just like need want some looking best work team make help'.split(' '));
+    // generic words that appear in every creative's profile — not useful signal
+    const STOP = new Set('the and for with that this from they have your you our who not are will but into about when over only just like need want some looking best work team make help a an is it be do go us we also very creative'.split(' '));
     const signal = [...new Set(bl.split(/[^a-z0-9]+/).filter((t) => t.length > 2))].filter((t) => !STOP.has(t));
 
     ranked = candidates
       .map((c) => {
         let score = 0;
-        const hay = [...c.disciplines, ...c.clients, c.note, c.discipline].join(' ').toLowerCase();
-        const hits = signal.filter((t) => hay.includes(t));
-        score += hits.length * 8;
+        // discipline matches are the strongest signal — score separately from bio/clients
+        const discHay  = c.disciplines.join(' ');
+        const otherHay = [...c.clients, c.note].join(' ');
+        const discHits  = signal.filter((t) => discHay.includes(t));
+        const otherHits = signal.filter((t) => otherHay.includes(t) && !discHay.includes(t));
+        score += discHits.length * 15;  // discipline match: high weight
+        score += otherHits.length * 4;  // client/bio match: secondary
         if (/immediate|asap|now|this week|urgent/.test(bl) && /immediate/i.test(c.availability)) score += 12;
         if (/booked/i.test(c.availability)) score -= 30;
         if ((c.yoe || 0) >= 12) score += 4;
         else if ((c.yoe || 0) >= 8) score += 2;
-        return { ...c, score, reason: hits.length ? `${hits.slice(0, 2).join(', ')}` : '' };
+        const allHits = [...new Set([...discHits, ...otherHits])];
+        return { ...c, score, reason: allHits.length ? allHits.slice(0, 2).join(', ') : '' };
       })
       .filter((c) => c.score > 0)
       .sort((a, b) => b.score - a.score)
@@ -210,7 +224,7 @@ Rules:
 - Open with "hey,"  — no first name
 - One sentence: "we think you'd be a great match for a project we're staffing" + one detail about the project (no brand name)
 - One sentence on timing if provided
-- Tell them to reply within 5 hours if they're open; we'll send the full details
+- Tell them to respond within 5 hours to be put in front of the hiring manager
 - Close: "— colophon.contact"
 - No exclamation marks, no warm/soft language, direct and brief
 
@@ -258,7 +272,7 @@ Return strictly JSON, nothing else:
           '',
           `we think you'd be a great match for a project we're staffing — ${excerpt}${timing ? '. timing: ' + timing : ''}.`,
           '',
-          `if you're open, reply within 5 hours and we'll send over the full details.`,
+          `if you're open, respond within 5 hours to be put in front of the hiring manager.`,
           '\n— colophon.contact',
         ].join('\n'),
       };
