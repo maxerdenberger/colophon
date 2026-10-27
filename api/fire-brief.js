@@ -200,19 +200,19 @@ Return strictly JSON, nothing else:
         reason: c.reason,
       }));
       const draftPrompt =
-`You are Max at Colophon, a private bench for vetted creatives. Draft a soft-availability check email to each creative below. The email asks if they're open for a project matching the brief.
+`You are Colophon, a private bench for vetted creatives. Draft a direct availability-check email to each creative below. The email tells them they're a strong match and asks for a quick reply.
 
 Brief (keep the client brand redacted): """${brief}"""
 Timing: ${timing || 'not specified'}
 
 Rules:
 - 4-6 lines total, plain text, lowercase preferred
-- Open with "hey [first],"
-- One sentence describing the project (no brand name)
-- One sentence on timing
-- Ask if they're open to hearing more
-- Close: "— max / colophon"
-- No exclamation marks, no marketing language
+- Open with "hey,"  — no first name
+- One sentence: "we think you'd be a great match for a project we're staffing" + one detail about the project (no brand name)
+- One sentence on timing if provided
+- Tell them to reply within 5 hours if they're open; we'll send the full details
+- Close: "— colophon.contact"
+- No exclamation marks, no warm/soft language, direct and brief
 
 Creatives (JSON):
 ${JSON.stringify(mini)}
@@ -250,17 +250,16 @@ Return strictly JSON, nothing else:
   if (!drafts.length) {
     const excerpt = brief.length > 100 ? brief.slice(0, 97) + '…' : brief;
     drafts = ranked.map((c) => {
-      const first = (c.name || '').split(' ')[0] || 'there';
       return {
         email:   c.email,
-        subject: `quick check — are you open for ${c.discipline || 'creative'} work?`,
+        subject: `we think you'd be a great match — ${c.discipline || 'creative'} project`,
         body:    [
-          `hey ${first},`,
+          `hey,`,
           '',
-          `i'm matching creatives for a project — ${excerpt}${timing ? '. timing: ' + timing : ''}.`,
+          `we think you'd be a great match for a project we're staffing — ${excerpt}${timing ? '. timing: ' + timing : ''}.`,
           '',
-          `are you open to hearing more? happy to share details if so.`,
-          '\n— Max\ncolophon.contact',
+          `if you're open, reply within 5 hours and we'll send over the full details.`,
+          '\n— colophon.contact',
         ].join('\n'),
       };
     });
