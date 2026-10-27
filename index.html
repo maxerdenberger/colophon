@@ -2650,11 +2650,11 @@ function ApplyPage({ accent, onDone, isDrawer = false }) {
         }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <h3 style={{ ...sH, marginTop: 0 }}>about you</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-            <div><label style={lS}>full name</label><input style={iS} value={form.name} onChange={set('name')} required /></div>
-            <div><label style={lS}>email</label><input type="email" style={iS} value={form.email} onChange={set('email')} required /></div>
+            <div><label style={lS}>full name</label><input style={iS} value={form.name} onChange={set('name')} name="name" autoComplete="name" required /></div>
+            <div><label style={lS}>email</label><input type="email" style={iS} value={form.email} onChange={set('email')} name="email" autoComplete="email" required /></div>
           </div>
-          <div><label style={lS}>professional portfolio link</label><input type="url" style={iS} value={form.portfolio} onChange={set('portfolio')} placeholder="https://" required /></div>
-          <div><label style={lS}>linkedin profile url</label><input type="url" style={iS} value={form.linkedin} onChange={set('linkedin')} placeholder="https://linkedin.com/in/" required /></div>
+          <div><label style={lS}>professional portfolio link</label><input type="url" style={iS} value={form.portfolio} onChange={set('portfolio')} name="portfolio" autoComplete="url" placeholder="https://" required /></div>
+          <div><label style={lS}>linkedin profile url</label><input type="url" style={iS} value={form.linkedin} onChange={set('linkedin')} name="linkedin" autoComplete="url" placeholder="https://linkedin.com/in/" required /></div>
 
           <h3 style={sH}>your work</h3>
           <div>
@@ -4335,12 +4335,12 @@ function ConciergePage({ accent, setPage, isDrawer = false }) {
 
         <form id="brief-intake" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14, scrollMarginTop: 80 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <input name="name" required placeholder="Your name"
+            <input name="name" autoComplete="name" required placeholder="Your name"
               style={FIELD} />
-            <input name="email" type="email" required placeholder="Work email"
+            <input name="email" type="email" autoComplete="email" required placeholder="Work email"
               style={FIELD} />
           </div>
-          <input name="company" placeholder="Company (optional)"
+          <input name="company" autoComplete="organization" placeholder="Company (optional)"
             style={FIELD} />
 
           <textarea name="brief" required rows={6} placeholder="What are you working on? What kind of creative do you need? Add any context that would help us match you well."
@@ -4498,6 +4498,7 @@ function InvitePage({ accent, setPage }) {
         <input type="email" required value={form.email}
           onChange={setF('email')}
           onBlur={lookup}
+          name="email" autoComplete="email"
           style={inputStyle} placeholder="you@studio.com" />
         {lookingUp && <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 6 }}>checking the directory…</p>}
         {isKnown && (
@@ -10383,6 +10384,8 @@ function BenchNewsletterForm() {
         required
         value={email}
         onChange={(e) => setEmail(e.target.value)}
+        name="email"
+        autoComplete="email"
         placeholder="email"
         style={{ ...FIELD, flex: '1 1 200px' }}
       />
