@@ -22,7 +22,7 @@
 
 import { Resend } from 'resend';
 import { readBench } from './_utils/sheets-v2.js';
-import { stampLastPinged } from './_utils/sheets.js';
+import { appendPingLog } from './_utils/sheets.js';
 
 const FROM      = 'Colophon <bench@colophon.contact>';
 const REPLY_TO  = 'bench@colophon.contact';
@@ -287,9 +287,10 @@ Return strictly JSON, nothing else:
     }
 
     let stamped = false;
-    if (c.rowNumber >= 2) {
-      try { await stampLastPinged(c.rowNumber, nowIso); stamped = true; } catch {}
-    }
+    try {
+      await appendPingLog([{ name: c.name, email: c.email, emailId: sentId, status: 'sent', priorAvailability: c.availability }]);
+      stamped = true;
+    } catch {}
     results.push({ email: c.email, name: c.name, id: sentId, stamped, score: c.score, reason: c.reason });
   }
 

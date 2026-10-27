@@ -2957,7 +2957,7 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
   //   week $82 × 0.6 = $49.20 → $49
   //   month $349 × 0.6 = $209.40 → $209
   // Year is intentionally absent — handled as a contact-for-pricing tier.
-  const PRICES = { day: 42, week: 82, month: 349 };
+  const [PRICES, setPrices] = useState({ day: 42, week: 82, month: 349 });
   const MAX_DISCOUNTED_FILTERS = 4;
   const rawFilterCount = Object.values(filters).filter((arr) => arr.length > 0).length;
   const filterCount = Math.min(MAX_DISCOUNTED_FILTERS, rawFilterCount);
@@ -2990,7 +2990,13 @@ function PricingPage({ setPage, accent, isDrawer = false, onFiltersChange, seedF
     const id = setTimeout(() => {
       fetch('/api/bench-count?filters=' + encodeURIComponent(JSON.stringify(filters)), { signal: ctrl.signal })
         .then((r) => r.json())
-        .then((j) => { if (typeof j.count === 'number') setServerCount(j.count); })
+        .then((j) => {
+            if (typeof j.count === 'number') setServerCount(j.count);
+            if (typeof j.total === 'number') {
+              const tiers = Math.max(0, Math.floor((j.total - 500) / 100));
+              setPrices({ day: 42 + tiers * 2, week: 82 + tiers * 4, month: 349 + tiers * 14 });
+            }
+          })
         .catch(() => {});
     }, 250);
     return () => { clearTimeout(id); ctrl.abort(); };

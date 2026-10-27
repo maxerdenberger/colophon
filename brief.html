@@ -179,6 +179,12 @@
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
         body: JSON.stringify({ brief, timing, budget, topN, dryRun }),
       });
+      const ct = r.headers.get('content-type') || '';
+      if (!ct.includes('json')) {
+        const txt = await r.text();
+        showErr(`server error ${r.status} — ${txt.slice(0, 200)}`);
+        return;
+      }
       const data = await r.json();
 
       if (!r.ok) {
