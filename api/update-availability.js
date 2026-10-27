@@ -41,7 +41,7 @@ const page = (title, body, accentColor) => `<!doctype html>
 </body></html>`;
 
 export default async function handler(req, res) {
-  const { email, token, value } = req.query || {};
+  const { email, token, value, briefId } = req.query || {};
   const cleanEmail = String(email || '').trim().toLowerCase();
 
   if (!cleanEmail.includes('@')) {
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
     // Stamp the matching Pings row so the admin freshness panel can
     // attribute 'responded' counts to specific pings. Non-fatal — the
     // bench row already shows their new state.
-    try { await recordPingResponse({ email: cleanEmail, value: VALID_VALUES[value] }); }
+    try { await recordPingResponse({ email: cleanEmail, value: VALID_VALUES[value], briefId: briefId || '' }); }
     catch (_) {}
   } catch (err) {
     return res.status(500).setHeader('Content-Type','text/html').send(page('Server error',
@@ -79,10 +79,19 @@ export default async function handler(req, res) {
     booked:    { line: 'booked / waitlist only', color: '#0d1014' },
   };
   const lab = labels[value];
+  const isBrief = !!(briefId && String(briefId).startsWith('brief_'));
+  const headline = isBrief && value === 'available' ? 'you\'re in.'
+                 : isBrief && value === 'booked'    ? 'noted.'
+                 : 'your row is updated.';
+  const subline  = isBrief && value === 'available'
+    ? 'Response logged — the hiring manager will hear from us shortly.'
+    : isBrief && value === 'booked'
+    ? 'Response logged. We\'ll keep you in the loop on future projects.'
+    : 'Hirers will see the change on the public bench within a few minutes.';
   const body = `
-    <h1 style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:36px;letter-spacing:-0.025em;line-height:1.05;margin:0 0 12px;">your row is updated.</h1>
+    <h1 style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:36px;letter-spacing:-0.025em;line-height:1.05;margin:0 0 12px;">${headline}</h1>
     <p style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.04em;color:${lab.color};text-transform:uppercase;margin:0 0 28px;">→ ${lab.line}</p>
-    <p style="font-size:16px;line-height:1.7;color:#0d1014;margin:0 0 16px;">Hirers will see the change on the public bench within a few minutes.</p>
+    <p style="font-size:16px;line-height:1.7;color:#0d1014;margin:0 0 16px;">${subline}</p>
     <p style="font-size:14px;line-height:1.7;color:#3D3C38;margin:0 0 0;">Anything else to update — rate, portfolio, the social heart? Resubmit at <a href="https://colophon.contact/apply" style="color:#0d1014;">colophon.contact/apply</a> and I\'ll fold it in.</p>
   `;
   res.setHeader('Content-Type', 'text/html');

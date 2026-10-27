@@ -541,31 +541,53 @@ export async function readBriefSpecs() {
   return map;
 }
 
-// Stamp response (value + timestamp) on the most-recent ping row for the
-// given email. Matches the latest unanswered row so the audit log shows
-// 'pinged on X, responded on Y' clearly. Returns { matched, rowNumber }.
-export async function recordPingResponse({ email, value }) {
+// Stamp response (value + timestamp) on the correct ping row.
+// If briefId is provided, targets the row matching both email + briefId (col J).
+// Falls back to the latest unanswered row for that email when no briefId match found.
+// Returns { matched, rowNumber }.
+export async function recordPingResponse({ email, value, briefId }) {
   if (!process.env.SHEETS_SPREADSHEET_ID) {
     throw new Error('SHEETS_SPREADSHEET_ID not configured');
   }
   const cleanEmail = String(email || '').trim().toLowerCase();
+  const cleanBriefId = String(briefId || '').trim();
   if (!cleanEmail.includes('@')) return { matched: false };
   const sheets = client();
   const TAB = 'Availability Pings';
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
-    range: `${TAB}!A:I`,
+    range: `${TAB}!A:J`,
   }).catch(() => null);
   if (!res || !res.data || !res.data.values) return { matched: false };
   const rows = res.data.values;
-  // Walk bottom-up to find the latest ping for this email that hasn't
-  // already been responded to. If they click two pings (rare), only the
-  // most-recent unanswered one gets stamped.
+  const now = new Date().toISOString();
+
+  // Pass 1: if we have a briefId, find the exact row for this email + brief
+  if (cleanBriefId) {
+    for (let i = rows.length - 1; i >= 1; i--) {
+      const rowEmail   = String(rows[i][2] || '').trim().toLowerCase();
+      const rowBriefId = String(rows[i][9] || '').trim();
+      if (rowEmail === cleanEmail && rowBriefId === cleanBriefId) {
+        await sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+          requestBody: {
+            valueInputOption: 'RAW',
+            data: [
+              { range: `${TAB}!G${i + 1}`, values: [[now]] },
+              { range: `${TAB}!H${i + 1}`, values: [[value || '']] },
+            ],
+          },
+        });
+        return { matched: true, rowNumber: i + 1 };
+      }
+    }
+  }
+
+  // Pass 2: fallback — latest unanswered row for this email
   for (let i = rows.length - 1; i >= 1; i--) {
     const rowEmail = String(rows[i][2] || '').trim().toLowerCase();
     const alreadyResponded = String(rows[i][6] || '').trim();
     if (rowEmail === cleanEmail && !alreadyResponded) {
-      const now = new Date().toISOString();
       await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
         requestBody: {
