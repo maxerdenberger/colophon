@@ -115,6 +115,22 @@
   .ping-response.open { color: var(--orange); }
   .ping-response.sent { color: var(--soft); opacity: 0.6; }
   .history-empty { font-size: 12px; color: var(--soft); padding: 24px 0; }
+  .copy-contacts-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 10px; font-family: var(--mono); letter-spacing: 0.06em; text-transform: lowercase;
+    padding: 5px 10px; border: 1px solid var(--green); color: var(--green);
+    background: none; cursor: pointer; border-radius: 2px; margin-top: 10px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .copy-contacts-btn:hover { background: var(--green); color: #f4ede2; }
+  .copy-contacts-btn.copied { background: var(--green); color: #f4ede2; }
+  .contacts-preview {
+    display: none; margin-top: 10px; padding: 12px 14px;
+    background: rgba(63,127,74,0.06); border: 1px solid rgba(63,127,74,0.2);
+    font-family: var(--mono); font-size: 11px; line-height: 1.8;
+    white-space: pre; overflow-x: auto;
+  }
+  .contacts-preview.open { display: block; }
 </style>
 </head>
 <body>
@@ -397,6 +413,20 @@
         </div>`;
       }).join('');
 
+      // Build copy-paste contact list from yes respondents
+      const yesRows = (b.rows || []).filter(r => /available/i.test(r.response || ''));
+      const contactLines = yesRows.map(r => {
+        const parts = [r.name || r.email];
+        if (r.discipline) parts.push(r.discipline);
+        parts.push(r.email);
+        if (r.portfolio) parts.push(r.portfolio);
+        return parts.join('\n');
+      }).join('\n\n');
+      const copyBtn = b.yesCount > 0
+        ? `<button class="copy-contacts-btn" id="copybtn-${i}" onclick="copyContacts(${i})">⬡ copy ${b.yesCount} contact${b.yesCount !== 1 ? 's' : ''}</button>
+           <div class="contacts-preview" id="contacts-${i}">${esc(contactLines)}</div>`
+        : '';
+
       return `<div class="brief-card">
         <div class="brief-card-head" onclick="toggleBrief(${i})">
           <span class="brief-id">${esc(briefIdShort(b.briefId))}</span>
@@ -409,7 +439,7 @@
           </div>
           <span class="brief-expand" id="exp-${i}">▸</span>
         </div>
-        <div class="brief-rows" id="brief-rows-${i}">${rows}</div>
+        <div class="brief-rows" id="brief-rows-${i}">${rows}${copyBtn}</div>
       </div>`;
     }).join('');
   }
@@ -420,6 +450,24 @@
     if (!panel) return;
     const open = panel.classList.toggle('open');
     if (arrow) arrow.textContent = open ? '▾' : '▸';
+  }
+
+  function copyContacts(i) {
+    const preview = document.getElementById(`contacts-${i}`);
+    const btn = document.getElementById(`copybtn-${i}`);
+    if (!preview) return;
+    // Toggle the preview open
+    preview.classList.toggle('open');
+    const text = preview.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      if (btn) { btn.textContent = '✓ copied'; btn.classList.add('copied'); }
+      setTimeout(() => {
+        if (btn) { btn.textContent = `⬡ copy contacts`; btn.classList.remove('copied'); }
+      }, 2500);
+    }).catch(() => {
+      // Fallback: just keep preview open so they can manually copy
+      if (btn) btn.textContent = '⬡ select to copy';
+    });
   }
 
   async function loadHistory() {

@@ -13,6 +13,7 @@
 //   H 7 Response  · I 8 Prior Availability · J 9 Brief ID
 
 import { google } from 'googleapis';
+import { readBench } from './_utils/sheets-v2.js';
 
 let _client;
 function client() {
@@ -106,11 +107,32 @@ export default async function handler(req, res) {
     b.rows.push(p);
   }
 
-  // Sort rows within each brief by timestamp
+  // Enrich yes-respondents with portfolio + discipline from bench
+  let benchByEmail = new Map();
+  try {
+    const { rows } = await readBench();
+    for (const r of rows) {
+      if (r.email) {
+        const discs = String(r.disciplines || '').split(/[,;\/]+/).map(s => s.trim()).filter(Boolean);
+        benchByEmail.set(r.email.toLowerCase(), {
+          portfolio:  r.portfolio  || '',
+          discipline: discs[0]     || '',
+        });
+      }
+    }
+  } catch { /* bench unavailable — skip enrichment */ }
+
+  // Sort rows within each brief by timestamp; attach bench data to yes rows
   for (const b of briefs.values()) {
     b.rows.sort((a, z) => (a.timestamp > z.timestamp ? 1 : -1));
     b.responseRate = b.sent > 0 ? Math.round((b.responded / b.sent) * 100) : 0;
     b.openRate     = b.sent > 0 ? Math.round((b.opened   / b.sent) * 100) : 0;
+    for (const r of b.rows) {
+      if (/available/i.test(r.response)) {
+        const bench = benchByEmail.get((r.email || '').toLowerCase());
+        if (bench) { r.portfolio = bench.portfolio; r.discipline = bench.discipline; }
+      }
+    }
   }
 
   // Sort briefs newest first
