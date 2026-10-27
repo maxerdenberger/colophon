@@ -8367,6 +8367,76 @@ function BenchFreshnessCard({ secret, append, onLoaded }) {
   );
 }
 
+function AdminBriefHistoryPanel({ secret }) {
+  const [briefs, setBriefs] = React.useState(null);
+  const [error, setError]   = React.useState('');
+  const [open, setOpen]     = React.useState(null); // expanded briefId
+
+  React.useEffect(() => {
+    if (!secret) return;
+    fetch('/api/brief-stats?limit=20', { headers: { Authorization: `Bearer ${secret}` } })
+      .then((r) => r.json())
+      .then((d) => { if (d.briefs) setBriefs(d.briefs); else setError(d.error || 'failed'); })
+      .catch((e) => setError(e.message));
+  }, [secret]);
+
+  const box = { marginBottom: 10, padding: '12px 16px', border: `1px solid ${C.rule}`, background: C.paper };
+  const mono11 = { fontFamily: GM, fontSize: 11, color: C.ink };
+  const soft10 = { fontFamily: GM, fontSize: 10, color: C.soft };
+
+  if (error) return (
+    <div style={{ ...box, color: '#c0392b', fontFamily: GM, fontSize: 11 }}>brief history: {error}</div>
+  );
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <p style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.soft, marginBottom: 10 }}>brief outreach history</p>
+      {!briefs && <p style={soft10}>loading…</p>}
+      {briefs && briefs.length === 0 && <p style={soft10}>no briefs fired yet — use /brief.html to send the first one.</p>}
+      {(briefs || []).map((b) => {
+        const isOpen = open === b.briefId;
+        const ts = b.lastSentAt ? new Date(b.lastSentAt) : null;
+        const ago = ts ? (() => {
+          const d = Math.floor((Date.now() - ts) / 86400000);
+          return d === 0 ? 'today' : d === 1 ? 'yesterday' : `${d}d ago`;
+        })() : '';
+        return (
+          <div key={b.briefId} style={{ ...box, cursor: 'pointer' }} onClick={() => setOpen(isOpen ? null : b.briefId)}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+              <span style={{ ...mono11, fontWeight: 500 }}>{b.briefId.replace('brief_', '')}</span>
+              <span style={{ ...soft10 }}>{ago}</span>
+              <span style={{ flex: 1 }} />
+              <span style={{ ...mono11 }}>
+                <strong>{b.responded}</strong>
+                <span style={{ color: C.soft }}> / {b.sent} responded</span>
+              </span>
+              <span style={{
+                fontFamily: GM, fontSize: 10, padding: '2px 7px',
+                background: b.responseRate >= 50 ? '#d4edda' : b.responseRate >= 20 ? '#fff3cd' : C.sand,
+                color: b.responseRate >= 50 ? '#155724' : b.responseRate >= 20 ? '#856404' : C.soft,
+              }}>{b.responseRate}%</span>
+            </div>
+            {isOpen && (
+              <div style={{ marginTop: 12, borderTop: `1px solid ${C.rule}`, paddingTop: 10 }}>
+                {b.recipients.map((r) => (
+                  <div key={r.email} style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '5px 0', borderBottom: `1px solid ${C.rule}` }}>
+                    <span style={{ ...mono11, minWidth: 130 }}>{r.name || '—'}</span>
+                    <span style={{ ...soft10, flex: 1 }}>{r.email}</span>
+                    {r.response
+                      ? <span style={{ fontFamily: GM, fontSize: 10, color: r.response === 'available' ? '#155724' : '#888' }}>{r.response}</span>
+                      : <span style={{ ...soft10 }}>no response</span>
+                    }
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function PingAvailabilitySection({ secret, append }) {
   const [stage, setStage] = React.useState('idle'); // idle | preview | sending
   const [count, setCount] = React.useState(null);
@@ -9510,6 +9580,7 @@ function AdminBenchBrowser({ secret }) {
           email with three one-click buttons: available now / soon / booked.
           Server reads the Sheet directly (no CSV cache) so the recipient
           list is exactly current. */}
+      <AdminBriefHistoryPanel secret={secret} />
       <BatchSendsPanel secret={secret} append={append} />
       <PingAvailabilitySection secret={secret} append={append} />
 
