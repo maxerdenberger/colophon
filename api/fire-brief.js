@@ -23,7 +23,7 @@
 import { Resend } from 'resend';
 import crypto from 'crypto';
 import { readBench } from './_utils/sheets-v2.js';
-import { appendPingLog } from './_utils/sheets.js';
+import { appendPingLog, logBrief } from './_utils/sheets.js';
 
 const FROM      = 'Colophon <bench@colophon.contact>';
 const REPLY_TO  = 'bench@colophon.contact';
@@ -69,6 +69,11 @@ export default async function handler(req, res) {
   if (!brief) return res.status(400).json({ error: 'missing brief' });
 
   const briefId = `brief_${Date.now()}`;
+
+  // Log brief spec to Briefs sheet (skip on dry run — no emails sent yet)
+  if (!dryRun) {
+    logBrief({ briefId, brief, timing, rates }).catch(() => {});
+  }
 
   // ── 1. Read bench ────────────────────────────────────────────────────────
   let candidates;

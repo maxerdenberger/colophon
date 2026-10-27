@@ -490,6 +490,57 @@ export async function appendPingLog(entries) {
   return { appended: rows.length };
 }
 
+// ── Brief log ─────────────────────────────────────────────────────────────────
+// "Briefs" tab columns: Brief ID · Timestamp · Brief · Timing · Rates · Name
+let _briefsTabReady = false;
+
+export async function logBrief({ briefId, brief, timing, rates }) {
+  if (!process.env.SHEETS_SPREADSHEET_ID) return;
+  const sheets = client();
+  const TAB = 'Briefs';
+  if (!_briefsTabReady) {
+    await ensureTab(sheets, TAB, ['Brief ID','Timestamp','Brief','Timing','Rates','Name']);
+    _briefsTabReady = true;
+  }
+  // Short name: first non-empty line, capped at 80 chars
+  const firstLine = String(brief || '').split('\n').map(s => s.trim()).find(Boolean) || '';
+  const name = firstLine.length > 80 ? firstLine.slice(0, 77) + '…' : firstLine;
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+    range: `${TAB}!A:F`,
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: [[briefId, new Date().toISOString(), brief || '', timing || '', (rates || []).join(','), name]] },
+  });
+}
+
+export async function readBriefSpecs() {
+  if (!process.env.SHEETS_SPREADSHEET_ID) return new Map();
+  const sheets = client();
+  let rows;
+  try {
+    const r = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+      range: 'Briefs!A:F',
+    });
+    rows = r.data.values || [];
+  } catch { return new Map(); }
+  const map = new Map();
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const id = String(r[0] || '').trim();
+    if (!id) continue;
+    map.set(id, {
+      firedAt: String(r[1] || '').trim(),
+      brief:   String(r[2] || '').trim(),
+      timing:  String(r[3] || '').trim(),
+      rates:   String(r[4] || '').trim(),
+      name:    String(r[5] || '').trim(),
+    });
+  }
+  return map;
+}
+
 // Stamp response (value + timestamp) on the most-recent ping row for the
 // given email. Matches the latest unanswered row so the audit log shows
 // 'pinged on X, responded on Y' clearly. Returns { matched, rowNumber }.

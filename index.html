@@ -8430,15 +8430,15 @@ function AdminBriefHistoryPanel({ secret }) {
         const yesRows = (b.rows || []).filter(r => /available/i.test(r.response));
         return (
           <div key={b.briefId} style={{ ...box, cursor: 'pointer' }} onClick={() => setOpen(isOpen ? null : b.briefId)}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-              <span style={{ ...mono11, fontWeight: 500 }}>{b.briefId.replace('brief_', '')}</span>
-              <span style={{ ...soft10 }}>{ago}</span>
-              {b.yesCount > 0 && (
-                <span style={{ fontFamily: GM, fontSize: 10, padding: '1px 6px', background: '#d4edda', color: '#155724' }}>
-                  {b.yesCount} yes
-                </span>
-              )}
-              <span style={{ flex: 1 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {b.briefName && <p style={{ ...mono11, fontWeight: 600, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.briefName}</p>}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                  <span style={{ ...soft10 }}>{b.briefId.replace('brief_', '')}</span>
+                  <span style={{ ...soft10 }}>{ago}</span>
+                  {b.yesCount > 0 && <span style={{ fontFamily: GM, fontSize: 10, padding: '1px 6px', background: '#d4edda', color: '#155724' }}>{b.yesCount} yes</span>}
+                </div>
+              </div>
               <span style={{ ...mono11 }}>
                 <strong>{b.responded}</strong>
                 <span style={{ color: C.soft }}> / {b.sent} responded</span>
@@ -8449,6 +8449,22 @@ function AdminBriefHistoryPanel({ secret }) {
                 color: b.responseRate >= 50 ? '#155724' : b.responseRate >= 20 ? '#856404' : C.soft,
               }}>{b.responseRate}%</span>
             </div>
+            {isOpen && (
+              <div style={{ marginTop: 10 }}>
+                {b.briefText && (
+                  <div style={{ marginBottom: 12, padding: '12px 14px', background: 'rgba(13,13,11,0.04)', borderLeft: `2px solid ${C.rule}` }}>
+                    <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>brief</p>
+                    <p style={{ fontFamily: GM, fontSize: 11, color: C.ink, lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>{b.briefText}</p>
+                    {(b.timing || b.rates) && (
+                      <div style={{ marginTop: 8, display: 'flex', gap: 16 }}>
+                        {b.timing && <span style={{ ...soft10 }}>timing: {b.timing}</span>}
+                        {b.rates  && <span style={{ ...soft10 }}>rates: {b.rates}</span>}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             {isOpen && (
               <div style={{ marginTop: 12, borderTop: `1px solid ${C.rule}`, paddingTop: 10 }}>
                 {yesRows.length > 0 && (

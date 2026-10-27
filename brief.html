@@ -91,11 +91,17 @@
   .history-refresh { font-size: 10px; letter-spacing: 0.1em; color: var(--soft); background: none; border: none; cursor: pointer; text-transform: lowercase; padding: 0; }
   .history-refresh:hover { color: var(--ink); }
   .brief-card { border: 1px solid var(--rule); background: var(--paper); margin-bottom: 10px; overflow: hidden; }
-  .brief-card-head { display: flex; align-items: baseline; gap: 14px; padding: 14px 16px; cursor: pointer; user-select: none; }
+  .brief-card-head { display: flex; align-items: center; gap: 14px; padding: 14px 16px; cursor: pointer; user-select: none; }
   .brief-card-head:hover { background: rgba(13,13,11,0.03); }
+  .brief-head-left { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+  .brief-id-row { display: flex; align-items: baseline; gap: 10px; }
   .brief-id { font-size: 10px; color: var(--soft); font-family: var(--mono); flex-shrink: 0; }
   .brief-date { font-size: 10px; color: var(--soft); white-space: nowrap; flex-shrink: 0; }
-  .brief-stats { display: flex; gap: 16px; font-size: 11px; flex: 1; justify-content: flex-end; flex-wrap: wrap; }
+  .brief-name { font-size: 12px; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brief-stats { display: flex; gap: 16px; font-size: 11px; flex-shrink: 0; justify-content: flex-end; flex-wrap: wrap; }
+  .brief-spec-wrap { padding: 14px 0 10px; border-bottom: 1px solid var(--rule); margin-bottom: 4px; }
+  .brief-spec { font-family: var(--mono); font-size: 11px; line-height: 1.7; color: var(--ink); white-space: pre-wrap; word-break: break-word; background: rgba(13,13,11,0.03); padding: 12px 14px; margin-bottom: 8px; }
+  .brief-meta { display: inline-block; font-size: 10px; color: var(--soft); margin-right: 14px; }
   .stat-pill { display: flex; gap: 5px; align-items: baseline; }
   .stat-num { font-weight: 600; }
   .stat-label { color: var(--soft); font-size: 10px; }
@@ -532,10 +538,26 @@ If you're open, respond within 5 hours to be put in front of the hiring manager.
            <div class="contacts-preview" id="contacts-${i}">${esc(contactLines)}</div>`
         : '';
 
+      const briefNameHtml = b.briefName
+        ? `<span class="brief-name">${esc(b.briefName)}</span>`
+        : '';
+      const briefSpecHtml = b.briefText
+        ? `<div class="brief-spec-wrap">
+            <div class="brief-spec">${esc(b.briefText)}</div>
+            ${b.timing ? `<span class="brief-meta">timing: ${esc(b.timing)}</span>` : ''}
+            ${b.rates  ? `<span class="brief-meta">rates: ${esc(b.rates)}</span>` : ''}
+           </div>`
+        : '';
+
       return `<div class="brief-card">
         <div class="brief-card-head" onclick="toggleBrief(${i})">
-          <span class="brief-id">${esc(briefIdShort(b.briefId))}</span>
-          <span class="brief-date">${fmtDate(b.firedAt)}</span>
+          <div class="brief-head-left">
+            <div class="brief-id-row">
+              <span class="brief-id">${esc(briefIdShort(b.briefId))}</span>
+              <span class="brief-date">${fmtDate(b.firedAt)}</span>
+            </div>
+            ${briefNameHtml}
+          </div>
           <div class="brief-stats">
             <span class="stat-pill"><span class="stat-num">${b.sent}</span><span class="stat-label">sent</span></span>
             <span class="stat-pill"><span class="stat-num">${openStr}</span><span class="stat-label">opened</span></span>
@@ -544,7 +566,7 @@ If you're open, respond within 5 hours to be put in front of the hiring manager.
           </div>
           <span class="brief-expand" id="exp-${i}">▸</span>
         </div>
-        <div class="brief-rows" id="brief-rows-${i}">${rows}${copyBtn}</div>
+        <div class="brief-rows" id="brief-rows-${i}">${briefSpecHtml}${rows}${copyBtn}</div>
       </div>`;
     }).join('');
   }

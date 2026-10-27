@@ -13,7 +13,8 @@
 //   H 7 Response  · I 8 Prior Availability · J 9 Brief ID
 
 import { google } from 'googleapis';
-import { readBench } from './_utils/sheets-v2.js';
+import { readBench, } from './_utils/sheets-v2.js';
+import { readBriefSpecs } from './_utils/sheets.js';
 
 let _client;
 function client() {
@@ -136,6 +137,19 @@ export default async function handler(req, res) {
         const bench = benchByEmail.get((r.email || '').toLowerCase());
         if (bench) { r.portfolio = bench.portfolio; r.discipline = bench.discipline; r.hourlyRate = bench.hourlyRate; r.rateTier = bench.rateTier; }
       }
+    }
+  }
+
+  // Attach brief spec (text, name, timing, rates) from Briefs sheet
+  let briefSpecs = new Map();
+  try { briefSpecs = await readBriefSpecs(); } catch {}
+  for (const b of briefs.values()) {
+    const spec = briefSpecs.get(b.briefId);
+    if (spec) {
+      b.briefText = spec.brief;
+      b.briefName = spec.name;
+      b.timing    = spec.timing;
+      b.rates     = spec.rates;
     }
   }
 
