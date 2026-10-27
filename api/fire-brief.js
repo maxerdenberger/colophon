@@ -279,9 +279,10 @@ Return strictly JSON, nothing else:
     });
   }
 
-  // Append one-click response links to every draft
+  // Response links are rendered as buttons in HTML; keep plain-text fallback
   for (const d of drafts) {
     const links = responseLinks(d.email, briefId);
+    d._links = links; // stored for HTML template; not appended to plain text body
     d.body += `\n\n---\nyes, I'm open:     ${links.yes}\nnot right now:    ${links.no}`;
   }
 
@@ -307,7 +308,7 @@ Return strictly JSON, nothing else:
 
     let sentId = null;
     try {
-      const html = wrapHtml(draft.body);
+      const html = wrapHtml(draft.body, draft._links);
       const out  = await resend.emails.send({
         from:    FROM,
         to:      c.email,
@@ -339,10 +340,50 @@ Return strictly JSON, nothing else:
   return res.status(200).json({ ok: failed === 0, sent, failed, matched: ranked.length, matchMode, dryRun, briefId, results });
 }
 
-function wrapHtml(text) {
-  const safe = escapeHtml(text).replace(/(https?:\/\/\S+)/g, '<a href="$1" style="color:#0d1014;">$1</a>');
-  return `<div style="font-family:Georgia,'Times New Roman',serif;color:#0d1014;background:#f4ede2;padding:48px 24px;">` +
-         `<div style="max-width:520px;margin:0 auto;font-size:16px;line-height:1.7;white-space:pre-wrap;">${safe}</div></div>`;
+function wrapHtml(text, links) {
+  // Strip the plain-text response link block from the body — rendered as buttons instead
+  const bodyOnly = text.replace(/\n*---\n[\s\S]*$/, '').trimEnd();
+  const safe = escapeHtml(bodyOnly);
+  const SITE_DISPLAY = 'colophon.contact';
+
+  const buttons = links ? `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 0;">
+        <tr><td style="padding:0 0 10px;">
+          <a href="${links.yes}" style="display:block;background:#3F7F4A;color:#f4ede2;padding:14px 18px;text-decoration:none;font-family:'IBM Plex Mono','Menlo',monospace;font-size:13px;letter-spacing:0.04em;border-radius:2px;text-align:left;">
+            <strong style="font-weight:500;">yes, I'm open</strong> &nbsp;·&nbsp; <span style="opacity:0.85;">put me in front of the hiring manager</span>
+          </a>
+        </td></tr>
+        <tr><td>
+          <a href="${links.no}" style="display:block;background:#0d1014;color:#f4ede2;padding:14px 18px;text-decoration:none;font-family:'IBM Plex Mono','Menlo',monospace;font-size:13px;letter-spacing:0.04em;border-radius:2px;text-align:left;">
+            <strong style="font-weight:500;">not right now</strong> &nbsp;·&nbsp; <span style="opacity:0.85;">booked or not the right fit</span>
+          </a>
+        </td></tr>
+      </table>` : '';
+
+  return `<!doctype html>
+<html>
+<head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+</head>
+<body style="margin:0;padding:0;background:#f4ede2;">
+  <div style="background:#f4ede2;padding:48px 24px;font-family:Georgia,'Times New Roman',serif;color:#0d1014;">
+    <div style="max-width:560px;margin:0 auto;font-size:16px;line-height:1.7;">
+      <div style="margin:0 0 28px;">
+        <div style="margin:0 0 12px;line-height:0;">
+          <span style="display:inline-block;width:24px;height:24px;background:#f4ede2;border:1.5px solid #0d1014;border-radius:50%;box-sizing:border-box;text-align:center;line-height:20px;"><span style="display:inline-block;width:9px;height:9px;background:#FF5100;border-radius:50%;vertical-align:1px;"></span></span>
+        </div>
+        <div style="font-family:'Space Grotesk','Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:700;font-size:26px;letter-spacing:-0.02em;color:#0d1014;line-height:1;">colo<span style="color:#FF5100;">phon</span></div>
+      </div>
+      <p style="font-size:11px;letter-spacing:0.18em;color:#888580;text-transform:uppercase;margin:0 0 28px;font-family:'IBM Plex Mono','Menlo',monospace;">project match</p>
+      <div style="white-space:pre-wrap;">${safe}</div>
+      ${buttons}
+      <p style="font-size:11px;color:#888580;font-family:'IBM Plex Mono','Menlo',monospace;letter-spacing:0.04em;text-transform:uppercase;margin:36px 0 0;">colophon · <a href="https://${SITE_DISPLAY}" style="color:#888580;text-decoration:underline;">${SITE_DISPLAY}</a></p>
+    </div>
+  </div>
+</body>
+</html>`;
 }
 
 function escapeHtml(s) {
