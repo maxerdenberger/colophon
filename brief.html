@@ -83,6 +83,38 @@
   .result-dry { color: var(--orange); font-size: 10px; white-space: nowrap; }
   .spinner { display: inline-block; width: 10px; height: 10px; border: 2px solid var(--rule); border-top-color: var(--ink); border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 8px; vertical-align: middle; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Brief history ─────────────────────────────────────────────────── */
+  .history { margin-top: 60px; border-top: 1px solid var(--rule); padding-top: 40px; }
+  .history-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px; }
+  .history-title { font-family: var(--sans); font-weight: 700; font-size: 18px; letter-spacing: -0.02em; text-transform: lowercase; }
+  .history-refresh { font-size: 10px; letter-spacing: 0.1em; color: var(--soft); background: none; border: none; cursor: pointer; text-transform: lowercase; padding: 0; }
+  .history-refresh:hover { color: var(--ink); }
+  .brief-card { border: 1px solid var(--rule); background: var(--paper); margin-bottom: 10px; overflow: hidden; }
+  .brief-card-head { display: flex; align-items: baseline; gap: 14px; padding: 14px 16px; cursor: pointer; user-select: none; }
+  .brief-card-head:hover { background: rgba(13,13,11,0.03); }
+  .brief-id { font-size: 10px; color: var(--soft); font-family: var(--mono); flex-shrink: 0; }
+  .brief-date { font-size: 10px; color: var(--soft); white-space: nowrap; flex-shrink: 0; }
+  .brief-stats { display: flex; gap: 16px; font-size: 11px; flex: 1; justify-content: flex-end; flex-wrap: wrap; }
+  .stat-pill { display: flex; gap: 5px; align-items: baseline; }
+  .stat-num { font-weight: 600; }
+  .stat-label { color: var(--soft); font-size: 10px; }
+  .stat-yes { color: var(--green); }
+  .stat-no { color: var(--soft); }
+  .brief-expand { font-size: 10px; color: var(--soft); margin-left: 8px; flex-shrink: 0; }
+  .brief-rows { display: none; border-top: 1px solid var(--rule); padding: 0 16px 12px; }
+  .brief-rows.open { display: block; }
+  .ping-row { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(13,13,11,0.06); font-size: 11px; }
+  .ping-row:last-child { border-bottom: none; }
+  .ping-name { font-weight: 500; min-width: 130px; flex-shrink: 0; }
+  .ping-email { color: var(--soft); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+  .ping-avail { font-size: 10px; color: var(--soft); min-width: 90px; flex-shrink: 0; }
+  .ping-response { font-size: 10px; font-weight: 500; white-space: nowrap; min-width: 70px; text-align: right; flex-shrink: 0; }
+  .ping-response.yes { color: var(--green); }
+  .ping-response.no  { color: var(--soft); }
+  .ping-response.open { color: var(--orange); }
+  .ping-response.sent { color: var(--soft); opacity: 0.6; }
+  .history-empty { font-size: 12px; color: var(--soft); padding: 24px 0; }
 </style>
 </head>
 <body>
@@ -154,6 +186,15 @@
 
   <div id="status" class="status" style="display:none;"></div>
   <div id="results" class="results" style="display:none;"></div>
+
+  <!-- Brief history -->
+  <div class="history" id="historySection">
+    <div class="history-head">
+      <span class="history-title">brief history</span>
+      <button class="history-refresh" onclick="loadHistory()">↻ refresh</button>
+    </div>
+    <div id="historyBody"><span class="history-empty">loading…</span></div>
+  </div>
 
 </div>
 
@@ -308,6 +349,108 @@
   function esc(s) {
     return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
+
+  // ── Brief history ─────────────────────────────────────────────────────────
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d)) return iso;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function briefIdShort(id) {
+    if (!id) return '—';
+    // brief_1234567890123 → show last 6 digits
+    const m = id.match(/_(\d+)$/);
+    return m ? `#${m[1].slice(-6)}` : id.slice(0, 12);
+  }
+
+  function pingResponseClass(row) {
+    if (row.response && /available/i.test(row.response)) return 'yes';
+    if (row.response && /booked/i.test(row.response)) return 'no';
+    if (row.openedAt) return 'open';
+    return 'sent';
+  }
+  function pingResponseLabel(row) {
+    if (row.response && /available/i.test(row.response)) return 'yes — available';
+    if (row.response && /booked/i.test(row.response)) return 'no — booked';
+    if (row.openedAt) return 'opened';
+    return 'sent';
+  }
+
+  function renderHistory(briefs) {
+    const el = document.getElementById('historyBody');
+    if (!briefs.length) {
+      el.innerHTML = '<span class="history-empty">no briefs fired yet.</span>';
+      return;
+    }
+    el.innerHTML = briefs.map((b, i) => {
+      const rateStr = b.sent > 0 ? `${b.responseRate}%` : '—';
+      const openStr = b.sent > 0 ? `${b.openRate}%` : '—';
+      const rows = (b.rows || []).map((r) => {
+        const cls = pingResponseClass(r);
+        return `<div class="ping-row">
+          <span class="ping-name">${esc(r.name || '—')}</span>
+          <span class="ping-email">${esc(r.email)}</span>
+          <span class="ping-avail">${esc(r.priorAvailability || '').slice(0, 22)}</span>
+          <span class="ping-response ${cls}">${pingResponseLabel(r)}</span>
+        </div>`;
+      }).join('');
+
+      return `<div class="brief-card">
+        <div class="brief-card-head" onclick="toggleBrief(${i})">
+          <span class="brief-id">${esc(briefIdShort(b.briefId))}</span>
+          <span class="brief-date">${fmtDate(b.firedAt)}</span>
+          <div class="brief-stats">
+            <span class="stat-pill"><span class="stat-num">${b.sent}</span><span class="stat-label">sent</span></span>
+            <span class="stat-pill"><span class="stat-num">${openStr}</span><span class="stat-label">opened</span></span>
+            <span class="stat-pill"><span class="stat-num stat-yes">${b.yesCount}</span><span class="stat-label">yes</span></span>
+            <span class="stat-pill"><span class="stat-num">${b.responded}</span><span class="stat-label">replied (${rateStr})</span></span>
+          </div>
+          <span class="brief-expand" id="exp-${i}">▸</span>
+        </div>
+        <div class="brief-rows" id="brief-rows-${i}">${rows}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function toggleBrief(i) {
+    const panel = document.getElementById(`brief-rows-${i}`);
+    const arrow = document.getElementById(`exp-${i}`);
+    if (!panel) return;
+    const open = panel.classList.toggle('open');
+    if (arrow) arrow.textContent = open ? '▾' : '▸';
+  }
+
+  async function loadHistory() {
+    const key = (document.getElementById('adminKey').value || savedKey()).trim();
+    if (!key) return;
+    const el = document.getElementById('historyBody');
+    el.innerHTML = '<span class="history-empty">loading…</span>';
+    try {
+      const r = await fetch('/api/brief-history', {
+        headers: { 'Authorization': `Bearer ${key}` },
+      });
+      const ct = r.headers.get('content-type') || '';
+      if (!ct.includes('json')) {
+        el.innerHTML = `<span class="history-empty">error ${r.status}</span>`;
+        return;
+      }
+      const data = await r.json();
+      if (!r.ok) {
+        el.innerHTML = `<span class="history-empty">${esc(data.error || 'error')}</span>`;
+        return;
+      }
+      renderHistory(data.briefs || []);
+    } catch (err) {
+      el.innerHTML = `<span class="history-empty">failed — ${esc(err.message)}</span>`;
+    }
+  }
+
+  // Load history once key is available
+  document.getElementById('adminKey').addEventListener('change', () => loadHistory());
+  // Also load on page load if key already set
+  if (savedKey()) loadHistory();
 </script>
 </body>
 </html>
