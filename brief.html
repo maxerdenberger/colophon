@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>colophon — fire a brief</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --ink: #0d0d0b;
+    --paper: #f4f1ec;
+    --sand: #e8e5de;
+    --rule: rgba(13,13,11,0.12);
+    --soft: #888580;
+    --orange: #ff5100;
+    --green: #2a8a3a;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Space Grotesk', sans-serif;
+  }
+  body { background: var(--sand); font-family: var(--mono); color: var(--ink); min-height: 100vh; padding: 48px 24px 80px; }
+  .wrap { max-width: 640px; margin: 0 auto; }
+
+  .wordmark { font-family: var(--sans); font-weight: 700; font-size: 15px; letter-spacing: -0.02em; margin-bottom: 40px; }
+  .wordmark span { color: var(--orange); }
+  .page-label { font-size: 10px; letter-spacing: 0.14em; color: var(--soft); text-transform: lowercase; margin-bottom: 6px; }
+  h1 { font-family: var(--sans); font-weight: 700; font-size: 32px; line-height: 0.95; letter-spacing: -0.03em; margin-bottom: 32px; text-transform: lowercase; }
+
+  .field { margin-bottom: 20px; }
+  .field label { display: block; font-size: 10px; letter-spacing: 0.12em; color: var(--soft); text-transform: lowercase; margin-bottom: 8px; }
+  .field textarea, .field input, .field select {
+    width: 100%; background: var(--paper); border: 1px solid var(--rule);
+    padding: 14px 16px; font-family: var(--mono); font-size: 13px; color: var(--ink);
+    outline: none; transition: border-color 0.15s; appearance: none;
+  }
+  .field textarea:focus, .field input:focus, .field select:focus { border-color: var(--ink); }
+  .field textarea { min-height: 140px; resize: vertical; line-height: 1.65; }
+  .field select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888580'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; cursor: pointer; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
+
+  .key-field { display: flex; gap: 0; margin-bottom: 28px; }
+  .key-field input { flex: 1; background: var(--paper); border: 1px solid var(--rule); border-right: none; padding: 11px 14px; font-family: var(--mono); font-size: 12px; color: var(--ink); outline: none; }
+  .key-field input:focus { border-color: var(--ink); }
+  .key-field button { padding: 11px 18px; background: var(--ink); color: var(--paper); font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; border: none; cursor: pointer; text-transform: lowercase; white-space: nowrap; }
+  .key-saved { font-size: 10px; color: var(--green); letter-spacing: 0.08em; margin-top: 6px; }
+
+  .topn-row { display: flex; align-items: center; gap: 14px; }
+  .topn-row input[type=range] { flex: 1; accent-color: var(--ink); }
+  .topn-val { font-size: 13px; min-width: 24px; text-align: right; }
+
+  .actions { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+  .btn-fire { flex: 1; min-width: 180px; background: var(--ink); color: var(--paper); border: none; padding: 18px 24px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: lowercase; cursor: pointer; }
+  .btn-fire:disabled { opacity: 0.4; cursor: default; }
+  .btn-dry { background: transparent; border: 1px solid var(--rule); color: var(--soft); padding: 18px 20px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: lowercase; cursor: pointer; white-space: nowrap; }
+  .btn-dry:hover { border-color: var(--ink); color: var(--ink); }
+
+  .status { margin-top: 32px; padding: 18px 20px; border: 1px solid var(--rule); background: var(--paper); font-size: 12px; line-height: 1.75; }
+  .status.error { border-color: #c0392b; color: #c0392b; }
+  .status.ok { border-color: var(--green); }
+
+  .results { margin-top: 24px; }
+  .results-head { font-size: 10px; letter-spacing: 0.12em; color: var(--soft); text-transform: lowercase; margin-bottom: 12px; }
+  .result-row { display: flex; align-items: baseline; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: 12px; }
+  .result-row:last-child { border-bottom: none; }
+  .result-name { font-weight: 500; min-width: 140px; }
+  .result-email { color: var(--soft); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .result-score { font-size: 10px; color: var(--soft); white-space: nowrap; }
+  .result-reason { font-size: 10px; color: var(--soft); font-style: italic; flex: 2; }
+  .result-sent { color: var(--green); font-size: 10px; white-space: nowrap; }
+  .result-fail { color: #c0392b; font-size: 10px; white-space: nowrap; }
+  .result-dry { color: var(--orange); font-size: 10px; white-space: nowrap; }
+  .spinner { display: inline-block; width: 10px; height: 10px; border: 2px solid var(--rule); border-top-color: var(--ink); border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 8px; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="wordmark">colo<span>phon</span></div>
+
+  <p class="page-label">admin — outbound</p>
+  <h1>fire a brief.</h1>
+
+  <!-- Admin key -->
+  <div class="field" id="keySection">
+    <label>admin key</label>
+    <div class="key-field">
+      <input type="password" id="adminKey" placeholder="bearer token" autocomplete="current-password"/>
+      <button onclick="saveKey()">save</button>
+    </div>
+    <div class="key-saved" id="keySaved" style="display:none;">✓ key saved for this session</div>
+  </div>
+
+  <!-- Brief -->
+  <div class="field">
+    <label>brief — what does the project need?</label>
+    <textarea id="brief" placeholder="e.g. need a CD for a pharma rebrand launching in q1. mid-size agency. they've done pharma before, ideally know the regulatory constraints. visual + verbal both. 6-week engagement."></textarea>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label>timing</label>
+      <select id="timing">
+        <option value="">not specified</option>
+        <option value="immediate — this week">immediate — this week</option>
+        <option value="2–4 weeks">2–4 weeks</option>
+        <option value="next month">next month</option>
+        <option value="flexible">flexible</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>budget signal (optional)</label>
+      <select id="budget">
+        <option value="">not specified</option>
+        <option value="lean / under $25k">lean / under $25k</option>
+        <option value="mid-range $25–75k">mid-range $25–75k</option>
+        <option value="six figures+">six figures+</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>outreach count — how many creatives to reach</label>
+    <div class="topn-row">
+      <input type="range" id="topN" min="5" max="40" value="15" oninput="document.getElementById('topNVal').textContent=this.value"/>
+      <span class="topn-val" id="topNVal">15</span>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn-fire" id="fireBtn" onclick="fire(false)">fire brief →</button>
+    <button class="btn-dry" onclick="fire(true)">dry run — preview only</button>
+  </div>
+
+  <div id="status" class="status" style="display:none;"></div>
+  <div id="results" class="results" style="display:none;"></div>
+
+</div>
+
+<script>
+  // ── Key persistence ──────────────────────────────────────────────────────
+  const KEY_STORE = 'colophon_admin_key';
+  function savedKey() { try { return sessionStorage.getItem(KEY_STORE) || ''; } catch { return ''; } }
+  function saveKey() {
+    const v = document.getElementById('adminKey').value.trim();
+    if (!v) return;
+    try { sessionStorage.setItem(KEY_STORE, v); } catch {}
+    document.getElementById('keySaved').style.display = 'block';
+  }
+  // Pre-fill from session
+  const _k = savedKey();
+  if (_k) {
+    document.getElementById('adminKey').value = _k;
+    document.getElementById('keySaved').style.display = 'block';
+  }
+
+  // ── Fire ─────────────────────────────────────────────────────────────────
+  async function fire(dryRun) {
+    const key    = (document.getElementById('adminKey').value || savedKey()).trim();
+    const brief  = document.getElementById('brief').value.trim();
+    const timing = document.getElementById('timing').value;
+    const budget = document.getElementById('budget').value;
+    const topN   = Number(document.getElementById('topN').value);
+
+    if (!key)   return showErr('enter your admin key first.');
+    if (!brief) return showErr('enter a brief first.');
+
+    setLoading(true);
+    showStatus('', false);
+    document.getElementById('results').style.display = 'none';
+
+    try {
+      const r = await fetch('/api/fire-brief', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({ brief, timing, budget, topN, dryRun }),
+      });
+      const data = await r.json();
+
+      if (!r.ok) {
+        showErr(data.error || `error ${r.status}`);
+        return;
+      }
+
+      renderResults(data, dryRun);
+    } catch (err) {
+      showErr('request failed — ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function renderResults(data, dryRun) {
+    const mode = data.matchMode === 'ai' ? 'claude' : 'keyword';
+    const action = dryRun ? 'dry run' : 'sent';
+
+    const lines = [
+      dryRun
+        ? `dry run — ${data.matched} matched via ${mode}, no emails sent.`
+        : `${data.sent} sent · ${data.failed} failed · ${data.matched} matched via ${mode}.`,
+      `brief id: ${data.briefId}`,
+    ];
+    showStatus(lines.join('\n'), !data.ok && !dryRun);
+
+    const results = data.results || [];
+    if (!results.length) return;
+
+    const el = document.getElementById('results');
+    el.innerHTML = `<div class="results-head">${results.length} candidates</div>`;
+    for (const r of results) {
+      const row = document.createElement('div');
+      row.className = 'result-row';
+
+      const badge = r.error
+        ? `<span class="result-fail">✗ ${r.error}</span>`
+        : r.dryRun
+        ? `<span class="result-dry">● preview</span>`
+        : `<span class="result-sent">✓ sent</span>`;
+
+      row.innerHTML = `
+        <span class="result-name">${esc(r.name || '—')}</span>
+        <span class="result-email">${esc(r.email)}</span>
+        ${r.reason ? `<span class="result-reason">${esc(r.reason)}</span>` : ''}
+        ${r.score != null ? `<span class="result-score">${r.score}</span>` : ''}
+        ${badge}
+      `;
+      el.appendChild(row);
+    }
+    el.style.display = 'block';
+  }
+
+  function showErr(msg) { showStatus(msg, true); }
+  function showStatus(msg, isErr) {
+    const el = document.getElementById('status');
+    if (!msg) { el.style.display = 'none'; return; }
+    el.textContent = msg;
+    el.className = 'status' + (isErr ? ' error' : ' ok');
+    el.style.display = 'block';
+  }
+  function setLoading(on) {
+    const btn = document.getElementById('fireBtn');
+    btn.disabled = on;
+    btn.innerHTML = on ? '<span class="spinner"></span>matching + drafting…' : 'fire brief →';
+  }
+
+  function esc(s) {
+    return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+</script>
+</body>
+</html>
