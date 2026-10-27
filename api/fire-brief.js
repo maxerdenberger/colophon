@@ -220,13 +220,13 @@ Brief (keep the client brand redacted): """${brief}"""
 Timing: ${timing || 'not specified'}
 
 Rules:
-- 4-6 lines total, plain text, lowercase preferred
-- Open with "hey,"  — no first name
-- One sentence: "we think you'd be a great match for a project we're staffing" + one detail about the project (no brand name)
+- 4-6 lines total, plain text, sentence case throughout
+- Open with "Hey [first],"
+- One sentence: "We think you'd be a great match for a project we're staffing" + one specific detail about the project (no brand name)
 - One sentence on timing if provided
-- Tell them to respond within 5 hours to be put in front of the hiring manager
-- Close: "— colophon.contact"
-- No exclamation marks, no warm/soft language, direct and brief
+- Tell them: "If you're open, respond within 5 hours to be put in front of the hiring manager."
+- Close: "— Colophon"
+- No exclamation marks, no marketing language, direct and professional
 
 Creatives (JSON):
 ${JSON.stringify(mini)}
@@ -264,16 +264,17 @@ Return strictly JSON, nothing else:
   if (!drafts.length) {
     const excerpt = brief.length > 100 ? brief.slice(0, 97) + '…' : brief;
     drafts = ranked.map((c) => {
+      const first = (c.name || '').split(' ')[0] || 'there';
       return {
         email:   c.email,
-        subject: `we think you'd be a great match — ${c.discipline || 'creative'} project`,
+        subject: `We think you'd be a great match — ${c.discipline || 'creative'} project`,
         body:    [
-          `hey,`,
+          `Hey ${first},`,
           '',
-          `we think you'd be a great match for a project we're staffing — ${excerpt}${timing ? '. timing: ' + timing : ''}.`,
+          `We think you'd be a great match for a project we're staffing — ${excerpt}${timing ? '. Timing: ' + timing : ''}.`,
           '',
-          `if you're open, respond within 5 hours to be put in front of the hiring manager.`,
-          '\n— colophon.contact',
+          `If you're open, respond within 5 hours to be put in front of the hiring manager.`,
+          '\n— Colophon',
         ].join('\n'),
       };
     });
@@ -350,12 +351,12 @@ function wrapHtml(text, links) {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 0;">
         <tr><td style="padding:0 0 10px;">
           <a href="${links.yes}" style="display:block;background:#3F7F4A;color:#f4ede2;padding:14px 18px;text-decoration:none;font-family:'IBM Plex Mono','Menlo',monospace;font-size:13px;letter-spacing:0.04em;border-radius:2px;text-align:left;">
-            <strong style="font-weight:500;">yes, I'm open</strong> &nbsp;·&nbsp; <span style="opacity:0.85;">put me in front of the hiring manager</span>
+            <strong style="font-weight:500;">Yes, I'm open</strong> &nbsp;·&nbsp; <span style="opacity:0.85;">Put me in front of the hiring manager</span>
           </a>
         </td></tr>
         <tr><td>
           <a href="${links.no}" style="display:block;background:#0d1014;color:#f4ede2;padding:14px 18px;text-decoration:none;font-family:'IBM Plex Mono','Menlo',monospace;font-size:13px;letter-spacing:0.04em;border-radius:2px;text-align:left;">
-            <strong style="font-weight:500;">not right now</strong> &nbsp;·&nbsp; <span style="opacity:0.85;">booked or not the right fit</span>
+            <strong style="font-weight:500;">Not right now</strong> &nbsp;·&nbsp; <span style="opacity:0.85;">Booked or not the right fit</span>
           </a>
         </td></tr>
       </table>` : '';
