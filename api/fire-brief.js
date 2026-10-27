@@ -46,7 +46,7 @@ export default async function handler(req, res) {
   const body   = req.body || {};
   const brief  = String(body.brief  || '').trim();
   const timing = String(body.timing || '').trim();
-  const budget = String(body.budget || '').trim();
+  const rates  = Array.isArray(body.rates) ? body.rates.filter(Boolean) : [];
   const topN   = Math.min(40, Math.max(1, Number(body.topN) || 15));
   const dryRun = body.dryRun === true || body.dryRun === 'true' || body.dryRun === '1';
 
@@ -59,7 +59,13 @@ export default async function handler(req, res) {
   try {
     const { rows } = await readBench();
     candidates = rows
-      .filter((r) => r.status === 'bench' && r.email && r.availability !== 'Booked')
+      .filter((r) => {
+        if (r.status !== 'bench' || !r.email || /booked/i.test(r.availability || '')) return false;
+        if (!rates.length) return true;
+        const hr = r.hourlyRate || 0;
+        const tier = hr >= 400 ? '$$$$' : hr >= 250 ? '$$$' : hr >= 150 ? '$$' : hr > 0 ? '$' : '$$';
+        return rates.includes(tier);
+      })
       .map((r) => ({
         rowNumber:   r.rowNumber,
         name:        r.name || '',
