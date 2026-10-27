@@ -8452,29 +8452,35 @@ function AdminBriefHistoryPanel({ secret }) {
             {isOpen && (
               <div style={{ marginTop: 12, borderTop: `1px solid ${C.rule}`, paddingTop: 10 }}>
                 {yesRows.length > 0 && (
-                  <div style={{ marginBottom: 10 }}>
-                    <p style={{ ...soft10, marginBottom: 6, letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: 9 }}>said yes</p>
+                  <div style={{ marginBottom: 8 }}>
+                    <p style={{ ...soft10, marginBottom: 6, letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: 9 }}>available</p>
                     {yesRows.map((r) => (
-                      <div key={r.email} style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '5px 0', borderBottom: `0.5px solid ${C.rule}` }}>
-                        <span style={{ ...mono11, fontWeight: 500, minWidth: 130 }}>{r.name || '—'}</span>
-                        <span style={{ ...soft10 }}>{r.discipline || ''}</span>
-                        <span style={{ ...soft10, flex: 1 }}>{r.email}</span>
+                      <div key={r.email} style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '6px 8px', marginBottom: 2, background: 'rgba(42,138,58,0.05)', borderLeft: '2px solid #3F7F4A' }}>
+                        <span style={{ ...mono11, fontWeight: 600, minWidth: 120, flexShrink: 0 }}>{r.name || '—'}</span>
+                        <span style={{ ...soft10, flexShrink: 0 }}>{r.discipline || ''}</span>
+                        {r.rateTier && <span style={{ fontFamily: GM, fontSize: 10, color: C.soft, flexShrink: 0 }}>{r.rateTier}{r.hourlyRate ? ` $${r.hourlyRate}/hr` : ''}</span>}
+                        <span style={{ ...soft10, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{r.email}</span>
                         {r.portfolio && (
-                          <a href={r.portfolio} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} style={{ fontFamily: GM, fontSize: 9, color: C.soft, textDecoration: 'underline' }}>portfolio</a>
+                          <a href={r.portfolio} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} style={{ fontFamily: GM, fontSize: 10, color: C.soft, textDecoration: 'underline', flexShrink: 0 }}>portfolio →</a>
                         )}
                       </div>
                     ))}
                   </div>
                 )}
-                {(b.rows || []).filter(r => !/available/i.test(r.response)).map((r) => (
-                  <div key={r.email} style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '4px 0', borderBottom: `0.5px solid ${C.rule}`, opacity: 0.7 }}>
-                    <span style={{ ...mono11, minWidth: 130 }}>{r.name || '—'}</span>
-                    <span style={{ ...soft10, flex: 1 }}>{r.email}</span>
-                    <span style={{ fontFamily: GM, fontSize: 10, color: /booked/i.test(r.response) ? C.soft : '#888' }}>
-                      {r.response || 'no response'}
-                    </span>
-                  </div>
-                ))}
+                {(b.rows || []).filter(r => !/available/i.test(r.response)).sort((a, z) => {
+                  const rank = r => /booked/i.test(r.response) ? 1 : r.openedAt ? 0 : 2;
+                  return rank(a) - rank(z);
+                }).map((r) => {
+                  const label = /booked/i.test(r.response) ? 'booked' : r.openedAt ? 'opened — no response' : 'sent';
+                  const col = r.openedAt && !r.response ? '#C87C18' : C.soft;
+                  return (
+                    <div key={r.email} style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '4px 0', borderBottom: `0.5px solid ${C.rule}`, opacity: 0.75 }}>
+                      <span style={{ ...mono11, minWidth: 130, flexShrink: 0 }}>{r.name || '—'}</span>
+                      <span style={{ ...soft10, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{r.email}</span>
+                      <span style={{ fontFamily: GM, fontSize: 10, color: col, flexShrink: 0 }}>{label}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

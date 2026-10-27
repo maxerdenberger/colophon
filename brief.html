@@ -106,14 +106,17 @@
   .brief-rows.open { display: block; }
   .ping-row { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(13,13,11,0.06); font-size: 11px; }
   .ping-row:last-child { border-bottom: none; }
-  .ping-name { font-weight: 500; min-width: 130px; flex-shrink: 0; }
-  .ping-email { color: var(--soft); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
-  .ping-avail { font-size: 10px; color: var(--soft); min-width: 90px; flex-shrink: 0; }
-  .ping-response { font-size: 10px; font-weight: 500; white-space: nowrap; min-width: 70px; text-align: right; flex-shrink: 0; }
+  .ping-row-yes { background: rgba(42,138,58,0.04); margin: 0 -16px; padding: 8px 16px; }
+  .ping-name { font-weight: 500; min-width: 120px; flex-shrink: 0; }
+  .ping-disc { font-size: 10px; color: var(--soft); min-width: 80px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ping-rate { font-size: 10px; color: var(--soft); flex-shrink: 0; font-family: var(--mono); }
+  .ping-email { color: var(--soft); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; min-width: 0; }
+  .ping-portfolio { font-size: 10px; color: var(--soft); text-decoration: underline; white-space: nowrap; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+  .ping-response { font-size: 10px; font-weight: 600; white-space: nowrap; min-width: 80px; text-align: right; flex-shrink: 0; }
   .ping-response.yes { color: var(--green); }
   .ping-response.no  { color: var(--soft); }
   .ping-response.open { color: var(--orange); }
-  .ping-response.sent { color: var(--soft); opacity: 0.6; }
+  .ping-response.sent { color: var(--soft); opacity: 0.5; font-weight: 400; }
   .history-empty { font-size: 12px; color: var(--soft); padding: 24px 0; }
   .copy-contacts-btn {
     display: inline-flex; align-items: center; gap: 6px;
@@ -490,27 +493,42 @@ If you're open, respond within 5 hours to be put in front of the hiring manager.
     el.innerHTML = briefs.map((b, i) => {
       const rateStr = b.sent > 0 ? `${b.responseRate}%` : '—';
       const openStr = b.sent > 0 ? `${b.openRate}%` : '—';
-      const rows = (b.rows || []).map((r) => {
+
+      // Sort: yes first, then opened (no response yet), then booked, then sent
+      const sortedRows = [...(b.rows || [])].sort((a, z) => {
+        const rank = r => /available/i.test(r.response) ? 0 : /booked/i.test(r.response) ? 2 : r.openedAt ? 1 : 3;
+        return rank(a) - rank(z);
+      });
+
+      const rows = sortedRows.map((r) => {
         const cls = pingResponseClass(r);
-        return `<div class="ping-row">
+        const rateLabel = r.rateTier ? `<span class="ping-rate">${esc(r.rateTier)}</span>` : '';
+        const portLink  = r.portfolio && /available/i.test(r.response || '')
+          ? `<a class="ping-portfolio" href="${esc(r.portfolio)}" target="_blank" onclick="event.stopPropagation()">${esc(r.portfolio.replace(/^https?:\/\/(www\.)?/, '').split('/')[0])}</a>`
+          : '';
+        return `<div class="ping-row${cls === 'yes' ? ' ping-row-yes' : ''}">
           <span class="ping-name">${esc(r.name || '—')}</span>
+          <span class="ping-disc">${esc(r.discipline || '')}</span>
+          ${rateLabel}
           <span class="ping-email">${esc(r.email)}</span>
-          <span class="ping-avail">${esc(r.priorAvailability || '').slice(0, 22)}</span>
+          ${portLink}
           <span class="ping-response ${cls}">${pingResponseLabel(r)}</span>
         </div>`;
       }).join('');
 
-      // Build copy-paste contact list from yes respondents
-      const yesRows = (b.rows || []).filter(r => /available/i.test(r.response || ''));
+      // Copy-paste contact list: yes respondents only, with rate
+      const yesRows = sortedRows.filter(r => /available/i.test(r.response || ''));
       const contactLines = yesRows.map(r => {
         const parts = [r.name || r.email];
         if (r.discipline) parts.push(r.discipline);
+        if (r.rateTier)   parts.push(r.rateTier + (r.hourlyRate ? ` ($${r.hourlyRate}/hr)` : ''));
         parts.push(r.email);
-        if (r.portfolio) parts.push(r.portfolio);
+        if (r.portfolio)  parts.push(r.portfolio);
         return parts.join('\n');
       }).join('\n\n');
+
       const copyBtn = b.yesCount > 0
-        ? `<button class="copy-contacts-btn" id="copybtn-${i}" onclick="copyContacts(${i})">⬡ copy ${b.yesCount} contact${b.yesCount !== 1 ? 's' : ''}</button>
+        ? `<button class="copy-contacts-btn" id="copybtn-${i}" onclick="copyContacts(${i})">⬡ copy ${b.yesCount} available contact${b.yesCount !== 1 ? 's' : ''}</button>
            <div class="contacts-preview" id="contacts-${i}">${esc(contactLines)}</div>`
         : '';
 

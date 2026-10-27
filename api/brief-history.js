@@ -114,9 +114,13 @@ export default async function handler(req, res) {
     for (const r of rows) {
       if (r.email) {
         const discs = String(r.disciplines || '').split(/[,;\/]+/).map(s => s.trim()).filter(Boolean);
+        const hr = Number(r.hourlyRate) || 0;
+        const rateTier = hr >= 400 ? '$$$$' : hr >= 250 ? '$$$' : hr >= 150 ? '$$' : hr > 0 ? '$' : '';
         benchByEmail.set(r.email.toLowerCase(), {
           portfolio:  r.portfolio  || '',
           discipline: discs[0]     || '',
+          hourlyRate: hr,
+          rateTier,
         });
       }
     }
@@ -130,7 +134,7 @@ export default async function handler(req, res) {
     for (const r of b.rows) {
       if (/available/i.test(r.response)) {
         const bench = benchByEmail.get((r.email || '').toLowerCase());
-        if (bench) { r.portfolio = bench.portfolio; r.discipline = bench.discipline; }
+        if (bench) { r.portfolio = bench.portfolio; r.discipline = bench.discipline; r.hourlyRate = bench.hourlyRate; r.rateTier = bench.rateTier; }
       }
     }
   }
