@@ -1,18 +1,32 @@
 // /api/recent-activity
 //
-// Admin-only combined activity feed. Walks Formspree submissions and
-// Stripe charges in the last N days, returns a unified shape ordered
-// newest-first plus per-type counts for the dashboard tiles.
+// Admin-only combined activity feed. Walks Formspree submissions,
+// Stripe charges, and brief ping responses in the last N days, returns
+// a unified shape ordered newest-first plus per-type counts.
 //
 // Returns:
 //   {
-//     range: { from, to, days },
-//     applications: { total, bySource: { 'apply-bench': N, 'concierge-brief': N, ... }, recent: [...] },
-//     sales:        { total, gross, byProduct: { 'day-pass': { count, gross }, ... }, recent: [...] }
+//     range:        { from, to, days },
+//     applications: { total, bySource, recent: [...] },
+//     sales:        { total, gross, byProduct, recent: [...] },
+//     briefReplies: { total, yes, no, recent: [...] }   ← new
 //   }
 
 import Stripe from 'stripe';
+import { google } from 'googleapis';
 import { fetchFormspreeSubmissions, isTestOrOperatorSubmission } from './_utils/formspree.js';
+
+let _sheetsClient;
+function sheetsClient() {
+  if (_sheetsClient) return _sheetsClient;
+  const auth = new google.auth.JWT({
+    email: process.env.GOOGLE_SERVICE_EMAIL,
+    key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+  });
+  _sheetsClient = google.sheets({ version: 'v4', auth });
+  return _sheetsClient;
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -30,9 +44,10 @@ export default async function handler(req, res) {
   const sinceUnix = Math.floor(since / 1000);
 
   const out = {
-    range: { from: new Date(since).toISOString(), to: new Date().toISOString(), days },
+    range:        { from: new Date(since).toISOString(), to: new Date().toISOString(), days },
     applications: { total: 0, bySource: {}, recent: [] },
     sales:        { total: 0, gross: 0, byProduct: {}, recent: [] },
+    briefReplies: { total: 0, yes: 0, no: 0, recent: [] },
   };
 
   // ── Formspree submissions (shared multi-auth fetcher) ────────────────
@@ -144,6 +159,46 @@ export default async function handler(req, res) {
         recent: recent.slice(0, 25),
       };
     } catch {}
+  }
+
+  // ── Brief ping responses ─────────────────────────────────────────────
+  // Reads Availability Pings!A:J, filters to rows where respondedAt
+  // falls in the window. Col layout: 0=timestamp 1=name 2=email
+  // 3=status 4=sentAt 5=subject 6=respondedAt 7=response 8=? 9=briefId
+  if (process.env.GOOGLE_SERVICE_EMAIL && process.env.GOOGLE_PRIVATE_KEY && process.env.SHEETS_SPREADSHEET_ID) {
+    try {
+      const sheets = sheetsClient();
+      const r = await sheets.spreadsheets.values.get({
+        spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
+        range: 'Availability Pings!A:J',
+      });
+      const rows = (r.data.values || []).slice(1);
+      const replied = [];
+      for (const row of rows) {
+        const respondedAt = String(row[6] || '').trim();
+        if (!respondedAt) continue;
+        const ts = Date.parse(respondedAt);
+        if (!ts || ts < since) continue;
+        const response = String(row[7] || '').trim();
+        const briefId  = String(row[9] || '').trim();
+        const isYes    = /available/i.test(response);
+        replied.push({
+          ts,
+          briefId: briefId || null,
+          email:   String(row[2] || '').trim(),
+          name:    String(row[1] || '').trim(),
+          response: isYes ? 'yes' : 'no',
+        });
+      }
+      replied.sort((a, b) => b.ts - a.ts);
+      const yesCount = replied.filter((r) => r.response === 'yes').length;
+      out.briefReplies = {
+        total: replied.length,
+        yes:   yesCount,
+        no:    replied.length - yesCount,
+        recent: replied.slice(0, 25),
+      };
+    } catch { /* non-fatal */ }
   }
 
   return res.status(200).json(out);

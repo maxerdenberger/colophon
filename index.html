@@ -4866,7 +4866,7 @@ function AdminActivityFeed({ secret }) {
       {error && (
         <div style={{ padding: '12px 20px', color: '#7a1818', fontFamily: GM, fontSize: 11, lineHeight: 1.6, background: 'rgba(176,64,64,0.06)' }}>{error}</div>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
         {/* New applications */}
         <div style={{ padding: '14px 20px', borderRight: `1px solid ${C.rule}` }}>
           <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>new applications</div>
@@ -4887,6 +4887,29 @@ function AdminActivityFeed({ secret }) {
                 </div>
               ))}
             </div>
+          )}
+        </div>
+        {/* Brief replies — the most time-sensitive signal */}
+        <div style={{ padding: '14px 20px', borderRight: `1px solid ${C.rule}` }}>
+          <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>brief replies</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
+            <span style={{ fontFamily: GS, fontWeight: 700, fontSize: 30, letterSpacing: '-0.045em', lineHeight: 1 }}>
+              {data?.briefReplies?.total ?? '—'}
+            </span>
+            {data?.briefReplies?.total > 0 && (
+              <span style={{ fontFamily: GM, fontSize: 11, color: '#3F7F4A', fontWeight: 600 }}>
+                {data.briefReplies.yes} yes
+              </span>
+            )}
+          </div>
+          {data?.briefReplies?.recent?.slice(0, 5).map((r, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontFamily: GM, fontSize: 11 }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 8 }}>{r.name || r.email}</span>
+              <span style={{ color: r.response === 'yes' ? '#3F7F4A' : C.soft, fontWeight: r.response === 'yes' ? 600 : 400, flexShrink: 0 }}>{r.response}</span>
+            </div>
+          ))}
+          {!data?.briefReplies?.total && data && (
+            <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>none in window</span>
           )}
         </div>
         {/* New sales */}
@@ -4912,19 +4935,24 @@ function AdminActivityFeed({ secret }) {
           )}
         </div>
       </div>
-      {/* Combined recent stream */}
-      {data && (data.applications.recent.length > 0 || data.sales.recent.length > 0) && (
+      {/* Combined recent stream — applications + brief replies + sales */}
+      {data && (data.applications.recent.length > 0 || data.briefReplies?.recent?.length > 0 || data.sales.recent.length > 0) && (
         <div style={{ borderTop: `1px solid ${C.rule}`, padding: '14px 20px' }}>
           <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>most recent</div>
           {[
             ...(data.applications.recent || []).map((s) => ({ ts: s.ts, kind: 'apply', label: SRC_LABEL[s.source] || s.source, who: s.name || s.email, detail: s.email || s.summary })),
+            ...(data.briefReplies?.recent || []).map((s) => ({ ts: s.ts, kind: 'brief', label: s.briefId ? s.briefId.replace('brief_', 'brief ') : 'brief reply', who: s.name || s.email, detail: s.response })),
             ...(data.sales.recent || []).map((s) => ({ ts: s.ts, kind: 'sale', label: PRODUCT_LABEL[s.product] || s.product, who: s.name || s.email, detail: fmt$(s.amount) })),
-          ].sort((a, b) => b.ts - a.ts).slice(0, 10).map((row, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '90px 110px 1fr 1fr', gap: 10, padding: '5px 0', fontFamily: GM, fontSize: 11 }}>
+          ].sort((a, b) => b.ts - a.ts).slice(0, 15).map((row, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '90px 110px 1fr 1fr', gap: 10, padding: '5px 0', fontFamily: GM, fontSize: 11, borderBottom: `1px solid ${C.rule}` }}>
               <span style={{ color: C.soft, fontSize: 10 }}>{row.ts ? new Date(row.ts).toLocaleString() : ''}</span>
-              <span style={{ fontFamily: GM, fontSize: 9, color: row.kind === 'sale' ? '#3F7F4A' : '#888580', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{row.kind === 'sale' ? '$ ' + row.label : row.label}</span>
+              <span style={{ fontFamily: GM, fontSize: 9,
+                color: row.kind === 'sale' ? '#3F7F4A' : row.kind === 'brief' ? '#FF5100' : '#888580',
+                letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                {row.kind === 'sale' ? '$ ' + row.label : row.label}
+              </span>
               <span style={{ fontWeight: 600 }}>{row.who || '(anonymous)'}</span>
-              <span style={{ color: C.soft, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.detail || ''}</span>
+              <span style={{ color: row.kind === 'brief' && row.detail === 'yes' ? '#3F7F4A' : C.soft, fontWeight: row.kind === 'brief' && row.detail === 'yes' ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.detail || ''}</span>
             </div>
           ))}
         </div>
@@ -5070,24 +5098,16 @@ function AdminBenchLinks({ secret }) {
 
 function AdminStatsPanel({ accent }) {
   const { stats, bench } = useBench();
-  const REGIONS = [
-    { key: 'americas',     label: 'americas',       offsetMin: -12, offsetMax: -3 },
-    { key: 'europe-africa',label: 'europe / africa',offsetMin: -2,  offsetMax: 3  },
-    { key: 'asia-pacific', label: 'asia / pacific', offsetMin: 4,   offsetMax: 12 },
-  ];
-  const tzOffset = (tz) => parseInt((tz || '').replace(/UTC|−/g, (m) => m === 'UTC' ? '' : '-')) || 0;
-  const regionFor = (tz) => REGIONS.find((r) => { const o = tzOffset(tz); return o >= r.offsetMin && o <= r.offsetMax; });
-  const byRegion = REGIONS.map((r) => ({ ...r, count: bench.filter((p) => regionFor(p.tz)?.key === r.key).length }));
-  // Engagement freshness — how many bench rows have a timestamp from
-  // the last 7 days (col 0 of the Sheet, parsed into updatedAt at ms).
-  // This is the cohort that has actively confirmed availability recently.
-  const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
-  const sinceCutoff = Date.now() - SEVEN_DAYS;
-  const engagedThisWeek = bench.filter((p) => (p.updatedAt || 0) >= sinceCutoff).length;
-  const engagedPct = bench.length ? Math.round((engagedThisWeek / bench.length) * 100) : 0;
-  const tile = (n, label, sub) => (
+  const now = Date.now();
+  const SEVEN_DAYS  = 7  * 24 * 60 * 60 * 1000;
+  const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+  const engagedThisWeek = bench.filter((p) => (p.updatedAt || 0) >= now - SEVEN_DAYS).length;
+  const engagedPct      = bench.length ? Math.round((engagedThisWeek / bench.length) * 100) : 0;
+  const staleCount      = bench.filter((p) => !p.updatedAt || (now - p.updatedAt) > THIRTY_DAYS).length;
+
+  const tile = (n, label, sub, accent) => (
     <div style={{ padding: '18px 20px', borderRight: `1px solid ${C.rule}` }}>
-      <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 30, letterSpacing: '-0.045em', lineHeight: 1 }}>{n}</div>
+      <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 30, letterSpacing: '-0.045em', lineHeight: 1, color: accent || C.ink }}>{n}</div>
       <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 8 }}>{label}</div>
       {sub && <div style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 2 }}>{sub}</div>}
     </div>
@@ -5099,18 +5119,10 @@ function AdminStatsPanel({ accent }) {
         <span style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.ink }}>bench · live</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        {tile(stats.total, 'in directory', 'live count · public bench drops 1–4 over time')}
-        {tile(stats.availableNow, 'open for projects', 'not booked')}
-        {tile(stats.medianExp + 'yr', 'median exp', 'range: 2–15 yrs')}
-        {tile(engagedThisWeek, 'engaged this week', `${engagedPct}% of bench · updated avail in last 7d`)}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: `1px solid ${C.rule}` }}>
-        {byRegion.map((r, i) => (
-          <div key={r.key} style={{ padding: '14px 20px', borderRight: i < 2 ? `1px solid ${C.rule}` : 'none' }}>
-            <div style={{ fontFamily: GM, fontSize: 9, color: C.soft, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 6 }}>{r.label}</div>
-            <div style={{ fontFamily: GS, fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em' }}>{r.count}</div>
-          </div>
-        ))}
+        {tile(stats.total,        'on the bench',       'live count')}
+        {tile(stats.availableNow, 'open right now',     'immediate or 2–4 wks')}
+        {tile(engagedThisWeek,    'active this week',   `${engagedPct}% updated avail in 7d`)}
+        {tile(staleCount,         'stale >30d',         'need a nudge', staleCount > 0 ? '#C87C18' : C.ink)}
       </div>
     </div>
   );
@@ -7023,7 +7035,8 @@ function BriefEngineCard() {
 function BenchLeaderboard({ secret }) {
   const [members, setMembers] = React.useState(null);
   const [error, setError]     = React.useState('');
-  const [collapsed, setCollapsed] = React.useState(true);
+  const [showAll, setShowAll] = React.useState(false);
+  const PREVIEW = 5;
 
   React.useEffect(() => {
     if (!secret) return;
@@ -7043,76 +7056,64 @@ function BenchLeaderboard({ secret }) {
     return { col, lbl };
   };
 
+  const rows = members ? (showAll ? members : members.slice(0, PREVIEW)) : [];
+
   return (
     <div style={{ marginBottom: 32, borderTop: `1px solid ${C.rule}`, paddingTop: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: collapsed ? 0 : 18, cursor: 'pointer' }}
-           onClick={() => setCollapsed(v => !v)}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
         <div>
           <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.12em', color: C.soft, textTransform: 'uppercase', marginBottom: 4 }}>bench</p>
           <p style={{ fontFamily: GS, fontWeight: 700, fontSize: 20, letterSpacing: '-0.02em', margin: 0 }}>leaderboard</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {members && !collapsed && (
-            <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>{members.length} members</span>
-          )}
-          <span style={{ fontFamily: GM, fontSize: 14, color: C.soft }}>{collapsed ? '▸' : '▾'}</span>
-        </div>
+        {members && (
+          <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>{members.length} members · score = responsiveness + freshness</span>
+        )}
       </div>
 
-      {!collapsed && (
+      {error && <p style={{ fontFamily: GM, fontSize: 11, color: '#c0392b' }}>{error}</p>}
+      {!members && !error && <p style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>loading…</p>}
+      {members && (
         <>
-          {error && <p style={{ fontFamily: GM, fontSize: 11, color: '#c0392b' }}>{error}</p>}
-          {!members && !error && <p style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>loading…</p>}
-          {members && (
-            <>
-              <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 14, lineHeight: 1.5 }}>
-                ranked by responsiveness (ping reply rate) + freshness (days since availability update) · score 0–100
-              </p>
-              {/* header */}
-              <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 52px 80px 80px 70px', gap: 8, paddingBottom: 8, borderBottom: `1px solid ${C.rule}`, marginBottom: 4 }}>
-                {['#', 'name', 'score', 'replies', 'fresh', 'status'].map((h) => (
-                  <span key={h} style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.12em', color: C.soft, textTransform: 'uppercase' }}>{h}</span>
-                ))}
-              </div>
-              {members.slice(0, 30).map((m, i) => {
-                const av = avBadge(m.availability);
-                return (
-                  <div key={m.email} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 52px 80px 80px 70px', gap: 8, padding: '8px 0', borderBottom: `1px solid ${C.rule}`, alignItems: 'center' }}>
-                    {/* rank */}
-                    <span style={{ fontFamily: GM, fontSize: 11, color: i < 3 ? C.ink : C.soft, fontWeight: i < 3 ? 600 : 400 }}>{i + 1}</span>
-                    {/* name + discipline */}
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ fontFamily: GS, fontWeight: 600, fontSize: 13, letterSpacing: '-0.01em', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name || m.email}</p>
-                      {m.discipline && <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, margin: 0 }}>{m.discipline}{m.rateTier ? ` · ${m.rateTier}` : ''}</p>}
-                    </div>
-                    {/* score */}
-                    <div>
-                      <span style={{ fontFamily: GM, fontSize: 12, fontWeight: 600, color: scoreColor(m.score) }}>{m.score}</span>
-                      <div style={{ height: 3, background: 'rgba(13,13,11,0.08)', borderRadius: 2, marginTop: 4 }}>
-                        <div style={{ height: '100%', width: `${m.score}%`, background: scoreColor(m.score), borderRadius: 2, transition: 'width 0.4s ease' }} />
-                      </div>
-                    </div>
-                    {/* responsiveness */}
-                    <span style={{ fontFamily: GM, fontSize: 11, color: C.ink }}>
-                      {m.pingsSent === 0 ? <span style={{ color: C.soft }}>no pings</span> : `${m.responsiveness}% (${m.pingsResponded}/${m.pingsSent})`}
-                    </span>
-                    {/* freshness */}
-                    <span style={{ fontFamily: GM, fontSize: 11, color: m.daysSinceUpdate > 30 ? '#c0392b' : m.daysSinceUpdate > 14 ? '#C87C18' : C.ink }}>
-                      {fmtDays(m.daysSinceUpdate)}
-                    </span>
-                    {/* status */}
-                    {av ? (
-                      <span style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: av.col, fontWeight: 600 }}>{av.lbl}</span>
-                    ) : (
-                      <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>—</span>
-                    )}
+          {/* header */}
+          <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 52px 80px 80px 70px', gap: 8, paddingBottom: 8, borderBottom: `1px solid ${C.rule}`, marginBottom: 4 }}>
+            {['#', 'name', 'score', 'replies', 'updated', 'status'].map((h) => (
+              <span key={h} style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.12em', color: C.soft, textTransform: 'uppercase' }}>{h}</span>
+            ))}
+          </div>
+          {rows.map((m, i) => {
+            const av = avBadge(m.availability);
+            return (
+              <div key={m.email} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 52px 80px 80px 70px', gap: 8, padding: '8px 0', borderBottom: `1px solid ${C.rule}`, alignItems: 'center' }}>
+                <span style={{ fontFamily: GM, fontSize: 11, color: i < 3 ? C.ink : C.soft, fontWeight: i < 3 ? 600 : 400 }}>{i + 1}</span>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontFamily: GS, fontWeight: 600, fontSize: 13, letterSpacing: '-0.01em', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name || m.email}</p>
+                  {m.discipline && <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, margin: 0 }}>{m.discipline}{m.rateTier ? ` · ${m.rateTier}` : ''}</p>}
+                </div>
+                <div>
+                  <span style={{ fontFamily: GM, fontSize: 12, fontWeight: 600, color: scoreColor(m.score) }}>{m.score}</span>
+                  <div style={{ height: 3, background: 'rgba(13,13,11,0.08)', borderRadius: 2, marginTop: 4 }}>
+                    <div style={{ height: '100%', width: `${m.score}%`, background: scoreColor(m.score), borderRadius: 2 }} />
                   </div>
-                );
-              })}
-              {members.length > 30 && (
-                <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 8 }}>+ {members.length - 30} more</p>
-              )}
-            </>
+                </div>
+                <span style={{ fontFamily: GM, fontSize: 11, color: C.ink }}>
+                  {m.pingsSent === 0 ? <span style={{ color: C.soft }}>—</span> : `${m.responsiveness}% (${m.pingsResponded}/${m.pingsSent})`}
+                </span>
+                <span style={{ fontFamily: GM, fontSize: 11, color: m.daysSinceUpdate > 30 ? '#c0392b' : m.daysSinceUpdate > 14 ? '#C87C18' : C.ink }}>
+                  {fmtDays(m.daysSinceUpdate)}
+                </span>
+                {av ? (
+                  <span style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: av.col, fontWeight: 600 }}>{av.lbl}</span>
+                ) : (
+                  <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>—</span>
+                )}
+              </div>
+            );
+          })}
+          {members.length > PREVIEW && (
+            <button onClick={() => setShowAll(v => !v)}
+              style={{ marginTop: 10, fontFamily: GM, fontSize: 10, color: C.soft, background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, padding: 0 }}>
+              {showAll ? `show less` : `show all ${members.length} →`}
+            </button>
           )}
         </>
       )}
@@ -7620,7 +7621,8 @@ If this resonates, let's talk about how Colophon can become your go-to for same-
   );
 }
 
-function AdminQuickLinks() {
+function AdminQuickLinks({ secret }) {
+  const [showReferrer, setShowReferrer] = React.useState(false);
   const Item = ({ href, label, sub }) => (
     <a href={href} target="_blank" rel="noreferrer"
       style={{ display: 'block', padding: '12px 16px', border: `1px solid ${C.rule}`, color: C.ink, fontFamily: GM, fontSize: 12, textDecoration: 'none', background: '#fff' }}>
@@ -7628,17 +7630,26 @@ function AdminQuickLinks() {
       {sub && <div style={{ fontSize: 10, color: C.soft, marginTop: 2 }}>{sub}</div>}
     </a>
   );
+  const Btn = ({ label, sub, onClick }) => (
+    <button type="button" onClick={onClick}
+      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '12px 16px', border: `1px solid ${C.rule}`, color: C.ink, fontFamily: GM, fontSize: 12, background: '#fff', cursor: 'pointer' }}>
+      <div style={{ fontWeight: 600 }}>{label} →</div>
+      {sub && <div style={{ fontSize: 10, color: C.soft, marginTop: 2 }}>{sub}</div>}
+    </button>
+  );
   return (
-    <div style={{ marginBottom: 32 }}>
-      <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>quick links</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
+    <div style={{ marginBottom: 32, borderTop: `1px solid ${C.rule}`, paddingTop: 24 }}>
+      <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>tools</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8, marginBottom: 8 }}>
         <Item href="https://dashboard.stripe.com/payments" label="stripe payments" sub="checkouts + subs" />
         <Item href="https://docs.google.com/spreadsheets/d/e/2PACX-1vTxk39b5nWFUyQ_1vU0JdVufD2xkyG-RJepoFzv8_P_OIm_3CM21FmZTOXGMuscST6_7kpXruKt1_Rt/pubhtml" label="bench sheet" sub="csv source of truth" />
         <Item href="https://vercel.com" label="vercel" sub="deploys + logs + env" />
         <Item href="https://formspree.io/forms" label="formspree" sub="all form submissions" />
         <Item href="https://github.com/maxerdenberger/colophon" label="github" sub="main branch" />
         <Item href="/access" label="access page" sub="token entry view" />
+        <Btn label="referrer outreach" sub="warm intros when a new creative joins" onClick={() => setShowReferrer(v => !v)} />
       </div>
+      {showReferrer && <AdminReferrerOutreachPanel secret={secret} />}
     </div>
   );
 }
@@ -10294,29 +10305,28 @@ function AdminPage({ accent, setPage }) {
           </button>
         </div>
 
-        {/* ── SIMPLIFIED DASHBOARD — Only what needs attention ───────────── */}
-        
-        {/* Live stats — at a glance */}
+        {/* ── SIMPLIFIED DASHBOARD — ordered by urgency ──────────────────── */}
+
+        {/* PULSE: bench health at a glance */}
         <AdminStatsPanel accent={accent} />
 
-        {/* INBOX: Pending applications that need approval/decline */}
-        <BenchAdmin secret={secret} />
-
-        {/* ACTIVITY: What happened today/this week */}
-        <AdminActivityFeed secret={secret} />
-
-        {/* BENCH LEADERBOARD: Who stays most up to date — ranked by response rate + freshness */}
-        <BenchLeaderboard secret={secret} />
-
-        {/* OUTBOUND: Brief engine — fires to /brief.html + brief history */}
-        <BriefEngineCard />
+        {/* BRIEF INBOX: responses to active briefs — most time-sensitive signal */}
         <AdminBriefHistoryPanel secret={secret} />
 
-        {/* REFERRER OUTREACH: Warm intros to referrers from vetting data */}
-        <AdminReferrerOutreachPanel secret={secret} />
+        {/* APPLICANT QUEUE: new talent that needs a decision */}
+        <BenchAdmin secret={secret} />
 
-        {/* QUICK LINKS: Everything else hidden but accessible */}
-        <AdminQuickLinks />
+        {/* RECENT SIGNALS: what came in today/this week */}
+        <AdminActivityFeed secret={secret} />
+
+        {/* WHO'S RELIABLE: bench members ranked by response rate + freshness */}
+        <BenchLeaderboard secret={secret} />
+
+        {/* OUTBOUND: fire the next brief */}
+        <BriefEngineCard />
+
+        {/* QUICK LINKS: tools + referrer outreach */}
+        <AdminQuickLinks secret={secret} />
 
         <p style={{ fontFamily: GM, fontSize: 12, color: C.soft, lineHeight: 1.7, marginBottom: 22 }}>
           Sends a referral email via <code>/api/send-invites</code>. The recipient gets a message from <code>bench@colophon.contact</code> with subject <em>“{'{referrer}'} recommended you to Colophon.”</em> and a link to /invite.
