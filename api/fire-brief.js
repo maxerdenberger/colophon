@@ -21,12 +21,27 @@
 //   { ok, sent, failed, matched, dryRun, briefId, results }
 
 import { Resend } from 'resend';
+import crypto from 'crypto';
 import { readBench } from './_utils/sheets-v2.js';
 import { appendPingLog } from './_utils/sheets.js';
 
 const FROM      = 'Colophon <bench@colophon.contact>';
 const REPLY_TO  = 'bench@colophon.contact';
-const SIGNATURE = '\n\n— Max\ncolophon.contact';
+const SITE      = 'https://colophon.contact';
+
+function tokenFor(email) {
+  const secret = process.env.AVAILABILITY_TOKEN_SECRET || process.env.ADMIN_KEY || '590Rossmore';
+  return crypto.createHmac('sha256', secret).update(String(email).trim().toLowerCase()).digest('hex').slice(0, 32);
+}
+
+function responseLinks(email, briefId) {
+  const tok = tokenFor(email);
+  const base = `${SITE}/api/update-availability?email=${encodeURIComponent(email)}&token=${tok}&briefId=${encodeURIComponent(briefId)}`;
+  return {
+    yes:  `${base}&value=available`,
+    no:   `${base}&value=booked`,
+  };
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -245,10 +260,16 @@ Return strictly JSON, nothing else:
           `i'm matching creatives for a project — ${excerpt}${timing ? '. timing: ' + timing : ''}.`,
           '',
           `are you open to hearing more? happy to share details if so.`,
-          SIGNATURE,
+          '\n— Max\ncolophon.contact',
         ].join('\n'),
       };
     });
+  }
+
+  // Append one-click response links to every draft
+  for (const d of drafts) {
+    const links = responseLinks(d.email, briefId);
+    d.body += `\n\n---\nyes, I'm open:     ${links.yes}\nnot right now:    ${links.no}`;
   }
 
   // Align drafts to ranked list by email
@@ -294,7 +315,7 @@ Return strictly JSON, nothing else:
 
     let stamped = false;
     try {
-      await appendPingLog([{ name: c.name, email: c.email, emailId: sentId, status: 'sent', priorAvailability: c.availability }]);
+      await appendPingLog([{ name: c.name, email: c.email, emailId: sentId, status: 'sent', priorAvailability: c.availability, briefId }]);
       stamped = true;
     } catch {}
     results.push({ email: c.email, name: c.name, id: sentId, stamped, score: c.score, reason: c.reason });

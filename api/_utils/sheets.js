@@ -463,7 +463,7 @@ export async function appendPingLog(entries) {
   if (!_pingsTabReady) {
     await ensureTab(sheets, TAB, [
       'Timestamp','Name','Email','Email ID','Status','Opened At',
-      'Responded At','Response','Prior Availability',
+      'Responded At','Response','Prior Availability','Brief ID',
     ]);
     _pingsTabReady = true;
   }
@@ -478,6 +478,7 @@ export async function appendPingLog(entries) {
     '',                                         // respondedAt — stamped on click
     '',                                         // response — stamped on click
     e.priorAvailability || '',
+    e.briefId || '',
   ]);
   await sheets.spreadsheets.values.append({
     spreadsheetId: process.env.SHEETS_SPREADSHEET_ID,
