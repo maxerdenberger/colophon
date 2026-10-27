@@ -7018,6 +7018,108 @@ function BriefEngineCard() {
   );
 }
 
+// Bench leaderboard — ranked by responsiveness (ping response rate) + freshness (days since avail update).
+// Score 0–100: responsiveness×60 + freshness×40.
+function BenchLeaderboard({ secret }) {
+  const [members, setMembers] = React.useState(null);
+  const [error, setError]     = React.useState('');
+  const [collapsed, setCollapsed] = React.useState(true);
+
+  React.useEffect(() => {
+    if (!secret) return;
+    fetch('/api/bench-leaderboard', { headers: { Authorization: `Bearer ${secret}` } })
+      .then((r) => r.json())
+      .then((d) => { if (d.members) setMembers(d.members); else setError(d.error || 'failed'); })
+      .catch((e) => setError(e.message));
+  }, [secret]);
+
+  const scoreColor = (s) => s >= 80 ? '#3F7F4A' : s >= 50 ? '#C87C18' : '#c0392b';
+  const fmtDays = (d) => d > 999 ? 'never' : d === 0 ? 'today' : `${d}d ago`;
+
+  const avBadge = (a) => {
+    if (!a) return null;
+    const col = /immediate|ready/i.test(a) ? '#3F7F4A' : /2.4|weeks/i.test(a) ? '#C87C18' : '#888580';
+    const lbl = /immediate|ready/i.test(a) ? 'open' : /2.4|weeks/i.test(a) ? 'soon' : 'booked';
+    return { col, lbl };
+  };
+
+  return (
+    <div style={{ marginBottom: 32, borderTop: `1px solid ${C.rule}`, paddingTop: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: collapsed ? 0 : 18, cursor: 'pointer' }}
+           onClick={() => setCollapsed(v => !v)}>
+        <div>
+          <p style={{ fontFamily: GM, fontSize: 10, letterSpacing: '0.12em', color: C.soft, textTransform: 'uppercase', marginBottom: 4 }}>bench</p>
+          <p style={{ fontFamily: GS, fontWeight: 700, fontSize: 20, letterSpacing: '-0.02em', margin: 0 }}>leaderboard</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {members && !collapsed && (
+            <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>{members.length} members</span>
+          )}
+          <span style={{ fontFamily: GM, fontSize: 14, color: C.soft }}>{collapsed ? '▸' : '▾'}</span>
+        </div>
+      </div>
+
+      {!collapsed && (
+        <>
+          {error && <p style={{ fontFamily: GM, fontSize: 11, color: '#c0392b' }}>{error}</p>}
+          {!members && !error && <p style={{ fontFamily: GM, fontSize: 11, color: C.soft }}>loading…</p>}
+          {members && (
+            <>
+              <p style={{ fontFamily: GM, fontSize: 11, color: C.soft, marginBottom: 14, lineHeight: 1.5 }}>
+                ranked by responsiveness (ping reply rate) + freshness (days since availability update) · score 0–100
+              </p>
+              {/* header */}
+              <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 52px 80px 80px 70px', gap: 8, paddingBottom: 8, borderBottom: `1px solid ${C.rule}`, marginBottom: 4 }}>
+                {['#', 'name', 'score', 'replies', 'fresh', 'status'].map((h) => (
+                  <span key={h} style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.12em', color: C.soft, textTransform: 'uppercase' }}>{h}</span>
+                ))}
+              </div>
+              {members.slice(0, 30).map((m, i) => {
+                const av = avBadge(m.availability);
+                return (
+                  <div key={m.email} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 52px 80px 80px 70px', gap: 8, padding: '8px 0', borderBottom: `1px solid ${C.rule}`, alignItems: 'center' }}>
+                    {/* rank */}
+                    <span style={{ fontFamily: GM, fontSize: 11, color: i < 3 ? C.ink : C.soft, fontWeight: i < 3 ? 600 : 400 }}>{i + 1}</span>
+                    {/* name + discipline */}
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontFamily: GS, fontWeight: 600, fontSize: 13, letterSpacing: '-0.01em', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name || m.email}</p>
+                      {m.discipline && <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, margin: 0 }}>{m.discipline}{m.rateTier ? ` · ${m.rateTier}` : ''}</p>}
+                    </div>
+                    {/* score */}
+                    <div>
+                      <span style={{ fontFamily: GM, fontSize: 12, fontWeight: 600, color: scoreColor(m.score) }}>{m.score}</span>
+                      <div style={{ height: 3, background: 'rgba(13,13,11,0.08)', borderRadius: 2, marginTop: 4 }}>
+                        <div style={{ height: '100%', width: `${m.score}%`, background: scoreColor(m.score), borderRadius: 2, transition: 'width 0.4s ease' }} />
+                      </div>
+                    </div>
+                    {/* responsiveness */}
+                    <span style={{ fontFamily: GM, fontSize: 11, color: C.ink }}>
+                      {m.pingsSent === 0 ? <span style={{ color: C.soft }}>no pings</span> : `${m.responsiveness}% (${m.pingsResponded}/${m.pingsSent})`}
+                    </span>
+                    {/* freshness */}
+                    <span style={{ fontFamily: GM, fontSize: 11, color: m.daysSinceUpdate > 30 ? '#c0392b' : m.daysSinceUpdate > 14 ? '#C87C18' : C.ink }}>
+                      {fmtDays(m.daysSinceUpdate)}
+                    </span>
+                    {/* status */}
+                    {av ? (
+                      <span style={{ fontFamily: GM, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: av.col, fontWeight: 600 }}>{av.lbl}</span>
+                    ) : (
+                      <span style={{ fontFamily: GM, fontSize: 10, color: C.soft }}>—</span>
+                    )}
+                  </div>
+                );
+              })}
+              {members.length > 30 && (
+                <p style={{ fontFamily: GM, fontSize: 10, color: C.soft, marginTop: 8 }}>+ {members.length - 30} more</p>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // DEAD CODE BELOW — kept only to avoid breaking the old send-filtered-email endpoint reference
 // The actual brief-firing flow lives at /brief (brief.html)
 function AdminFilteredEmailPanel_LEGACY({ secret }) {
@@ -9649,7 +9751,6 @@ function AdminBenchBrowser({ secret }) {
           email with three one-click buttons: available now / soon / booked.
           Server reads the Sheet directly (no CSV cache) so the recipient
           list is exactly current. */}
-      <AdminBriefHistoryPanel secret={secret} />
       <BatchSendsPanel secret={secret} append={append} />
       <PingAvailabilitySection secret={secret} append={append} />
 
@@ -10204,8 +10305,12 @@ function AdminPage({ accent, setPage }) {
         {/* ACTIVITY: What happened today/this week */}
         <AdminActivityFeed secret={secret} />
 
-        {/* OUTBOUND: Brief engine — fires to /brief.html */}
+        {/* BENCH LEADERBOARD: Who stays most up to date — ranked by response rate + freshness */}
+        <BenchLeaderboard secret={secret} />
+
+        {/* OUTBOUND: Brief engine — fires to /brief.html + brief history */}
         <BriefEngineCard />
+        <AdminBriefHistoryPanel secret={secret} />
 
         {/* REFERRER OUTREACH: Warm intros to referrers from vetting data */}
         <AdminReferrerOutreachPanel secret={secret} />
