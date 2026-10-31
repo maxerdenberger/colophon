@@ -199,10 +199,10 @@
 
   <!-- Email preview -->
   <div class="preview-wrap">
-    <button class="preview-toggle" id="previewToggle" onclick="togglePreview()">
+    <button class="preview-toggle open" id="previewToggle" onclick="togglePreview()">
       <span class="arr">▸</span> preview email
     </button>
-    <div class="preview-pane" id="previewPane">
+    <div class="preview-pane open" id="previewPane">
       <div class="eml-wrap">
         <div class="eml-inner">
           <div class="eml-logo">
@@ -297,6 +297,7 @@ If you're open, respond within 5 hours to be put in front of the hiring manager.
 
 <script>
   // ── Email preview ─────────────────────────────────────────────────────────
+  updatePreview();
   function togglePreview() {
     const pane = document.getElementById('previewPane');
     const btn  = document.getElementById('previewToggle');
