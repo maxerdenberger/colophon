@@ -17,7 +17,7 @@ function parseRow(row) {
   return f;
 }
 
-function canonDisc(s) {
+export function canonDisc(s) {
   s = (s || '').toLowerCase();
   if (s.includes('copy')) return 'copywriting';
   if (s.includes('brand strategy')) return 'brand strategy';

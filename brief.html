@@ -221,6 +221,19 @@ If you're open, respond within 5 hours to be put in front of the hiring manager.
     </div>
   </div>
 
+  <div class="field">
+    <label>role — required, pick one or more</label>
+    <div class="check-group" id="roleGroup">
+      <label class="check-row"><input type="checkbox" name="role" value="art direction"/> <span class="check-label">art direction</span></label>
+      <label class="check-row"><input type="checkbox" name="role" value="creative direction"/> <span class="check-label">creative direction</span></label>
+      <label class="check-row"><input type="checkbox" name="role" value="design leadership"/> <span class="check-label">design leadership</span></label>
+      <label class="check-row"><input type="checkbox" name="role" value="copywriting"/> <span class="check-label">copywriting</span></label>
+      <label class="check-row"><input type="checkbox" name="role" value="brand strategy"/> <span class="check-label">brand strategy</span></label>
+      <label class="check-row"><input type="checkbox" name="role" value="motion design"/> <span class="check-label">motion design</span></label>
+      <label class="check-row"><input type="checkbox" name="role" value="ux / content design"/> <span class="check-label">ux / content design</span></label>
+    </div>
+  </div>
+
   <div class="row">
     <div class="field">
       <label>timing</label>
@@ -345,6 +358,9 @@ If you're open, respond within 5 hours to be put in front of the hiring manager.
   function selectedRates() {
     return [...document.querySelectorAll('#rateGroup input:checked')].map(cb => cb.value);
   }
+  function selectedRoles() {
+    return [...document.querySelectorAll('#roleGroup input:checked')].map(cb => cb.value);
+  }
 
   // ── Key persistence ──────────────────────────────────────────────────────
   const KEY_STORE = 'colophon_admin_key';
@@ -370,9 +386,11 @@ If you're open, respond within 5 hours to be put in front of the hiring manager.
     const topN   = Number(document.getElementById('topN').value);
 
     const rates = selectedRates();
+    const roles = selectedRoles();
 
     if (!key)   return showErr('enter your admin key first.');
     if (!brief) return showErr('enter a brief first.');
+    if (!roles.length) return showErr('pick at least one role.');
 
     setLoading(true);
     showStatus('', false);
@@ -382,7 +400,7 @@ If you're open, respond within 5 hours to be put in front of the hiring manager.
       const r = await fetch('/api/fire-brief', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-        body: JSON.stringify({ brief, timing, rates, topN, dryRun }),
+        body: JSON.stringify({ brief, timing, rates, roles, topN, dryRun }),
       });
       const ct = r.headers.get('content-type') || '';
       if (!ct.includes('json')) {

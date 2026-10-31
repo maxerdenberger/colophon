@@ -24,6 +24,7 @@ import { Resend } from 'resend';
 import crypto from 'crypto';
 import { readBench } from './_utils/sheets-v2.js';
 import { appendPingLog, logBrief } from './_utils/sheets.js';
+import { canonDisc } from './_utils/bench.js';
 
 const FROM      = 'Colophon <bench@colophon.contact>';
 const REPLY_TO  = 'bench@colophon.contact';
@@ -62,6 +63,7 @@ export default async function handler(req, res) {
   const brief        = String(body.brief  || '').trim();
   const timing       = String(body.timing || '').trim();
   const rates        = Array.isArray(body.rates) ? body.rates.filter(Boolean) : [];
+  const roles        = Array.isArray(body.roles) ? body.roles.filter(Boolean) : [];
   const topN         = Math.min(40, Math.max(1, Number(body.topN) || 15));
   const dryRun       = body.dryRun === true || body.dryRun === 'true' || body.dryRun === '1';
   const includeTeams = body.includeTeams === true || body.includeTeams === 'true';
@@ -99,6 +101,7 @@ export default async function handler(req, res) {
           email:       r.email || '',
           discipline:  discs[0] || '',
           disciplines: discs,
+          roles:       [...new Set(discs.map(canonDisc))],
           clients,
           availability:r.availability || '',
           rate:        r.hourlyRate   ? `$${r.hourlyRate}` : '',
@@ -106,7 +109,8 @@ export default async function handler(req, res) {
           note:        (r.valueProp   || '').toLowerCase(),
           tz:          r.timezone     || '',
         };
-      });
+      })
+      .filter((c) => !roles.length || c.roles.some((role) => roles.includes(role)));
   } catch (err) {
     return res.status(502).json({ error: 'bench read failed: ' + err.message });
   }
