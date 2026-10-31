@@ -48,6 +48,10 @@
   .check-row input[type=checkbox] { width: 13px; height: 13px; accent-color: var(--ink); cursor: pointer; flex-shrink: 0; }
   .check-row.checked { border-color: var(--ink); background: rgba(13,13,11,0.04); }
   .check-label { font-size: 12px; flex: 1; }
+  .role-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
+  .role-chip { position: relative; padding: 11px 12px; border: 1px solid var(--ink); font-family: var(--mono); font-size: 11px; text-align: center; cursor: pointer; user-select: none; background: var(--paper); color: var(--ink); }
+  .role-chip input { position: absolute; opacity: 0; pointer-events: none; }
+  .role-chip.on { background: var(--ink); color: var(--paper); }
   .check-count { font-size: 10px; color: var(--soft); }
 
   .key-field { display: flex; gap: 0; margin-bottom: 28px; }
@@ -223,14 +227,14 @@ If you're open, respond within 5 hours to be put in front of the hiring manager.
 
   <div class="field">
     <label>role — required, pick one or more</label>
-    <div class="check-group" id="roleGroup">
-      <label class="check-row"><input type="checkbox" name="role" value="art direction"/> <span class="check-label">art direction</span></label>
-      <label class="check-row"><input type="checkbox" name="role" value="creative direction"/> <span class="check-label">creative direction</span></label>
-      <label class="check-row"><input type="checkbox" name="role" value="design leadership"/> <span class="check-label">design leadership</span></label>
-      <label class="check-row"><input type="checkbox" name="role" value="copywriting"/> <span class="check-label">copywriting</span></label>
-      <label class="check-row"><input type="checkbox" name="role" value="brand strategy"/> <span class="check-label">brand strategy</span></label>
-      <label class="check-row"><input type="checkbox" name="role" value="motion design"/> <span class="check-label">motion design</span></label>
-      <label class="check-row"><input type="checkbox" name="role" value="ux / content design"/> <span class="check-label">ux / content design</span></label>
+    <div class="role-grid" id="roleGroup">
+      <label class="role-chip"><input type="checkbox" name="role" value="art direction"/>art direction</label>
+      <label class="role-chip"><input type="checkbox" name="role" value="creative direction"/>creative direction</label>
+      <label class="role-chip"><input type="checkbox" name="role" value="design leadership"/>design leadership</label>
+      <label class="role-chip"><input type="checkbox" name="role" value="copywriting"/>copywriting</label>
+      <label class="role-chip"><input type="checkbox" name="role" value="brand strategy"/>brand strategy</label>
+      <label class="role-chip"><input type="checkbox" name="role" value="motion design"/>motion design</label>
+      <label class="role-chip"><input type="checkbox" name="role" value="ux / content design"/>ux / content design</label>
     </div>
   </div>
 
@@ -358,6 +362,10 @@ If you're open, respond within 5 hours to be put in front of the hiring manager.
   function selectedRates() {
     return [...document.querySelectorAll('#rateGroup input:checked')].map(cb => cb.value);
   }
+  document.querySelectorAll('#roleGroup input').forEach(cb => {
+    cb.addEventListener('change', () => cb.closest('.role-chip').classList.toggle('on', cb.checked));
+  });
+
   function selectedRoles() {
     return [...document.querySelectorAll('#roleGroup input:checked')].map(cb => cb.value);
   }
