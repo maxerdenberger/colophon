@@ -5,6 +5,7 @@
     "api/*.js": { "maxDuration": 30 }
   },
   "rewrites": [
+    { "source": "/brief", "destination": "/brief.html" },
     { "source": "/((?!api/|.*\\.).*)", "destination": "/index.html" }
   ],
   "crons": [
